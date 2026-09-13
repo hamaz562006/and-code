@@ -62,11 +62,18 @@ class AntigravityTarget(internal val runtime: AntigravityRuntime) : RuntimeTarge
     }
 
     override suspend fun connect(): Result<OpenCodeHealth> =
-        runCatching {
-            val version = runtime.version() ?: error("Antigravity is not installed or incompatible with this ABI")
-            mutableState.value = RuntimeState.Connected(version)
-            OpenCodeHealth(true, version)
-        }.onFailure { mutableState.value = RuntimeState.Unavailable(it.message ?: "Antigravity unavailable") }
+        // runtime.version() reads through installer.installedRuntime(), which blocks on
+        // LocalRuntimeAccessCoordinator's write lock and does file I/O. This is polled from
+        // ConnectionQualityMonitor's health check on the caller's own dispatcher (main, for the
+        // chat), so left unswitched it froze the UI thread for as long as an install/update held
+        // the lock - long enough for the OS to report an ANR.
+        withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val version = runtime.version() ?: error("Antigravity is not installed or incompatible with this ABI")
+                mutableState.value = RuntimeState.Connected(version)
+                OpenCodeHealth(true, version)
+            }.onFailure { mutableState.value = RuntimeState.Unavailable(it.message ?: "Antigravity unavailable") }
+        }
 
     override fun disconnect() {
         runtime.abortAll()
@@ -92,7 +99,12 @@ class AntigravityTarget(internal val runtime: AntigravityRuntime) : RuntimeTarge
         val id = UUID.randomUUID().toString()
         // Same as ClaudeCodeTarget: the mode settings shows is what a new chat runs in. Leaving the
         // record's own default here is what made a full-access setting start chats in accept-edits.
-        runtime.create(id, directory ?: "/workspace", title, mutableDefaultPermissionMode.value)
+        // persist() serializes the whole message store to disk, so this must stay off the caller's
+        // (usually main) thread - left inline it blocked the UI long enough for Crashlytics to see
+        // it as an ANR once the store grew.
+        withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runtime.create(id, directory ?: "/workspace", title, mutableDefaultPermissionMode.value)
+        }
         return OpenCodeSession(
             id,
             directory = directory ?: "/workspace",
@@ -105,7 +117,7 @@ class AntigravityTarget(internal val runtime: AntigravityRuntime) : RuntimeTarge
         sessionId: String,
         title: String,
     ): OpenCodeSession {
-        runtime.setSessionTitle(sessionId, title)
+        withContext(kotlinx.coroutines.Dispatchers.IO) { runtime.setSessionTitle(sessionId, title) }
         val record = runtime.findSession(sessionId) ?: error("Antigravity session not found")
         return OpenCodeSession(
             record.appSessionId,
@@ -152,10 +164,16 @@ class AntigravityTarget(internal val runtime: AntigravityRuntime) : RuntimeTarge
         // "Antigravity" - the same gap ClaudeCodeTarget fills, filled the same way. The prompt stands
         // in at once so the drawer is never left showing the tool's name.
         val needsTitle = record.title == null
-        if (needsTitle) titleFromPrompt(request.text)?.let { runtime.setSessionTitle(sessionId, it) }
+        if (needsTitle) {
+            titleFromPrompt(request.text)?.let { title ->
+                withContext(kotlinx.coroutines.Dispatchers.IO) { runtime.setSessionTitle(sessionId, title) }
+            }
+        }
         val model = request.modelId ?: record.model
         val variant = request.variant ?: record.variant
-        if (model != record.model || variant != record.variant) runtime.setSessionModel(sessionId, model, variant)
+        if (model != record.model || variant != record.variant) {
+            withContext(kotlinx.coroutines.Dispatchers.IO) { runtime.setSessionModel(sessionId, model, variant) }
+        }
         // The session's own mode: set when the chat was created from the default settings shows, and
         // changed from either the composer's chip or the settings screen.
         val permissionMode = AntigravityPermissionMode.fromCliValue(record.permissionMode)
@@ -209,9 +227,8 @@ class AntigravityTarget(internal val runtime: AntigravityRuntime) : RuntimeTarge
         return true
     }
 
-    override suspend fun deleteSession(sessionId: String): Boolean {
-        return runtime.remove(sessionId)
-    }
+    override suspend fun deleteSession(sessionId: String): Boolean =
+        withContext(kotlinx.coroutines.Dispatchers.IO) { runtime.remove(sessionId) }
 
     /**
      * Hides the chat from the drawer while keeping its transcript - the same semantics the
@@ -221,7 +238,7 @@ class AntigravityTarget(internal val runtime: AntigravityRuntime) : RuntimeTarge
      * silently did nothing, so stale and over-cap chats piled up forever.
      */
     override suspend fun archiveSession(sessionId: String): OpenCodeSession {
-        val record = runtime.archive(sessionId) ?: error("Antigravity session not found")
+        val record = withContext(kotlinx.coroutines.Dispatchers.IO) { runtime.archive(sessionId) } ?: error("Antigravity session not found")
         return OpenCodeSession(
             record.appSessionId,
             directory = record.workspace,

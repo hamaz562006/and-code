@@ -136,7 +136,12 @@ class LocalRuntimeManager(
 
     suspend fun ensureRunning(): Result<LocalRuntimeStatus.Ready> =
         operationMutex.withLock {
-            updateEngine?.recover()
+            // A prior update/rollback can be interrupted (app killed mid-swap) in a way recovery
+            // itself cannot repair - e.g. the expected binary for either version is simply gone.
+            // Every other recovery caller in this class wraps the attempt; left bare here, that
+            // exception used to escape ensureRunning() uncaught and crash the app on every
+            // subsequent start of the local runtime.
+            runCatching { updateEngine?.recover() }
             val metadata =
                 readMetadata()
                     ?: return@withLock Result.failure(IllegalStateException("Local runtime is not installed"))

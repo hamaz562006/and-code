@@ -15,14 +15,7 @@ class SecureSettingsRepository(context: Context) : RuntimeConnectionStore, Unrea
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
 
-    private val preferences: SharedPreferences =
-        EncryptedSharedPreferences.create(
-            context,
-            PREFS_NAME,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
+    private val preferences: SharedPreferences = createPreferences(context, masterKey)
 
     @Synchronized
     override fun connections(): List<ConnectionProfile> =
@@ -460,6 +453,39 @@ class SecureSettingsRepository(context: Context) : RuntimeConnectionStore, Unrea
         set(value) = preferences.edit().putInt(KEY_AUTO_ARCHIVE_MAX_SESSIONS, value).apply()
 
     companion object {
+        /**
+         * Some devices (seen on stock and OEM ROMs after an OS update, or a backup/restore that
+         * carried the prefs file to a new install without its Keystore-bound key) leave the stored
+         * keyset undecryptable with the current Keystore key: every read throws
+         * [android.security.KeyStoreException] wrapped in [javax.crypto.AEADBadTagException]. Left
+         * uncaught here this crashed [com.yugahashimoto.andcode.AndCodeApplication.onCreate] itself,
+         * bricking the app on every launch since nothing after this constructor ever ran. The
+         * ciphertext cannot be recovered, so this drops it and starts over with a fresh keyset -
+         * exactly what a first run does - rather than leave the user permanently locked out.
+         */
+        private fun createPreferences(
+            context: Context,
+            masterKey: MasterKey,
+        ): SharedPreferences =
+            runCatching { buildPreferences(context, masterKey) }
+                .recoverCatching {
+                    context.deleteSharedPreferences(PREFS_NAME)
+                    buildPreferences(context, masterKey)
+                }
+                .getOrThrow()
+
+        private fun buildPreferences(
+            context: Context,
+            masterKey: MasterKey,
+        ): SharedPreferences =
+            EncryptedSharedPreferences.create(
+                context,
+                PREFS_NAME,
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+
         fun readLanguage(context: Context): String =
             runCatching {
                 val masterKey =
