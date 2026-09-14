@@ -153,6 +153,12 @@ android {
                 storePassword = releaseStorePassword
                 keyAlias = releaseKeyAlias
                 keyPassword = releaseKeyPassword
+                // Some third-party app store upload verifiers (e.g. APKPure) still read the
+                // signer certificate via the legacy JAR (v1) signing block. AGP omits v1 by
+                // default once minSdk >= 24, so it must be requested explicitly here.
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }
