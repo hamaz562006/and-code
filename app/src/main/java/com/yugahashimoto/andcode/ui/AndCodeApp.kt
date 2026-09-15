@@ -237,10 +237,12 @@ fun AndCodeApp(
                         catalog = app.catalogRepository,
                         preferences = app.preferences,
                         credentials = app.providerCredentials,
+                        customProviders = app.customProviders,
                         settings = app.settings,
                         registry = app.runtimeRegistry,
                         voskModels = app.voskModels,
                         providerDisconnectRejectedMessage = context.getString(R.string.provider_disconnect_rejected),
+                        customProviderInvalidMessage = context.getString(R.string.provider_custom_invalid),
                     )
                 },
         )

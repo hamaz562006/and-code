@@ -16,6 +16,7 @@ import com.yugahashimoto.andcode.runtime.RuntimeRegistry
 import com.yugahashimoto.andcode.runtime.local.AndroidLocalRuntimeMessages
 import com.yugahashimoto.andcode.runtime.local.AntigravityRuntime
 import com.yugahashimoto.andcode.runtime.local.AntigravityTarget
+import com.yugahashimoto.andcode.runtime.local.CustomProviderStore
 import com.yugahashimoto.andcode.runtime.local.DefaultLocalRuntimeUpdateEngine
 import com.yugahashimoto.andcode.runtime.local.GitCredentialHelper
 import com.yugahashimoto.andcode.runtime.local.LocalProviderCredentialStore
@@ -59,6 +60,8 @@ val appModule =
 
         single { LocalProviderCredentialStore(get()) }
 
+        single { CustomProviderStore(get()) }
+
         single { VoskModelStore(androidContext(), get(), get()) }
 
         single { OkHttpClient() }
@@ -81,6 +84,7 @@ val appModule =
         single {
             val settings: SecureSettingsRepository = get()
             val providerCredentials: LocalProviderCredentialStore = get()
+            val customProviders: CustomProviderStore = get()
             val runtimeDirectory: File = get()
             LocalRuntimeProcessLauncher(
                 runtimeDirectory = runtimeDirectory,
@@ -88,6 +92,7 @@ val appModule =
                 githubToken = { settings.githubToken },
                 beforeStart = { installed ->
                     runCatching { providerCredentials.syncToRuntime(installed.rootfs) }
+                    runCatching { customProviders.syncToRuntime(installed.rootfs) }
                     runCatching {
                         GitCredentialHelper(installed.rootfs) { settings.githubToken }.let { helper ->
                             if (settings.githubToken.isNullOrBlank()) helper.remove() else helper.install()

@@ -61,6 +61,14 @@ fun ProviderSettingsScreen(
     onDisconnectProvider: (String) -> Unit,
     onLaunchOAuthBrowser: (String) -> Unit,
     onDismissProviderAuth: () -> Unit,
+    onOpenAddCustomProvider: () -> Unit,
+    onCustomProviderIdChange: (String) -> Unit,
+    onCustomProviderNameChange: (String) -> Unit,
+    onCustomProviderBaseUrlChange: (String) -> Unit,
+    onCustomProviderModelsChange: (String) -> Unit,
+    onSubmitCustomProvider: () -> Unit,
+    onDismissCustomProviderDialog: () -> Unit,
+    onRemoveCustomProvider: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -106,6 +114,13 @@ fun ProviderSettingsScreen(
                 shape = RoundedCornerShape(14.dp),
             )
 
+            OutlinedButton(
+                onClick = onOpenAddCustomProvider,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.provider_add_custom))
+            }
+
             val filtered =
                 state.availableProviders
                     .sortedBy { it.name.lowercase() }
@@ -136,8 +151,10 @@ fun ProviderSettingsScreen(
                                 stringResource(R.string.setup_provider_api_key_only)
                             },
                         connected = connected,
+                        isCustom = provider.id in state.customProviderIds,
                         onConnect = { onOpenProviderAuth(provider.id) },
                         onDisconnect = { onDisconnectProvider(provider.id) },
+                        onRemove = { onRemoveCustomProvider(provider.id) },
                     )
                 }
             }
@@ -175,6 +192,18 @@ fun ProviderSettingsScreen(
             onCompleteCode = onCompleteProviderOAuth,
             onLaunchBrowser = onLaunchOAuthBrowser,
             onDismiss = onDismissProviderAuth,
+        )
+    }
+
+    state.customProviderDialog?.let { dialog ->
+        CustomProviderDialog(
+            state = dialog,
+            onIdChange = onCustomProviderIdChange,
+            onNameChange = onCustomProviderNameChange,
+            onBaseUrlChange = onCustomProviderBaseUrlChange,
+            onModelsChange = onCustomProviderModelsChange,
+            onSubmit = onSubmitCustomProvider,
+            onDismiss = onDismissCustomProviderDialog,
         )
     }
 }
@@ -256,8 +285,10 @@ private fun ProviderRow(
     providerName: String,
     methodSummary: String,
     connected: Boolean,
+    isCustom: Boolean,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
+    onRemove: () -> Unit,
 ) {
     Column(
         modifier =
@@ -314,6 +345,11 @@ private fun ProviderRow(
                     Text(stringResource(R.string.provider_disconnect))
                 }
             }
+            if (isCustom) {
+                TextButton(onClick = onRemove) {
+                    Text(stringResource(R.string.provider_custom_remove))
+                }
+            }
         }
     }
 }
@@ -354,6 +390,14 @@ private fun ProviderSettingsScreenPreview() {
             onDisconnectProvider = {},
             onLaunchOAuthBrowser = {},
             onDismissProviderAuth = {},
+            onOpenAddCustomProvider = {},
+            onCustomProviderIdChange = {},
+            onCustomProviderNameChange = {},
+            onCustomProviderBaseUrlChange = {},
+            onCustomProviderModelsChange = {},
+            onSubmitCustomProvider = {},
+            onDismissCustomProviderDialog = {},
+            onRemoveCustomProvider = {},
             onBack = {},
         )
     }
