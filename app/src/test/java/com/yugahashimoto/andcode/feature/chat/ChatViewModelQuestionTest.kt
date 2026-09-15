@@ -111,7 +111,7 @@ class ChatViewModelQuestionTest {
         }
 
     @Test
-    fun `failed answer keeps question and trims fallback input`() =
+    fun `failed answer keeps question and trims fallback input only on submit`() =
         runTest(dispatcher) {
             val backend = FakeBackend(answerResult = false)
             val viewModel = ChatViewModel(backend)
@@ -137,9 +137,48 @@ class ChatViewModelQuestionTest {
 
             assertEquals(listOf(listOf("src/main")), backend.answeredQuestions.single().answers)
             val pending = viewModel.uiState.value.pendingQuestions.single()
-            assertEquals(listOf("src/main"), pending.selectedAnswers.single())
+            // The pending state must keep the raw, untrimmed text: trimming it here would strip
+            // a trailing space the instant it's typed, silently joining words together in the
+            // text field (see https://github.com/yuga-hashimoto/and-code/issues/319).
+            assertEquals(listOf("   src/main   "), pending.selectedAnswers.single())
             assertEquals("OpenCode question failed", pending.error)
             assertFalse(pending.isSubmitting)
+        }
+
+    @Test
+    fun `free text answer keeps internal and trailing spaces while typing`() =
+        runTest(dispatcher) {
+            val backend = FakeBackend()
+            val viewModel = ChatViewModel(backend)
+
+            viewModel.openSession("session-1")
+            advanceUntilIdle()
+            backend.events.emit(
+                OpenCodeEvent.QuestionAsked(
+                    request(
+                        id = "q-1",
+                        sessionId = "session-1",
+                        options = emptyList(),
+                    ),
+                ),
+            )
+            advanceUntilIdle()
+
+            // Simulate typing "hello world" one character at a time, the way a Compose
+            // TextField's onValueChange fires per keystroke.
+            "hello world".indices.forEach { i ->
+                viewModel.selectQuestionAnswer("q-1", 0, "hello world".substring(0, i + 1))
+            }
+
+            assertEquals(
+                listOf("hello world"),
+                viewModel.uiState.value.pendingQuestions.single().selectedAnswers.single(),
+            )
+
+            viewModel.submitQuestion("q-1")
+            advanceUntilIdle()
+
+            assertEquals(listOf(listOf("hello world")), backend.answeredQuestions.single().answers)
         }
 
     @Test
