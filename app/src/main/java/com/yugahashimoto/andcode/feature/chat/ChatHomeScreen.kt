@@ -142,7 +142,9 @@ import com.yugahashimoto.andcode.ui.components.StatusChip
 import com.yugahashimoto.andcode.ui.components.VolumeMeter
 import com.yugahashimoto.andcode.ui.components.systemPromptPresetLabel
 import com.yugahashimoto.andcode.ui.theme.AndCodeTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** What the long-press action sheet offers for one message: its id, its text to copy, and whether "Edit & resend" applies. */
 private data class MessageActionTarget(
@@ -284,17 +286,20 @@ fun ChatHomeScreen(
         rememberLauncherForActivityResult(
             ActivityResultContracts.PickMultipleVisualMedia(),
         ) { uris ->
-            uris.forEach { uri ->
-                try {
-                    val bitmap =
-                        context.contentResolver.openInputStream(uri)?.use {
-                            android.graphics.BitmapFactory.decodeStream(it)
+            coroutineScope.launch {
+                uris.forEach { uri ->
+                    try {
+                        val bitmap =
+                            withContext(Dispatchers.IO) {
+                                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                    ?.let { bytes -> decodeSampledBitmap(bytes, COMPOSER_PREVIEW_MAX_DIMENSION) }
+                            }
+                        if (bitmap != null) {
+                            onImageAttachment(bitmap)
                         }
-                    if (bitmap != null) {
-                        onImageAttachment(bitmap)
+                    } catch (e: Exception) {
+                        android.util.Log.w("ChatHomeScreen", "Failed to load image", e)
                     }
-                } catch (e: Exception) {
-                    android.util.Log.w("ChatHomeScreen", "Failed to load image", e)
                 }
             }
         }

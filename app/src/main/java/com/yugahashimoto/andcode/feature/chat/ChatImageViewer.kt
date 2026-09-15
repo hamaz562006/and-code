@@ -143,16 +143,29 @@ suspend fun loadChatImageBitmap(
 ): Bitmap? =
     withContext(Dispatchers.IO) {
         val bytes = loadChatImageBytes(context, source) ?: return@withContext source.preview
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@withContext source.preview
-        var sample = 1
-        while (bounds.outWidth / sample > VIEWER_MAX_DIMENSION || bounds.outHeight / sample > VIEWER_MAX_DIMENSION) {
-            sample *= 2
-        }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
-            ?: source.preview
+        decodeSampledBitmap(bytes, VIEWER_MAX_DIMENSION) ?: source.preview
     }
+
+/**
+ * Decodes [bytes] downsampled so neither dimension exceeds [maxDimension].
+ *
+ * A camera or gallery photo can be 30-50+ MP; decoding it at full resolution just to show a chat
+ * bubble thumbnail can allocate 100-200MB for a single bitmap - enough to OOM outright, or to blow
+ * past the GPU's max texture size once Compose tries to draw it (#320).
+ */
+fun decodeSampledBitmap(
+    bytes: ByteArray,
+    maxDimension: Int,
+): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    var sample = 1
+    while (bounds.outWidth / sample > maxDimension || bounds.outHeight / sample > maxDimension) {
+        sample *= 2
+    }
+    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+}
 
 suspend fun loadChatImageBytes(
     context: Context,
@@ -307,3 +320,6 @@ private fun readLimited(input: java.io.InputStream): ByteArray {
 private const val MAX_IMAGE_BYTES = 25 * 1024 * 1024
 private const val MAX_IMAGE_BASE64_CHARS = 34_952_536
 private const val VIEWER_MAX_DIMENSION = 4096
+
+/** Max dimension for an attachment's optimistic composer/bubble thumbnail - see [decodeSampledBitmap]. */
+const val COMPOSER_PREVIEW_MAX_DIMENSION = 1024
