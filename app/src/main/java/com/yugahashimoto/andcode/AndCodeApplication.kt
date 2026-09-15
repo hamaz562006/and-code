@@ -51,6 +51,7 @@ import com.yugahashimoto.andcode.runtime.local.AntigravityTarget
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeController
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeRuntime
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeTarget
+import com.yugahashimoto.andcode.runtime.local.CustomProviderStore
 import com.yugahashimoto.andcode.runtime.local.DefaultLocalRuntimeUpdateEngine
 import com.yugahashimoto.andcode.runtime.local.GitCloneRepository
 import com.yugahashimoto.andcode.runtime.local.GitCredentialHelper
@@ -158,6 +159,9 @@ class AndCodeApplication : Application() {
     lateinit var providerCredentials: LocalProviderCredentialStore
         private set
 
+    lateinit var customProviders: CustomProviderStore
+        private set
+
     lateinit var voskModels: VoskModelStore
         private set
 
@@ -234,6 +238,7 @@ class AndCodeApplication : Application() {
         DeviceStorage.install { deviceStorageAccess.mounts() }
         notifications = RuntimeNotificationHelper(this)
         providerCredentials = LocalProviderCredentialStore(settings)
+        customProviders = CustomProviderStore(settings)
         val httpClient = OkHttpClient()
         // Application-scoped so that navigating away from voice settings does not abandon a model
         // download half-written.
@@ -266,6 +271,7 @@ class AndCodeApplication : Application() {
                 githubToken = { settings.githubToken },
                 beforeStart = { installed ->
                     runCatching { providerCredentials.syncToRuntime(installed.rootfs) }
+                    runCatching { customProviders.syncToRuntime(installed.rootfs) }
                     runCatching {
                         GitCredentialHelper(installed.rootfs) { settings.githubToken }.let { helper ->
                             if (settings.githubToken.isNullOrBlank()) helper.remove() else helper.install()

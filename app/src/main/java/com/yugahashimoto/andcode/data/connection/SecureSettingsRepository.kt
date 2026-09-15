@@ -217,6 +217,36 @@ class SecureSettingsRepository(context: Context) : RuntimeConnectionStore, Unrea
                 .apply()
         }
 
+    var customProviders: List<com.yugahashimoto.andcode.runtime.local.CustomProviderDefinition>
+        get() =
+            com.yugahashimoto.andcode.runtime.local.CustomProviderStore.decodeList(
+                preferences.getString(KEY_CUSTOM_PROVIDERS, null),
+            )
+        set(value) {
+            preferences.edit()
+                .putString(
+                    KEY_CUSTOM_PROVIDERS,
+                    com.yugahashimoto.andcode.runtime.local.CustomProviderStore.encodeList(value),
+                )
+                .apply()
+        }
+
+    var syncedCustomProviderIds: Set<String>
+        get() =
+            preferences.getStringSet(KEY_SYNCED_CUSTOM_PROVIDER_IDS, emptySet())
+                .orEmpty()
+                .map(String::trim)
+                .filter(String::isNotEmpty)
+                .toSet()
+        set(value) {
+            preferences.edit()
+                .putStringSet(
+                    KEY_SYNCED_CUSTOM_PROVIDER_IDS,
+                    value.map(String::trim).filter(String::isNotEmpty).toSet(),
+                )
+                .apply()
+        }
+
     var assistantRuntimeId: String?
         get() = preferences.getString(KEY_ASSISTANT_RUNTIME_ID, null)
         set(value) = preferences.edit().putString(KEY_ASSISTANT_RUNTIME_ID, value).apply()
@@ -535,6 +565,8 @@ class SecureSettingsRepository(context: Context) : RuntimeConnectionStore, Unrea
         private const val KEY_HIDDEN_MODELS = "hidden_models"
         private const val KEY_PROVIDER_API_KEYS = "provider_api_keys"
         private const val KEY_MANAGED_PROVIDER_API_KEY_IDS = "managed_provider_api_key_ids"
+        private const val KEY_CUSTOM_PROVIDERS = "custom_providers"
+        private const val KEY_SYNCED_CUSTOM_PROVIDER_IDS = "synced_custom_provider_ids"
         private const val KEY_ASSISTANT_RUNTIME_ID = "assistant_runtime_id"
         private const val KEY_ASSISTANT_WORKSPACE_PATH = "assistant_workspace_path"
         private const val KEY_ASSISTANT_PROVIDER_ID = "assistant_provider_id"

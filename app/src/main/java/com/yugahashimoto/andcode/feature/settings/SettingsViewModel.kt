@@ -24,7 +24,10 @@ import com.yugahashimoto.andcode.runtime.BackendKind
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.RuntimeRegistry
 import com.yugahashimoto.andcode.runtime.RuntimeTarget
+import com.yugahashimoto.andcode.runtime.local.CustomProviderDefinition
+import com.yugahashimoto.andcode.runtime.local.CustomProviderStore
 import com.yugahashimoto.andcode.runtime.local.LocalProviderCredentialStore
+import com.yugahashimoto.andcode.runtime.local.toProviderConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -36,6 +39,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.util.Locale
 
 data class SettingsUiState(
@@ -79,6 +84,8 @@ data class SettingsUiState(
     val oauthMessage: String? = null,
     val providerAuthDialog: ProviderAuthDialogState? = null,
     val providerAuthNotice: ProviderAuthNotice? = null,
+    val customProviderIds: Set<String> = emptySet(),
+    val customProviderDialog: CustomProviderDialogState? = null,
     val favoriteModelKeys: Set<String> = emptySet(),
     val recentModelKeys: List<String> = emptyList(),
     val hiddenModelKeys: Set<String> = emptySet(),
@@ -94,13 +101,17 @@ class SettingsViewModel(
     private val catalog: RuntimeCatalogRepository,
     private val preferences: AppPreferencesRepository,
     private val credentials: LocalProviderCredentialStore,
+    private val customProviders: CustomProviderStore,
     private val settings: SecureSettingsRepository,
     private val registry: RuntimeRegistry,
     private val voskModels: VoskModelStore,
     private val providerDisconnectRejectedMessage: String = "Provider disconnect was not accepted",
+    private val customProviderInvalidMessage: String = "Enter a provider id, base URL, and at least one model id",
 ) : ViewModel() {
     private val settingsTick = MutableStateFlow(0)
     private val oauthState = MutableStateFlow(OAuthState())
+    private val customProviderDialogState = MutableStateFlow<CustomProviderDialogState?>(null)
+    private var customProviderJob: Job? = null
 
     /**
      * Providers of the runtime that owns them, which is not always the selected one.
@@ -151,6 +162,10 @@ class SettingsViewModel(
         }
     }
 
+    /** [settingsTick] and the custom-provider dialog draft share one combine slot, since [combine] tops out at five flows. */
+    private val tickAndCustomDialog =
+        combine(settingsTick, customProviderDialogState) { tick, dialog -> tick to dialog }
+
     val state: StateFlow<SettingsUiState> =
         combine(
             combine(
@@ -162,11 +177,11 @@ class SettingsViewModel(
             ) { runtime, prefs, targets, selected, providers ->
                 CoreState(runtime, prefs, targets, selected, providers)
             },
-            settingsTick,
+            tickAndCustomDialog,
             oauthState,
             githubState,
             voskModels.state,
-        ) { core, _, oauth, github, voskModelStates ->
+        ) { core, (_, customProviderDialog), oauth, github, voskModelStates ->
             // Two different questions, two different catalogues.
             //
             // `providers` answers "what can this chat talk to", so it follows the selected runtime.
@@ -212,6 +227,8 @@ class SettingsViewModel(
                 oauthMessage = oauth.message,
                 providerAuthDialog = oauth.dialog,
                 providerAuthNotice = oauth.notice,
+                customProviderIds = customProviders.definitions().map { it.id }.toSet(),
+                customProviderDialog = customProviderDialog,
                 favoriteModelKeys = core.preferences.favoriteModelKeys,
                 recentModelKeys = core.preferences.recentModelKeys,
                 hiddenModelKeys = core.preferences.hiddenModelKeys,
@@ -571,6 +588,85 @@ class SettingsViewModel(
         providerAuthJob?.cancel()
         providerAuthJob = null
         oauthState.update { it.copy(dialog = null, message = null) }
+    }
+
+    /** Opens the draft dialog for registering an OpenAI-compatible provider OpenCode's catalogue doesn't offer. */
+    fun openAddCustomProvider() {
+        customProviderDialogState.value = CustomProviderDialogState()
+    }
+
+    fun updateCustomProviderId(value: String) {
+        customProviderDialogState.update { it?.copy(id = value, error = null) }
+    }
+
+    fun updateCustomProviderName(value: String) {
+        customProviderDialogState.update { it?.copy(name = value, error = null) }
+    }
+
+    fun updateCustomProviderBaseUrl(value: String) {
+        customProviderDialogState.update { it?.copy(baseUrl = value, error = null) }
+    }
+
+    fun updateCustomProviderModels(value: String) {
+        customProviderDialogState.update { it?.copy(models = value, error = null) }
+    }
+
+    fun dismissCustomProviderDialog() {
+        customProviderJob?.cancel()
+        customProviderJob = null
+        customProviderDialogState.value = null
+    }
+
+    /**
+     * Registers the draft as an OpenCode `provider` config entry (OpenCode's OpenAI-compatible AI
+     * SDK adapter), then reopens the standard [openProviderAuth] flow so the user enters its API
+     * key through the same dialog every other provider uses.
+     */
+    fun submitCustomProvider() {
+        val dialog = customProviderDialogState.value ?: return
+        if (dialog.isSubmitting || customProviderJob?.isActive == true) return
+        val target = providerTarget() ?: return
+        val definition =
+            CustomProviderDefinition(
+                id = dialog.id.trim(),
+                name = dialog.name.trim().ifEmpty { dialog.id.trim() },
+                baseUrl = dialog.baseUrl.trim(),
+                models = dialog.models.split(',').map(String::trim).filter(String::isNotEmpty).distinct(),
+            )
+        if (definition.id.isEmpty() || definition.baseUrl.isEmpty() || definition.models.isEmpty()) {
+            customProviderDialogState.update { it?.copy(error = customProviderInvalidMessage) }
+            return
+        }
+        customProviderJob =
+            viewModelScope.launch {
+                customProviderDialogState.update { it?.copy(isSubmitting = true, error = null) }
+                runCatching {
+                    target.updateConfig(
+                        buildJsonObject {
+                            put("provider", buildJsonObject { put(definition.id, definition.toProviderConfig()) })
+                        },
+                    )
+                }.onSuccess {
+                    customProviders.upsert(definition)
+                    customProviderJob = null
+                    customProviderDialogState.value = null
+                    catalog.refreshProvidersOnly()
+                    catalog.refresh()
+                    refreshProviderAuth()
+                    openProviderAuth(definition.id)
+                }.onFailure { error ->
+                    customProviderJob = null
+                    customProviderDialogState.update {
+                        it?.copy(isSubmitting = false, error = error.message?.takeIf(String::isNotBlank) ?: customProviderInvalidMessage)
+                    }
+                }
+            }
+    }
+
+    /** Forgets a custom provider entirely: its definition and its stored credential. */
+    fun removeCustomProvider(providerId: String) {
+        customProviders.remove(providerId)
+        disconnectProvider(providerId)
     }
 
     fun consumeProviderAuthNotice() {

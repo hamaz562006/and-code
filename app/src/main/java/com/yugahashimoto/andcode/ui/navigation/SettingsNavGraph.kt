@@ -412,6 +412,14 @@ fun NavGraphBuilder.settingsNavGraph(
                 }
             },
             onDismissProviderAuth = settingsViewModel::dismissProviderAuth,
+            onOpenAddCustomProvider = settingsViewModel::openAddCustomProvider,
+            onCustomProviderIdChange = settingsViewModel::updateCustomProviderId,
+            onCustomProviderNameChange = settingsViewModel::updateCustomProviderName,
+            onCustomProviderBaseUrlChange = settingsViewModel::updateCustomProviderBaseUrl,
+            onCustomProviderModelsChange = settingsViewModel::updateCustomProviderModels,
+            onSubmitCustomProvider = settingsViewModel::submitCustomProvider,
+            onDismissCustomProviderDialog = settingsViewModel::dismissCustomProviderDialog,
+            onRemoveCustomProvider = settingsViewModel::removeCustomProvider,
             onBack = { navController.popBackStack() },
         )
     }

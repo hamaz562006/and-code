@@ -35,3 +35,13 @@ enum class ProviderAuthNotice {
     CONNECTED,
     DISCONNECTED,
 }
+
+/** Draft state for the "add custom provider" dialog: an OpenAI-compatible endpoint the user is registering by hand. */
+data class CustomProviderDialogState(
+    val id: String = "",
+    val name: String = "",
+    val baseUrl: String = "",
+    val models: String = "",
+    val isSubmitting: Boolean = false,
+    val error: String? = null,
+)
