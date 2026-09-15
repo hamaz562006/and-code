@@ -134,6 +134,15 @@ class SettingsViewModel(
         val notice: ProviderAuthNotice? = null,
         val message: String? = null,
         val locallyConnected: Set<String> = emptySet(),
+        /**
+         * Providers the user just disconnected, kept separate from the server's report.
+         *
+         * OpenCode's `/provider` endpoint can keep reporting a provider as connected after its
+         * credentials were removed - the removal itself still succeeds - so without this override
+         * the row snaps right back to "Connected" and disconnect looks like it silently did
+         * nothing.
+         */
+        val locallyDisconnected: Set<String> = emptySet(),
     )
 
     private data class GitHubState(
@@ -173,12 +182,13 @@ class SettingsViewModel(
             // `availableProviders` answers "whose credentials can I manage", which is always the
             // provider-owning runtime. Serving both from one catalogue put OpenCode's models in the
             // model picker while Claude Code was the active agent.
-            val chatConnected = core.runtime.providers.connected.toSet() + oauth.locallyConnected
+            val chatConnected =
+                (core.runtime.providers.connected.toSet() + oauth.locallyConnected) - oauth.locallyDisconnected
             val managed = core.providerCatalog ?: core.runtime.providers
             SettingsUiState(
                 providers = core.runtime.providers.all.filter { it.id in chatConnected },
                 availableProviders = managed.all,
-                connectedProviderIds = managed.connected.toSet() + oauth.locallyConnected,
+                connectedProviderIds = (managed.connected.toSet() + oauth.locallyConnected) - oauth.locallyDisconnected,
                 agents = core.runtime.agents.filter { it.mode == null || it.mode == "primary" },
                 providerId = core.preferences.providerId,
                 modelId = core.preferences.modelId,
@@ -552,7 +562,10 @@ class SettingsViewModel(
                                 credentials.clearCredential(providerId)
                             }
                             oauthState.update {
-                                it.copy(locallyConnected = it.locallyConnected - providerId)
+                                it.copy(
+                                    locallyConnected = it.locallyConnected - providerId,
+                                    locallyDisconnected = it.locallyDisconnected + providerId,
+                                )
                             }
                             finishProviderAuth(ProviderAuthNotice.DISCONNECTED)
                         } else {
@@ -595,6 +608,12 @@ class SettingsViewModel(
                         it.locallyConnected + connectedId
                     } else {
                         it.locallyConnected
+                    },
+                locallyDisconnected =
+                    if (notice == ProviderAuthNotice.CONNECTED && connectedId != null) {
+                        it.locallyDisconnected - connectedId
+                    } else {
+                        it.locallyDisconnected
                     },
             )
         }
