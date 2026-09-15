@@ -501,7 +501,10 @@ fun AndCodeApp(
                                             attachment.url.substringAfter("base64,", missingDelimiterValue = "")
                                         if (base64.isEmpty()) return@runCatching null
                                         val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
-                                        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                        com.yugahashimoto.andcode.feature.chat.decodeSampledBitmap(
+                                            bytes,
+                                            com.yugahashimoto.andcode.feature.chat.COMPOSER_PREVIEW_MAX_DIMENSION,
+                                        )
                                     }.getOrNull()
                                 } else {
                                     null
