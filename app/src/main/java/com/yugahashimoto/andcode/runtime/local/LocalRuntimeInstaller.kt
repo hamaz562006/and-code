@@ -171,11 +171,13 @@ class LocalRuntimeInstaller(
                     rootfs = rootfs,
                     suite = commandSuite,
                     packages =
-                        (if (includeFullDevelopmentTools) {
-                            REQUIRED_RUNTIME_PACKAGES + OPTIONAL_DEVELOPMENT_PACKAGES
-                        } else {
-                            REQUIRED_RUNTIME_PACKAGES
-                        }) + (if (LocalAgent.PI in requestedAgents) listOf("gcompat") else emptyList()),
+                        (
+                            if (includeFullDevelopmentTools) {
+                                REQUIRED_RUNTIME_PACKAGES + OPTIONAL_DEVELOPMENT_PACKAGES
+                            } else {
+                                REQUIRED_RUNTIME_PACKAGES
+                            }
+                        ) + (if (LocalAgent.PI in requestedAgents) listOf("gcompat") else emptyList()),
                 )
                 if (LocalAgent.CLAUDE_CODE in requestedAgents) {
                     onClaude(0.93f, context.getString(R.string.install_step_installing_claude_code))
