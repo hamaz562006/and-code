@@ -74,7 +74,7 @@ jobs:
             echo "AND_CODE_GITHUB_CLIENT_ID repo variable is not set - the published APK would have no GitHub sign-in" >&2
             exit 1
           fi
-           ./gradlew detekt spotlessCheck :app:lintGithubDebug :app:testGithubDebugUnitTest assembleGithubDebug assembleGithubRelease
+           ./gradlew detekt spotlessCheck :app:lintDebug :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease
 
       - name: Resolve tag
         id: tag

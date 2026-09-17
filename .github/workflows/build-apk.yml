@@ -53,12 +53,12 @@ jobs:
       - name: Build Debug APK
         env:
           GITHUB_CLIENT_ID: ${{ vars.AND_CODE_GITHUB_CLIENT_ID }}
-        run: ./gradlew :app:assembleGithubDebug --stacktrace
+        run: ./gradlew :app:assembleDebug --stacktrace
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: and-code-debug-apk
-          path: app/build/outputs/apk/github/debug/app-github-debug.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
