@@ -1,0 +1,12 @@
+<!-- AndCode-original neutral mark for the Pi integration. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?attr/colorControlNormal">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M12,2A10,10 0,1 0,12 22A10,10 0,1 0,12 2M8,6.8H13.1A3.95,3.95 0,1 1,13.1 14.7H10.4V18H8V6.8M10.4,9.1V12.4H12.9A1.65,1.65 0,1 0,12.9 9.1H10.4Z" />
+</vector>

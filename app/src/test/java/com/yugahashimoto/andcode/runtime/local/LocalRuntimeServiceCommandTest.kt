@@ -61,9 +61,9 @@ class LocalRuntimeServiceCommandTest {
     @Test
     fun `an install carries the selected agents`() {
         assertEquals(
-            setOf(LocalAgent.OPEN_CODE, LocalAgent.CLAUDE_CODE, LocalAgent.ANTIGRAVITY),
+            setOf(LocalAgent.OPEN_CODE, LocalAgent.CLAUDE_CODE, LocalAgent.ANTIGRAVITY, LocalAgent.PI),
             localRuntimeInstallAgents(
-                arrayOf(LocalAgent.OPEN_CODE.id, LocalAgent.CLAUDE_CODE.id, LocalAgent.ANTIGRAVITY.id),
+                arrayOf(LocalAgent.OPEN_CODE.id, LocalAgent.CLAUDE_CODE.id, LocalAgent.ANTIGRAVITY.id, LocalAgent.PI.id),
             ),
         )
     }

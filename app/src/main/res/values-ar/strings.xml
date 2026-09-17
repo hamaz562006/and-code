@@ -1160,4 +1160,12 @@
     <string name="full_development_tools_installed">تم تثبيت أدوات التطوير الكاملة</string>
     <string name="install_full_development_tools_button">تثبيت مجموعة الأدوات الكاملة</string>
     <string name="runtime_full_development_tools_start_failed">تعذر بدء تثبيت أدوات التطوير</string>
+    <string name="agent_pi_name">Pi</string>
+    <string name="install_step_downloading_pi">جارٍ تنزيل والتحقق من Pi الرسمي</string>
+    <string name="install_step_installing_pi">جارٍ تثبيت Pi</string>
+    <string name="setup_agent_pi_desc">تثبيت أداة سطر أوامر Pi الرسمية المستقلة. يتم تنزيل حوالي 45 ميجابايت.</string>
+    <string name="pi_install_button">تثبيت Pi</string>
+    <string name="pi_installed_version">Pi %s</string>
+    <string name="pi_status_installed">مثبّت</string>
+    <string name="pi_setup_no_sign_in_required">تم تثبيت Pi كأداة سطر أوامر محلية. افتح terminal في بيئة التشغيل وشغّل pi لتسجيل الدخول أو ضبط مفاتيح API.</string>
 </resources>

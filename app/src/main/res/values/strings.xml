@@ -890,6 +890,7 @@
     <string name="agent_opencode_name">OpenCode</string>
     <string name="agent_claude_code_name">Claude Code</string>
     <string name="agent_antigravity_name">Antigravity</string>
+    <string name="agent_pi_name">Pi</string>
     <string name="runtime_error_install_failed">Could not install the local runtime</string>
     <string name="runtime_error_reinstall_failed">Could not reinstall the local runtime</string>
     <string name="runtime_error_start_failed">Could not start local runtime</string>
@@ -911,6 +912,8 @@
     <string name="install_step_preparing_antigravity_rootfs">Preparing Debian Bookworm for Antigravity</string>
     <string name="install_step_downloading_antigravity">Downloading and verifying official Antigravity</string>
     <string name="install_step_installing_antigravity">Installing Antigravity</string>
+    <string name="install_step_downloading_pi">Downloading and verifying official Pi</string>
+    <string name="install_step_installing_pi">Installing Pi</string>
     <string name="antigravity_permission_plan_desc">Antigravity reads and plans but never edits files or runs commands.</string>
     <string name="antigravity_permission_accept_edits_desc">Antigravity may edit files and run commands in the workspace without asking. Recommended.</string>
     <string name="antigravity_permission_full_access_desc">Antigravity may run any command without asking. Use with care.</string>
@@ -973,6 +976,7 @@
     <string name="setup_agent_claude_code_desc">Sign in with your Claude account in the browser. Downloads about 80 MB.</string>
     <string name="setup_agent_opencode_desc">Sign in with your own model provider API key. Downloads about 120 MB.</string>
     <string name="setup_agent_antigravity_desc">Sign in with your Google account in the browser. Downloads about 50 MB.</string>
+    <string name="setup_agent_pi_desc">Install the official Pi standalone CLI. Downloads about 45 MB.</string>
     <string name="setup_agents_required">Select at least one agent to continue.</string>
     <string name="setup_step_sign_in">Sign in</string>
     <string name="setup_sign_in_description">Connect the accounts your agents will use.</string>
@@ -1027,6 +1031,10 @@
     <string name="setup_download_agents_description">Prepare the shared Linux environment and the agents you picked.</string>
     <string name="settings_agents_row">Agents</string>
     <string name="settings_agents_section">Agents</string>
+    <string name="pi_install_button">Install Pi</string>
+    <string name="pi_installed_version">Pi %s</string>
+    <string name="pi_status_installed">Installed</string>
+    <string name="pi_setup_no_sign_in_required">Pi is installed as a local CLI. Open a terminal in the runtime and run pi to sign in or configure API keys.</string>
     <string name="antigravity_install_button">Install Antigravity</string>
     <string name="antigravity_status_signed_out">Not signed in</string>
     <string name="antigravity_sign_in_button">Set up Antigravity CLI</string>

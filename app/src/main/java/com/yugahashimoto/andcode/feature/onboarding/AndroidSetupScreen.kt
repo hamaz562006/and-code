@@ -72,6 +72,8 @@ import com.yugahashimoto.andcode.runtime.local.AntigravityControllerState
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeUiState
 import com.yugahashimoto.andcode.runtime.local.ClaudeInstallStatus
 import com.yugahashimoto.andcode.runtime.local.ClaudePermissionMode
+import com.yugahashimoto.andcode.runtime.local.PiControllerState
+import com.yugahashimoto.andcode.runtime.local.PiInstallStatus
 import com.yugahashimoto.andcode.ui.theme.AndCodeTheme
 import kotlinx.coroutines.delay
 
@@ -95,6 +97,7 @@ fun AndroidSetupScreen(
     runtimeStatus: LocalRuntimeStatus,
     claude: ClaudeCodeUiState,
     antigravity: AntigravityControllerState = AntigravityControllerState(),
+    pi: PiControllerState = PiControllerState(),
     fullDevelopmentToolsInstalled: Boolean = false,
     fullDevelopmentToolsInstallFailed: Boolean = false,
     onStartSetup: (Set<LocalAgent>, Boolean) -> Unit,
@@ -123,6 +126,7 @@ fun AndroidSetupScreen(
     /** Re-reads whether the agent is installed after the runtime service provisioned it. */
     onRefreshClaudeState: () -> Unit,
     onRefreshAntigravityState: () -> Unit,
+    onRefreshPiState: () -> Unit = {},
     onConnectGitHub: () -> Unit = {},
     onOpenGitHubVerification: (String) -> Unit = {},
     onDisconnectGitHub: () -> Unit = {},
@@ -146,6 +150,7 @@ fun AndroidSetupScreen(
     val openCodeSelected = LocalAgent.OPEN_CODE in selectedAgents
     val claudeSelected = LocalAgent.CLAUDE_CODE in selectedAgents
     val antigravitySelected = LocalAgent.ANTIGRAVITY in selectedAgents
+    val piSelected = LocalAgent.PI in selectedAgents
     val openCodeReady = runtimeStatus is LocalRuntimeStatus.Ready || runtimeStatus is LocalRuntimeStatus.Stopped
     val antigravityReady = antigravitySelected && antigravity.installed && !antigravity.busy
     val claudeReady = claude.installed && claude.install !is ClaudeInstallStatus.Installing && claude.install !is ClaudeInstallStatus.Failed
@@ -158,6 +163,7 @@ fun AndroidSetupScreen(
             LocalAgent.OPEN_CODE.takeIf { openCodeSelected && openCodeReady },
             LocalAgent.CLAUDE_CODE.takeIf { claudeSelected && claude.installed },
             LocalAgent.ANTIGRAVITY.takeIf { antigravitySelected && antigravity.installed },
+            LocalAgent.PI.takeIf { piSelected && pi.installed },
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
@@ -175,6 +181,7 @@ fun AndroidSetupScreen(
         (!openCodeSelected || openCodeReady) &&
             (!claudeSelected || claudeReady) &&
             (!antigravitySelected || antigravityReady) &&
+            (!piSelected || pi.installed) &&
             fullToolsReady
     val installComplete = agentsInstallComplete && !fullToolsInstallPending
 
@@ -204,6 +211,7 @@ fun AndroidSetupScreen(
         if (!openCodeReady) return@LaunchedEffect
         if (claudeSelected) onRefreshClaudeState()
         if (antigravitySelected) onRefreshAntigravityState()
+        if (piSelected) onRefreshPiState()
     }
 
     LaunchedEffect(openCodeReady, openCodeSelected, settingsState.availableProviders, settingsState.providerAuthMethods) {
@@ -247,11 +255,16 @@ fun AndroidSetupScreen(
                     runtimeStatus is LocalRuntimeStatus.Broken ||
                     claude.install is ClaudeInstallStatus.Failed ||
                     antigravity.error != null ||
+                    pi.install is PiInstallStatus.Failed ||
                     fullDevelopmentToolsInstallFailed
                 ) {
                     SetupPrimaryAction(stringResource(R.string.claude_retry_install_button), true) {
                         onStartSetup(
-                            if (antigravity.error != null) setOf(LocalAgent.ANTIGRAVITY) else selectedAgents,
+                            when {
+                                antigravity.error != null -> setOf(LocalAgent.ANTIGRAVITY)
+                                pi.install is PiInstallStatus.Failed -> setOf(LocalAgent.PI)
+                                else -> selectedAgents
+                            },
                             installFullDevelopmentTools,
                         )
                     }
@@ -337,9 +350,11 @@ fun AndroidSetupScreen(
                         runtimeStatus = runtimeStatus,
                         claude = claude,
                         antigravity = antigravity,
+                        pi = pi,
                         openCodeSelected = openCodeSelected,
                         claudeSelected = claudeSelected,
                         antigravitySelected = antigravitySelected,
+                        piSelected = piSelected,
                     )
                 4 ->
                     SignInStep(
@@ -553,6 +568,12 @@ private fun AgentSelectionStep(
             selected = LocalAgent.ANTIGRAVITY in selectedAgents,
             onToggle = { onToggle(LocalAgent.ANTIGRAVITY) },
         )
+        AgentOption(
+            title = stringResource(R.string.agent_pi_name),
+            description = stringResource(R.string.setup_agent_pi_desc),
+            selected = LocalAgent.PI in selectedAgents,
+            onToggle = { onToggle(LocalAgent.PI) },
+        )
         if (selectedAgents.size >= 2) {
             Text(
                 text = stringResource(R.string.setup_runtime_shared_note),
@@ -679,9 +700,11 @@ private fun RuntimeDownloadStep(
     runtimeStatus: LocalRuntimeStatus,
     claude: ClaudeCodeUiState,
     antigravity: AntigravityControllerState,
+    pi: PiControllerState,
     openCodeSelected: Boolean,
     claudeSelected: Boolean,
     antigravitySelected: Boolean,
+    piSelected: Boolean,
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
     // each step is shown under the agent it names. Without this the OpenCode panel displayed
@@ -720,6 +743,38 @@ private fun RuntimeDownloadStep(
                 if (step != null) SharedInstallProgress(step) else AntigravityInstallProgress(antigravity)
             }
         }
+        if (piSelected) {
+            SetupPanel {
+                Text(stringResource(R.string.agent_pi_name), fontWeight = FontWeight.SemiBold)
+                val step = stepFor(LocalAgent.PI)
+                if (step != null) SharedInstallProgress(step) else PiInstallProgress(pi)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PiInstallProgress(pi: PiControllerState) {
+    when (val install = pi.install) {
+        is PiInstallStatus.Installing -> {
+            Text(stringResource(install.step), fontWeight = FontWeight.Medium)
+            if (install.progress != null) {
+                LinearProgressIndicator(
+                    progress = { install.progress.coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+        }
+        is PiInstallStatus.Failed -> Text(install.message, color = MaterialTheme.colorScheme.error)
+        is PiInstallStatus.Ready -> ReadyAgentRow(stringResource(R.string.pi_installed_version, install.version))
+        PiInstallStatus.Idle ->
+            if (pi.installed) {
+                ReadyAgentRow(stringResource(R.string.pi_installed_version, pi.version ?: ""))
+            } else {
+                Text(stringResource(R.string.runtime_status_not_installed))
+            }
     }
 }
 
@@ -1004,6 +1059,12 @@ private fun SignInStep(
                         onDisconnectProvider = onDisconnectProvider,
                         header = false,
                     )
+                LocalAgent.PI ->
+                    Text(
+                        text = stringResource(R.string.pi_setup_no_sign_in_required),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
             }
         }
     }
@@ -1238,6 +1299,7 @@ private fun AndroidSetupScreenPreview() {
         AndroidSetupScreen(
             runtimeStatus = LocalRuntimeStatus.Installing(0.68f, "Downloading runtime"),
             claude = ClaudeCodeUiState(),
+            pi = PiControllerState(),
             onStartSetup = { _, _ -> },
             onBeginClaudeSignIn = {},
             onSubmitClaudeSignInCode = {},
@@ -1258,6 +1320,7 @@ private fun AndroidSetupScreenPreview() {
             onRefreshCatalog = {},
             onRefreshClaudeState = {},
             onRefreshAntigravityState = {},
+            onRefreshPiState = {},
             onBack = {},
             onFinish = {},
         )
@@ -1271,6 +1334,7 @@ private fun AndroidSetupProviderStepPreview() {
         AndroidSetupScreen(
             runtimeStatus = LocalRuntimeStatus.Ready("1.0.0", 4097),
             claude = ClaudeCodeUiState(installed = true, version = "2.1.212"),
+            pi = PiControllerState(),
             onStartSetup = { _, _ -> },
             onBeginClaudeSignIn = {},
             onSubmitClaudeSignInCode = {},
@@ -1316,6 +1380,7 @@ private fun AndroidSetupProviderStepPreview() {
             onRefreshCatalog = {},
             onRefreshClaudeState = {},
             onRefreshAntigravityState = {},
+            onRefreshPiState = {},
             onBack = {},
             onFinish = {},
         )

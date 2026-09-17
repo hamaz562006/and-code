@@ -19,6 +19,7 @@ import com.yugahashimoto.andcode.runtime.local.AntigravityTarget
 import com.yugahashimoto.andcode.runtime.local.CustomProviderStore
 import com.yugahashimoto.andcode.runtime.local.DefaultLocalRuntimeUpdateEngine
 import com.yugahashimoto.andcode.runtime.local.GitCredentialHelper
+import com.yugahashimoto.andcode.runtime.local.Ipv4FirstDns
 import com.yugahashimoto.andcode.runtime.local.LocalProviderCredentialStore
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeAccessCoordinator
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeCommandRunner
@@ -64,7 +65,14 @@ val appModule =
 
         single { VoskModelStore(androidContext(), get(), get()) }
 
-        single { OkHttpClient() }
+        single {
+            OkHttpClient.Builder()
+                .dns(Ipv4FirstDns())
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(5, java.util.concurrent.TimeUnit.MINUTES)
+                .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+        }
 
         single { LocalRuntimeAccessCoordinator() }
 

@@ -19,6 +19,7 @@ enum class LocalAgent(
     OPEN_CODE("opencode", R.string.agent_opencode_name, "local-android", R.drawable.ic_agent_opencode),
     CLAUDE_CODE("claude-code", R.string.agent_claude_code_name, "claude-code-local", R.drawable.ic_agent_claude),
     ANTIGRAVITY("antigravity", R.string.agent_antigravity_name, "antigravity-local", R.drawable.ic_agent_antigravity),
+    PI("pi", R.string.agent_pi_name, "pi-local", R.drawable.ic_agent_pi),
     ;
 
     companion object {

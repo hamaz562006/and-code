@@ -15,4 +15,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "AndCode"
 include(":app")
-include(":benchmark")

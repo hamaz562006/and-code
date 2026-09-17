@@ -1154,4 +1154,12 @@
     <string name="full_development_tools_installed">Todas las herramientas de desarrollo están instaladas</string>
     <string name="install_full_development_tools_button">Instalar cadena completa</string>
     <string name="runtime_full_development_tools_start_failed">No se pudo iniciar la instalación de herramientas</string>
+    <string name="agent_pi_name">Pi</string>
+    <string name="install_step_downloading_pi">Descargando y verificando Pi oficial</string>
+    <string name="install_step_installing_pi">Instalando Pi</string>
+    <string name="setup_agent_pi_desc">Instale la CLI independiente oficial de Pi. Descarga unos 45 MB.</string>
+    <string name="pi_install_button">Instalar Pi</string>
+    <string name="pi_installed_version">Pi %s</string>
+    <string name="pi_status_installed">Instalado</string>
+    <string name="pi_setup_no_sign_in_required">Pi está instalado como CLI local. Abra una terminal en el entorno de ejecución y ejecute pi para iniciar sesión o configurar claves API.</string>
 </resources>

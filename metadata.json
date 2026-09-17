@@ -1,0 +1,6 @@
+{
+  "name": "AndCode",
+  "description": "A native Android workspace for OpenCode, Claude Code, and Google Antigravity. Run coding agents on-device or connect remotely.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

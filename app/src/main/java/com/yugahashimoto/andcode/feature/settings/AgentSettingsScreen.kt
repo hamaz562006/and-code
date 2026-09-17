@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -55,6 +56,8 @@ import com.yugahashimoto.andcode.runtime.local.ClaudeCodeUiState
 import com.yugahashimoto.andcode.runtime.local.ClaudeInstallStatus
 import com.yugahashimoto.andcode.runtime.local.ClaudePermissionMode
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeUpdateCheck
+import com.yugahashimoto.andcode.runtime.local.PiControllerState
+import com.yugahashimoto.andcode.runtime.local.PiInstallStatus
 import com.yugahashimoto.andcode.ui.components.RuntimeOperationResultCard
 import com.yugahashimoto.andcode.ui.components.RuntimeUpdateProgressCard
 import com.yugahashimoto.andcode.ui.components.SectionCard
@@ -75,6 +78,7 @@ fun AgentSettingsScreen(
     onOpenOpenCode: () -> Unit,
     onOpenClaudeCode: () -> Unit,
     onOpenAntigravity: () -> Unit,
+    onOpenPi: () -> Unit,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(R.string.settings_agents_row), onBack = onBack) {
@@ -84,6 +88,74 @@ fun AgentSettingsScreen(
             AgentRow(LocalAgent.CLAUDE_CODE, onOpenClaudeCode)
             SettingsDivider()
             AgentRow(LocalAgent.ANTIGRAVITY, onOpenAntigravity)
+            SettingsDivider()
+            AgentRow(LocalAgent.PI, onOpenPi)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PiAgentSettingsScreen(
+    pi: PiControllerState,
+    onInstall: () -> Unit,
+    onRefresh: () -> Unit,
+    onBack: () -> Unit,
+) {
+    AgentSettingsScaffold(title = stringResource(LocalAgent.PI.displayNameRes), onBack = onBack) {
+        AgentCardSection {
+            AgentStatusCard(
+                status =
+                    if (pi.installed) {
+                        stringResource(
+                            R.string.pi_status_installed,
+                        )
+                    } else {
+                        stringResource(R.string.runtime_status_not_installed)
+                    },
+                active = pi.isReady(),
+                metrics = pi.version?.let { listOf(AgentMetric(stringResource(R.string.agent_version_label), it)) }.orEmpty(),
+            ) {
+                Spacer(Modifier.height(12.dp))
+                when (val install = pi.install) {
+                    is PiInstallStatus.Installing -> {
+                        Text(stringResource(install.step), style = MaterialTheme.typography.bodySmall)
+                        if (install.progress != null) {
+                            androidx.compose.material3.LinearProgressIndicator(
+                                progress = { install.progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    is PiInstallStatus.Failed -> Text(install.message, color = MaterialTheme.colorScheme.error)
+                    is PiInstallStatus.Ready ->
+                        Text(
+                            stringResource(R.string.pi_installed_version, install.version),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    PiInstallStatus.Idle ->
+                        Text(
+                            stringResource(R.string.pi_setup_no_sign_in_required),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                }
+                Spacer(Modifier.height(12.dp))
+                if (!pi.installed || pi.install is PiInstallStatus.Failed) {
+                    Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Build, contentDescription = null)
+                        Spacer(Modifier.padding(horizontal = 4.dp))
+                        Text(stringResource(R.string.pi_install_button))
+                    }
+                } else {
+                    OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Refresh, contentDescription = null)
+                        Spacer(Modifier.padding(horizontal = 4.dp))
+                        Text(stringResource(R.string.refresh))
+                    }
+                }
+            }
         }
     }
 }

@@ -193,6 +193,7 @@ fun AndCodeApp(
     val runtimeTargets by app.runtimeRegistry.targets.collectAsState()
     val preferences by app.preferences.state.collectAsState()
     val antigravityState by app.antigravityController.state.collectAsState()
+    val piState by app.piController.state.collectAsState()
 
     var collapsedSections by remember { mutableStateOf(setOf<String>()) }
 
@@ -916,6 +917,7 @@ fun AndCodeApp(
                             runtimeStatus = localRuntimeStatus,
                             claude = workspaceState.claude,
                             antigravity = antigravityState,
+                            pi = piState,
                             fullDevelopmentToolsInstalled = app.localRuntimeManager.fullDevelopmentToolsInstalled(),
                             fullDevelopmentToolsInstallFailed =
                                 (localRuntimeLastOperation as? LocalRuntimeOperationResult.Failed)?.operation ==
@@ -932,6 +934,8 @@ fun AndCodeApp(
                                     workspaceViewModel.setupLocalRuntime(agents, installFullDevelopmentTools)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY in agents) {
                                     app.antigravityController.install(agents, installFullDevelopmentTools)
+                                } else if (com.yugahashimoto.andcode.runtime.LocalAgent.PI in agents) {
+                                    app.piController.install(agents, installFullDevelopmentTools)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE in agents) {
                                     workspaceViewModel.installClaudeCode(installFullDevelopmentTools)
                                 }
@@ -966,6 +970,7 @@ fun AndCodeApp(
                             onRefreshCatalog = app.catalogRepository::refreshProvidersOnly,
                             onRefreshClaudeState = workspaceViewModel::refreshClaudeCode,
                             onRefreshAntigravityState = app.antigravityController::refresh,
+                            onRefreshPiState = app.piController::refresh,
                             onConnectGitHub = { settingsViewModel.beginGitHubDeviceFlow() },
                             onOpenGitHubVerification = { url ->
                                 UrlLauncher.openUrl(context, url)
@@ -1213,6 +1218,12 @@ fun AndCodeApp(
                                 onSubmitCode = app.antigravityController::submitAuthCode,
                                 onCancelSignIn = app.antigravityController::cancelAuth,
                                 onSignOut = app.antigravityController::logout,
+                            ),
+                        pi = { piState },
+                        piActions =
+                            com.yugahashimoto.andcode.ui.navigation.PiSettingsActions(
+                                onInstall = { app.piController.install() },
+                                onRefresh = app.piController::refresh,
                             ),
                         onRequestWakeWordPermission = {
                             startWakeWordAfterPermission = true

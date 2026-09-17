@@ -258,6 +258,7 @@ fun WorkspacesScreen(
                                     LocalAgent.CLAUDE_CODE -> state.claude.installed
                                     LocalAgent.OPEN_CODE -> state.localStatus is LocalRuntimeStatus.Ready
                                     LocalAgent.ANTIGRAVITY -> target.state is RuntimeState.Connected
+                                    LocalAgent.PI -> false
                                     null -> true
                                 },
                         ) {
@@ -861,6 +862,8 @@ private fun targetSubtitle(
             is RuntimeState.Unavailable -> stringResource(R.string.runtime_status_not_installed)
             RuntimeState.Disconnected -> stringResource(R.string.runtime_status_not_installed)
         }
+    } else if (target.agent == LocalAgent.PI) {
+        stringResource(R.string.runtime_status_not_installed)
     } else {
         when (target.type) {
             RuntimeType.REMOTE ->

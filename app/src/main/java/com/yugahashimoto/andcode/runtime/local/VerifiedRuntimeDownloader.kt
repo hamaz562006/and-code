@@ -11,7 +11,10 @@ import java.io.File
 import java.io.FileOutputStream
 
 class VerifiedRuntimeDownloader(
-    private val httpClient: OkHttpClient = OkHttpClient(),
+    private val httpClient: OkHttpClient =
+        OkHttpClient.Builder()
+            .dns(Ipv4FirstDns())
+            .build(),
 ) {
     private val operationMutex = Mutex()
 

@@ -62,6 +62,7 @@ class LocalRuntimeInstaller(
             val onShared: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, null) }
             val onClaude: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.CLAUDE_CODE) }
             val onAntigravity: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.ANTIGRAVITY) }
+            val onPi: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.PI) }
             runtimeDirectory.mkdirs()
             onShared(0.02f, context.getString(R.string.install_step_preparing_command_env))
             val existingMetadata = installedMetadata()
@@ -170,11 +171,11 @@ class LocalRuntimeInstaller(
                     rootfs = rootfs,
                     suite = commandSuite,
                     packages =
-                        if (includeFullDevelopmentTools) {
+                        (if (includeFullDevelopmentTools) {
                             REQUIRED_RUNTIME_PACKAGES + OPTIONAL_DEVELOPMENT_PACKAGES
                         } else {
                             REQUIRED_RUNTIME_PACKAGES
-                        },
+                        }) + (if (LocalAgent.PI in requestedAgents) listOf("gcompat") else emptyList()),
                 )
                 if (LocalAgent.CLAUDE_CODE in requestedAgents) {
                     onClaude(0.93f, context.getString(R.string.install_step_installing_claude_code))
@@ -191,6 +192,12 @@ class LocalRuntimeInstaller(
                         },
                         antigravityRelease,
                     )
+                }
+                if (LocalAgent.PI in requestedAgents) {
+                    onPi(0.94f, context.getString(R.string.install_step_downloading_pi))
+                    PiInstaller(runtimeDirectory, abi, downloader).installInto(rootfs) { progress ->
+                        onPi(0.94f + progress * 0.04f, context.getString(R.string.install_step_installing_pi))
+                    }
                 }
 
                 val metadata =
@@ -272,6 +279,7 @@ class LocalRuntimeInstaller(
             )
         }?.also { installed ->
             ensureAndCodeAgentContext(installed.rootfs, context)
+            PiInstaller.ensureLauncher(installed.rootfs)
             installed.antigravityRootfs?.let { ensureAndCodeAgentContext(it, context) }
         }
 
