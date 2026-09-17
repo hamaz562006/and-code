@@ -7,8 +7,19 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
-    id("com.google.gms.google-services")
-    id("com.google.firebase.crashlytics")
+    id("com.google.gms.google-services") apply false
+    id("com.google.firebase.crashlytics") apply false
+}
+
+// google-services.json is a per-project Firebase config file that isn't available in every
+// build environment (e.g. this fork's CI, which has no Firebase project configured). Only
+// apply the Firebase Gradle plugins when that file is actually present at the app module
+// root, so a build without it still succeeds instead of failing on
+// :app:processDebugGoogleServices. Once a real google-services.json is added here, Firebase
+// (Analytics/Crashlytics) will be enabled automatically without touching this file again.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
 }
 
 val repoRoot = rootProject.projectDir
