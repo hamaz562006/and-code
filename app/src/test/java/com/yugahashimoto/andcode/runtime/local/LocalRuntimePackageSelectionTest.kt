@@ -9,7 +9,16 @@ class LocalRuntimePackageSelectionTest {
     fun `Alpine default excludes heavy development packages`() {
         assertTrue(LocalRuntimeInstaller.REQUIRED_RUNTIME_PACKAGES.containsAll(listOf("git", "android-tools", "python3")))
         assertFalse(LocalRuntimeInstaller.REQUIRED_RUNTIME_PACKAGES.any { it in listOf("openjdk17", "gradle", "nodejs", "gcc", "go") })
-        assertTrue(LocalRuntimeInstaller.OPTIONAL_DEVELOPMENT_PACKAGES.containsAll(listOf("openjdk17", "gradle", "nodejs", "gcc", "go")))
+        assertTrue(
+            LocalRuntimeInstaller.OPTIONAL_DEVELOPMENT_PACKAGES.containsAll(
+                listOf("tree", "file", "less", "nano", "vim", "py3-pip", "zip", "unzip", "sqlite", "gcompat", "util-linux"),
+            ),
+        )
+        assertFalse(
+            LocalRuntimeInstaller.OPTIONAL_DEVELOPMENT_PACKAGES.any {
+                it in listOf("openjdk17", "gradle", "nodejs", "gcc", "go")
+            },
+        )
         assertTrue(
             LocalRuntimeInstaller.REQUIRED_RUNTIME_PACKAGES
                 .intersect(LocalRuntimeInstaller.OPTIONAL_DEVELOPMENT_PACKAGES.toSet())
