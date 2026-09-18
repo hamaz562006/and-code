@@ -711,7 +711,18 @@ class LocalRuntimeInstaller(
                 "py3-pillow",
             )
 
-        /** Project-specific compilers, language SDKs, editors, and convenience utilities. */
+        /**
+         * Convenience utilities for comfortable terminal use during roadmap testing.
+         *
+         * Deliberately trimmed down for now: the heavier project-specific toolchain (JDK, Gradle,
+         * Node.js/npm, the C/C++ build chain, Go, GitHub CLI) is left out to keep this download
+         * small while only OpenCode + a Nara/OpenCode-compatible provider are being tested. None of
+         * OpenCode's own chat/tool-calling functionality depends on these — they are optional
+         * quality-of-life packages. Add items back here (or reintroduce the removed ones below) once
+         * a specific test actually needs them:
+         *   "github-cli", "openjdk17", "gradle", "nodejs", "npm", "make", "cmake", "gcc", "g++",
+         *   "musl-dev", "pkgconf", "patch", "go"
+         */
         val OPTIONAL_DEVELOPMENT_PACKAGES =
             listOf(
                 "tree",
@@ -719,23 +730,10 @@ class LocalRuntimeInstaller(
                 "less",
                 "nano",
                 "vim",
-                "github-cli",
-                "openjdk17",
-                "gradle",
                 "py3-pip",
-                "nodejs",
-                "npm",
-                "make",
-                "cmake",
-                "gcc",
-                "g++",
-                "musl-dev",
-                "pkgconf",
-                "patch",
                 "zip",
                 "unzip",
                 "sqlite",
-                "go",
                 "gcompat",
                 "util-linux",
             )
