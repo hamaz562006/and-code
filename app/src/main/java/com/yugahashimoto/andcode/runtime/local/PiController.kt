@@ -25,7 +25,7 @@ data class PiControllerState(
     val version: String? = null,
     val install: PiInstallStatus = PiInstallStatus.Idle,
 ) {
-    fun isReady(): Boolean = installed && install !is PiInstallStatus.Failed
+    fun isReady(): Boolean = installed && install is PiInstallStatus.Ready
 }
 
 class PiController(
@@ -57,9 +57,10 @@ class PiController(
                     installer.install(agents + LocalAgent.PI, installFullDevelopmentTools) { progress, step, agent ->
                         if (agent == LocalAgent.PI) {
                             val stepRes =
-                                when {
-                                    step == "Downloading and verifying official Pi" -> R.string.install_step_downloading_pi
-                                    else -> R.string.install_step_installing_pi
+                                if (progress == null || progress <= 0.96f) {
+                                    R.string.install_step_downloading_pi
+                                } else {
+                                    R.string.install_step_installing_pi
                                 }
                             mutableState.value =
                                 mutableState.value.copy(
