@@ -157,7 +157,7 @@ class RuntimeActivityRepository(
 
     /**
      * When each session was first diagnosed as stalled, measured by [now]. Written on the first
-     * verdict, re-armed whenever a later verdict describes a different wait, and cleared by
+     * verdict, re-armed by every verdict that does not settle the session, and cleared by
      * [recordActivity] the moment the run shows life again - the settle grace
      * ([stallSettleAfterMillis]) counts from the stall, not from the session's start. Guarded by
      * [activityLock] like the other activity bookkeeping.
