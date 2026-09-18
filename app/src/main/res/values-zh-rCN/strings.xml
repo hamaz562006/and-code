@@ -1127,6 +1127,7 @@
     <string name="activity_event_completed">执行完成</string>
     <string name="activity_event_error">执行错误</string>
     <string name="activity_event_stalled">运行已无响应</string>
+    <string name="activity_event_settled">已结束停滞的运行</string>
     <string name="activity_event_question">问题</string>
     <string name="activity_event_unknown">不支持的事件</string>
     <string name="connection_info_incomplete">连接信息不完整</string>

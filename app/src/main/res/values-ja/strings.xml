@@ -1023,6 +1023,7 @@
     <string name="activity_event_completed">実行完了</string>
     <string name="activity_event_error">実行エラー</string>
     <string name="activity_event_stalled">実行が止まっています</string>
+    <string name="activity_event_settled">停止していた実行を終了しました</string>
     <string name="activity_event_question">質問</string>
     <string name="activity_event_unknown">未対応イベント</string>
     <string name="connection_info_incomplete">接続情報が不足しています</string>

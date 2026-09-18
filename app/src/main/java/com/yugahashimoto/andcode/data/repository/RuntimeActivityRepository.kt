@@ -81,6 +81,19 @@ class RuntimeActivityRepository(
      */
     private val stallThresholdMillis: Long = 300_000L,
     private val stallCheckIntervalMillis: Long = 60_000L,
+    /**
+     * How long a session may stay active after the watchdog first diagnosed it as stalled before a
+     * re-diagnosis that still proves the run [StallDiagnosis.isStopped] settles it for good.
+     *
+     * Without this, a run that died without the runtime ever saying so - the stream missed the
+     * error, the server hung with its state flag still reading Connected - stayed in
+     * [RuntimeActivityState.activeSessionIds] forever, and the `"sessions"` wake-lock lease keyed
+     * off that set held the device awake for nothing. Waiting a full grace before settling keeps a
+     * slow-but-alive run safe: any real event resets the clock, and diagnoses that merely describe
+     * a wait the user can still resolve (a permission, a question, a long tool call, a stream
+     * reconnecting) are never settled at all.
+     */
+    private val stallSettleAfterMillis: Long = 600_000L,
     private val now: () -> Long = System::currentTimeMillis,
     private val unreadStore: UnreadSessionStore? = null,
     private val messages: RuntimeActivityMessages = RuntimeActivityMessages,
@@ -90,6 +103,7 @@ class RuntimeActivityRepository(
         require(maxRetryDelayMillis >= retryDelayMillis)
         require(stallThresholdMillis > 0L)
         require(stallCheckIntervalMillis > 0L)
+        require(stallSettleAfterMillis > 0L)
     }
 
     // Unread markers outlive the process: a chat that finished while the app was closed is still
@@ -140,6 +154,15 @@ class RuntimeActivityRepository(
 
     /** Sessions already reported as stalled, so one dead run is announced once, not every minute. */
     private val reportedStalls = mutableSetOf<String>()
+
+    /**
+     * When each session was first diagnosed as stalled, measured by [now]. Written on the first
+     * verdict, re-armed by every verdict that does not settle the session, and cleared by
+     * [recordActivity] the moment the run shows life again - the settle grace
+     * ([stallSettleAfterMillis]) counts from the stall, not from the session's start. Guarded by
+     * [activityLock] like the other activity bookkeeping.
+     */
+    private val stallDetectedAt = mutableMapOf<String, Long>()
     private val activityLock = Any()
 
     init {
@@ -215,6 +238,12 @@ class RuntimeActivityRepository(
      * how the user learns a background run died, so unlike the app's other poll loops it must NOT be
      * gated on app foreground, only on there being something to watch. Ticking unconditionally every
      * [stallCheckIntervalMillis] forever, as this used to, kept the device from ever suspending.
+     *
+     * A session whose first verdict was non-terminal is left alone for [stallSettleAfterMillis] and
+     * then probed once more: a verdict that still proves the run [StallDiagnosis.isStopped] settles
+     * it (freeing the `"sessions"` wake-lock lease this set pins), while one describing a wait the
+     * user can still resolve re-arms the grace instead. Terminal verdicts replay the missed event
+     * and settle on the spot, without waiting out the grace.
      */
     private suspend fun watchForStalls(target: RuntimeTarget) {
         mutableState
@@ -228,10 +257,15 @@ class RuntimeActivityRepository(
                     synchronized(activityLock) {
                         reportedStalls.retainAll(active)
                         lastActivityAt.keys.retainAll(active)
+                        stallDetectedAt.keys.retainAll(active)
                     }
                     for (sessionId in active) {
                         if (now() - lastActivitySince(sessionId) < stallThresholdMillis) continue
-                        if (synchronized(activityLock) { sessionId in reportedStalls }) continue
+                        // Already diagnosed and not yet worth a re-probe: the settle grace is
+                        // still running. Once it elapses the session is probed exactly once per
+                        // re-arm, so a wedged run costs one transcript read per grace period.
+                        val stalledAt = synchronized(activityLock) { stallDetectedAt[sessionId] }
+                        if (stalledAt != null && now() - stalledAt < stallSettleAfterMillis) continue
                         try {
                             diagnoseSilentSession(target, sessionId)
                         } catch (cancellation: CancellationException) {
@@ -243,10 +277,13 @@ class RuntimeActivityRepository(
                             // is a wildly disproportionate price for a session that could not be
                             // diagnosed.
                             //
-                            // The claim on the session is given back, so "reported once" does not
-                            // come to mean "reported never" for a stall whose notification happened
-                            // to fail.
-                            synchronized(activityLock) { reportedStalls -= sessionId }
+                            // The claims on the session are given back, so "reported once" does not
+                            // come to mean "reported never" and the settle grace starts over for a
+                            // stall whose notification happened to fail.
+                            synchronized(activityLock) {
+                                reportedStalls -= sessionId
+                                stallDetectedAt -= sessionId
+                            }
                             appendLog(messages.eventStalled, error.safeMessage(), sessionId)
                         }
                     }
@@ -273,7 +310,6 @@ class RuntimeActivityRepository(
             synchronized(activityLock) {
                 val silence = now() - lastActivityAt.getOrPut(sessionId) { now() }
                 if (silence < stallThresholdMillis) return
-                reportedStalls += sessionId
                 silence
             }
         val diagnosis =
@@ -297,13 +333,26 @@ class RuntimeActivityRepository(
             StallReason.COMPLETION_MISSED -> handle(target, OpenCodeEvent.SessionIdle(sessionId))
             StallReason.PROVIDER_ERROR -> handle(target, OpenCodeEvent.SessionError(sessionId, diagnosis.detail))
             else -> {
+                // Announce the first verdict, then leave the session alone until the settle grace
+                // has fully elapsed; a re-probe that still proves the run stopped settles it, one
+                // describing a wait the user can still resolve re-arms the grace instead. Either
+                // way the probe cost is one transcript read per grace period, not one per tick.
+                val (announce, stalledSince) =
+                    synchronized(activityLock) {
+                        reportedStalls.add(sessionId) to stallDetectedAt.getOrPut(sessionId) { now() }
+                    }
+                if (diagnosis.isStopped && now() - stalledSince >= stallSettleAfterMillis) {
+                    settleWedgedSession(sessionId, diagnosis)
+                    return
+                }
+                synchronized(activityLock) { stallDetectedAt[sessionId] = now() }
                 appendLog(messages.eventStalled, diagnosis.reason.name, sessionId)
                 // Only top-level runs are announced, as completions are: a wedged subagent takes
                 // its parent down with it, so the parent is reported anyway, and it is the one
                 // whose completion later takes the notice back down. A session that could not be
                 // read at all is still announced — being unable to name a run is no reason to go
                 // quiet about it, which is the very failure this exists to break.
-                if (session?.parentId == null) {
+                if (announce && session?.parentId == null) {
                     onSessionStalled?.invoke(
                         sessionId,
                         session?.title?.trim()?.takeIf(String::isNotEmpty),
@@ -315,6 +364,38 @@ class RuntimeActivityRepository(
         }
     }
 
+    /**
+     * Ends a run the watchdog has proven dead but the runtime never said so itself, on the grace
+     * schedule [watchForStalls] describes.
+     *
+     * This is the escape hatch that keeps a silently dead run from holding the device awake
+     * forever: [RuntimeActivityState.activeSessionIds] is what the `"sessions"` wake-lock lease
+     * keys off, and a session that left it only via a replayed event would keep that lease for as
+     * long as the runtime stayed silent about its failure. The state change mirrors the
+     * [OpenCodeEvent.SessionError] handler - settled, so late stream events do not resurrect it;
+     * muted, so a genuinely trailing idle does not announce a completion for a run the user was
+     * already told looked stuck - minus the error notification, whose job the earlier stall
+     * announcement already did.
+     *
+     * Nothing here talks to the runtime. A wedged session has no listener worth interrupting, and
+     * a run that did somehow revive picks its [OpenCodeEvent.SessionStatusChanged] busy event back
+     * up from where this left off.
+     */
+    private fun settleWedgedSession(
+        sessionId: String,
+        diagnosis: StallDiagnosis,
+    ) {
+        markRuntimeIdle(sessionId)
+        mutableState.update { current ->
+            current.copy(
+                activeSessionIds = current.activeSessionIds - sessionId,
+                settledSessionIds = current.settledSessionIds + sessionId,
+                mutedSessionIds = current.mutedSessionIds + sessionId,
+            )
+        }
+        appendLog(messages.eventSettled, diagnosis.reason.name, sessionId)
+    }
+
     /** When [sessionId] last produced something; sessions never seen count as silent from now. */
     private fun lastActivitySince(sessionId: String): Long = synchronized(activityLock) { lastActivityAt.getOrPut(sessionId) { now() } }
 
@@ -323,6 +404,8 @@ class RuntimeActivityRepository(
         synchronized(activityLock) {
             lastActivityAt[sessionId] = now()
             reportedStalls -= sessionId
+            // Life disproves the stall, so the settle grace starts over with the next one.
+            stallDetectedAt -= sessionId
         }
     }
 

@@ -1137,6 +1137,7 @@
     <string name="activity_event_completed">اكتمل التنفيذ</string>
     <string name="activity_event_error">خطأ في التنفيذ</string>
     <string name="activity_event_stalled">توقّف التنفيذ عن الاستجابة</string>
+    <string name="activity_event_settled">تم إنهاء التنفيذ المتوقف</string>
     <string name="activity_event_question">سؤال</string>
     <string name="activity_event_unknown">حدث غير مدعوم</string>
     <string name="connection_info_incomplete">معلومات الاتصال غير مكتملة</string>

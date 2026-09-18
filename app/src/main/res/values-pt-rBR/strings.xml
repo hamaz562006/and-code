@@ -1131,6 +1131,7 @@
     <string name="activity_event_completed">Execução concluída</string>
     <string name="activity_event_error">Erro de execução</string>
     <string name="activity_event_stalled">A execução ficou em silêncio</string>
+    <string name="activity_event_settled">Execução travada encerrada</string>
     <string name="activity_event_question">Pergunta</string>
     <string name="activity_event_unknown">Evento não compatível</string>
     <string name="connection_info_incomplete">As informações de conexão estão incompletas</string>
