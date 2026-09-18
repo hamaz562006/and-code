@@ -123,14 +123,12 @@ android {
         }
     }
 
-    signingConfigs {
-        create("debugConfig") {
-            storeFile = file("$rootDir/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
-        if (hasReleaseSigning) {
+    // No custom "debug" signingConfig is declared here on purpose: AGP's built-in default debug
+    // config auto-generates and reuses a throwaway ~/.android/debug.keystore on demand, so debug
+    // builds work out of the box in any environment (including fresh CI runners) without a
+    // keystore file having to exist in the repo or be provisioned first.
+    if (hasReleaseSigning) {
+        signingConfigs {
             create("release") {
                 val storeFilePath = releaseStoreFile!!
                 storeFile =
@@ -153,9 +151,6 @@ android {
     }
 
     buildTypes {
-        debug {
-            signingConfig = signingConfigs.getByName("debugConfig")
-        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
