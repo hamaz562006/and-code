@@ -190,15 +190,15 @@ class LocalRuntimeInstaller(
                     AntigravityInstaller(runtimeDirectory, downloader).installInto(
                         antigravityRootfs ?: rootfs,
                         { progress ->
-                            onAntigravity(0.94f + progress * 0.04f, context.getString(R.string.install_step_installing_antigravity))
+                            onAntigravity(0.94f + progress * 0.02f, context.getString(R.string.install_step_installing_antigravity))
                         },
                         antigravityRelease,
                     )
                 }
                 if (LocalAgent.PI in requestedAgents) {
-                    onPi(0.94f, context.getString(R.string.install_step_downloading_pi))
+                    onPi(0.96f, context.getString(R.string.install_step_downloading_pi))
                     PiInstaller(runtimeDirectory, abi, downloader).installInto(rootfs) { progress ->
-                        onPi(0.94f + progress * 0.04f, context.getString(R.string.install_step_installing_pi))
+                        onPi(0.96f + progress * 0.02f, context.getString(R.string.install_step_installing_pi))
                     }
                 }
 
@@ -214,7 +214,7 @@ class LocalRuntimeInstaller(
                         fullDebianDevelopmentToolsInstalled = includeFullDevelopmentTools && antigravityRootfs != null,
                     )
                 File(staging, METADATA_FILE).writeText(json.encodeToString(metadata))
-                onShared(0.96f, context.getString(R.string.install_step_activating_runtime))
+                onShared(0.98f, context.getString(R.string.install_step_activating_runtime))
                 accessCoordinator.write {
                     activateRuntimeEnvironment(
                         active = active,
