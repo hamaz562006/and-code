@@ -52,8 +52,16 @@ class PiInstaller(
                     backup.deleteRecursively()
                 }.onFailure { error ->
                     candidate.deleteRecursively()
-                    if (!destinationDir.exists() && backup.exists()) backup.renameTo(destinationDir)
-                    if (!destinationBin.exists() && destinationDir.exists()) installLauncher(rootfs)
+                    if (!destinationDir.exists() && backup.exists()) {
+                        runCatching {
+                            require(backup.renameTo(destinationDir)) { "Unable to restore previous Pi install from rollback" }
+                        }.exceptionOrNull()?.let(error::addSuppressed)
+                    }
+                    if (!destinationBin.exists() && destinationDir.exists()) {
+                        runCatching {
+                            installLauncher(rootfs)
+                        }.exceptionOrNull()?.let(error::addSuppressed)
+                    }
                     throw error
                 }
                 writeInstalledVersion(rootfs, PiManifest.VERSION)

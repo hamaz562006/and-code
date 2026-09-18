@@ -142,17 +142,19 @@ fun PiAgentSettingsScreen(
                         )
                 }
                 Spacer(Modifier.height(12.dp))
-                if (!pi.installed || pi.install is PiInstallStatus.Failed) {
-                    Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.Build, contentDescription = null)
-                        Spacer(Modifier.padding(horizontal = 4.dp))
-                        Text(stringResource(R.string.pi_install_button))
-                    }
-                } else {
-                    OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.Refresh, contentDescription = null)
-                        Spacer(Modifier.padding(horizontal = 4.dp))
-                        Text(stringResource(R.string.refresh))
+                if (pi.install !is PiInstallStatus.Installing) {
+                    if (!pi.installed || pi.install is PiInstallStatus.Failed) {
+                        Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.Build, contentDescription = null)
+                            Spacer(Modifier.padding(horizontal = 4.dp))
+                            Text(stringResource(R.string.pi_install_button))
+                        }
+                    } else {
+                        OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.Refresh, contentDescription = null)
+                            Spacer(Modifier.padding(horizontal = 4.dp))
+                            Text(stringResource(R.string.refresh))
+                        }
                     }
                 }
             }

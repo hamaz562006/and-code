@@ -126,7 +126,7 @@ fun AndroidSetupScreen(
     /** Re-reads whether the agent is installed after the runtime service provisioned it. */
     onRefreshClaudeState: () -> Unit,
     onRefreshAntigravityState: () -> Unit,
-    onRefreshPiState: () -> Unit = {},
+    onRefreshPiState: () -> Unit,
     onConnectGitHub: () -> Unit = {},
     onOpenGitHubVerification: (String) -> Unit = {},
     onDisconnectGitHub: () -> Unit = {},
@@ -154,6 +154,7 @@ fun AndroidSetupScreen(
     val openCodeReady = runtimeStatus is LocalRuntimeStatus.Ready || runtimeStatus is LocalRuntimeStatus.Stopped
     val antigravityReady = antigravitySelected && antigravity.installed && !antigravity.busy
     val claudeReady = claude.installed && claude.install !is ClaudeInstallStatus.Installing && claude.install !is ClaudeInstallStatus.Failed
+    val piReady = pi.installed && pi.install !is PiInstallStatus.Installing && pi.install !is PiInstallStatus.Failed
     // Only what is selected *and* actually on the device: an agent whose binary is missing has no
     // sign-in to offer, and Claude Code's card would shell out to /usr/bin/claude and fail there.
     // OpenCode, Claude Code, Antigravity - the same order the picker lists them in, so the guide
@@ -175,13 +176,14 @@ fun AndroidSetupScreen(
     val packageInstallRunning =
         runtimeStatus is LocalRuntimeStatus.Installing ||
             claude.install is ClaudeInstallStatus.Installing ||
-            antigravity.busy
+            antigravity.busy ||
+            pi.install is PiInstallStatus.Installing
     val fullToolsReady = !installFullDevelopmentTools || fullDevelopmentToolsInstalled
     val agentsInstallComplete =
         (!openCodeSelected || openCodeReady) &&
             (!claudeSelected || claudeReady) &&
             (!antigravitySelected || antigravityReady) &&
-            (!piSelected || pi.installed) &&
+            (!piSelected || piReady) &&
             fullToolsReady
     val installComplete = agentsInstallComplete && !fullToolsInstallPending
 
