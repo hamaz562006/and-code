@@ -23,6 +23,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # workflow_dispatch always runs the workflow definition frozen at the ref it's
+          # dispatched against, but a re-run for an existing tag (e.g. backfilling a new
+          # release asset for an already-published version) still needs the CURRENT
+          # workflow logic - so dispatch from main and let this checkout target the tag
+          # instead. github.event.inputs.tag is unset for the push trigger, where the
+          # default (this run's own ref) is already correct.
+          ref: ${{ github.event.inputs.tag || github.ref }}
           fetch-depth: 0
 
       - name: Set up JDK 17
