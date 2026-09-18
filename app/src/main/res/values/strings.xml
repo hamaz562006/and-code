@@ -1012,6 +1012,7 @@
     <string name="activity_event_completed">Execution complete</string>
     <string name="activity_event_error">Execution error</string>
     <string name="activity_event_stalled">Run has gone quiet</string>
+    <string name="activity_event_settled">Stalled run settled</string>
     <string name="activity_event_question">Question</string>
     <string name="activity_event_unknown">Unsupported event</string>
     <string name="connection_info_incomplete">Connection information is incomplete</string>

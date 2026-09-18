@@ -70,6 +70,10 @@ data class StallDiagnosis(
      * approval, a question and a dead stream have all been ruled out, which leaves a runtime
      * claiming to work with nothing to show for it. A long build is reported as
      * [StallReason.TOOL_RUNNING] instead, and stays out of the colour of a failure.
+     *
+     * Besides colouring the report, this is the watchdog's settle test: a session whose verdict is
+     * still in this group once the settle grace has elapsed is ended for good, since a run that is
+     * over, unreachable, or producing nothing must not keep holding the device awake.
      */
     val isStopped: Boolean
         get() = isTerminal || reason == StallReason.RUNTIME_UNREACHABLE || reason == StallReason.NO_OUTPUT

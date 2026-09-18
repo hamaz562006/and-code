@@ -14,6 +14,7 @@ interface RuntimeActivityMessages {
     val eventCompleted: String
     val eventError: String
     val eventStalled: String
+    val eventSettled: String
     val eventQuestion: String
     val eventUnknown: String
 
@@ -27,6 +28,7 @@ interface RuntimeActivityMessages {
         override val eventCompleted = "Execution complete"
         override val eventError = "Execution error"
         override val eventStalled = "Run has gone quiet"
+        override val eventSettled = "Stalled run settled"
         override val eventQuestion = "Question"
         override val eventUnknown = "Unsupported event"
     }
@@ -42,6 +44,7 @@ class AndroidRuntimeActivityMessages(private val context: Context) : RuntimeActi
     override val eventCompleted get() = context.getString(R.string.activity_event_completed)
     override val eventError get() = context.getString(R.string.activity_event_error)
     override val eventStalled get() = context.getString(R.string.activity_event_stalled)
+    override val eventSettled get() = context.getString(R.string.activity_event_settled)
     override val eventQuestion get() = context.getString(R.string.activity_event_question)
     override val eventUnknown get() = context.getString(R.string.activity_event_unknown)
 }

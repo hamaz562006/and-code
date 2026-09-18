@@ -4,6 +4,7 @@ import com.yugahashimoto.andcode.core.api.OpenCodeAgent
 import com.yugahashimoto.andcode.core.api.OpenCodeEvent
 import com.yugahashimoto.andcode.core.api.OpenCodeHealth
 import com.yugahashimoto.andcode.core.api.OpenCodeMessage
+import com.yugahashimoto.andcode.core.api.OpenCodeMessageError
 import com.yugahashimoto.andcode.core.api.OpenCodeMessageInfo
 import com.yugahashimoto.andcode.core.api.OpenCodePart
 import com.yugahashimoto.andcode.core.api.OpenCodeSession
@@ -35,6 +36,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -1118,6 +1120,277 @@ class RuntimeActivityRepositoryTest {
             }
         }
 
+    @Test
+    fun `a wedged run proven stopped is settled once the grace elapses`() =
+        runTest {
+            val dispatcher = StandardTestDispatcher(testScheduler)
+            val scope = TestScope(dispatcher)
+            val target = FakeTarget(requireConnected = false)
+            val registry =
+                RuntimeRegistry(
+                    store = FakeStore(selectedRuntimeId = target.id),
+                    localTarget = target,
+                    remoteFactory = { error("unused") },
+                )
+            val stalled = mutableListOf<String>()
+            val repository =
+                RuntimeActivityRepository(
+                    registry = registry,
+                    scope = scope,
+                    onSessionStalled = { sessionId, _, _, _ -> stalled += sessionId },
+                    stallThresholdMillis = 1_000L,
+                    stallCheckIntervalMillis = 100L,
+                    stallSettleAfterMillis = 2_000L,
+                    now = { testScheduler.currentTime },
+                )
+            try {
+                advanceTimeBy(200L)
+                runCurrent()
+
+                repository.markSessionRunning("ses_wedge")
+                advanceTimeBy(2_000L)
+                runCurrent()
+
+                // Announced as stalled at the threshold, still active while the settle grace runs.
+                assertEquals(listOf("ses_wedge"), stalled)
+                assertTrue("ses_wedge" in repository.state.value.activeSessionIds)
+
+                advanceTimeBy(1_100L)
+                runCurrent()
+
+                // The re-probe at the grace found the same NO_OUTPUT verdict and ended the run for
+                // good - this is what frees the "sessions" wake-lock lease of a run the runtime
+                // never reported finished.
+                assertTrue("ses_wedge" !in repository.state.value.activeSessionIds)
+                assertEquals(setOf("ses_wedge"), repository.state.value.settledSessionIds)
+                assertEquals(setOf("ses_wedge"), repository.state.value.mutedSessionIds)
+                assertEquals(1, stalled.size)
+                assertTrue(repository.state.value.logs.any { it.title == "Stalled run settled" })
+            } finally {
+                scope.cancel()
+            }
+        }
+
+    @Test
+    fun `a run the runtime cannot reach is settled once the grace elapses`() =
+        runTest {
+            val dispatcher = StandardTestDispatcher(testScheduler)
+            val scope = TestScope(dispatcher)
+            val target =
+                FakeTarget(requireConnected = false).apply {
+                    health = OpenCodeHealth(healthy = false, version = "test")
+                }
+            val registry =
+                RuntimeRegistry(
+                    store = FakeStore(selectedRuntimeId = target.id),
+                    localTarget = target,
+                    remoteFactory = { error("unused") },
+                )
+            val stalled = mutableListOf<String>()
+            val repository =
+                RuntimeActivityRepository(
+                    registry = registry,
+                    scope = scope,
+                    onSessionStalled = { sessionId, _, _, _ -> stalled += sessionId },
+                    stallThresholdMillis = 1_000L,
+                    stallCheckIntervalMillis = 100L,
+                    stallSettleAfterMillis = 2_000L,
+                    now = { testScheduler.currentTime },
+                )
+            try {
+                advanceTimeBy(200L)
+                runCurrent()
+
+                repository.markSessionRunning("ses_hung")
+                advanceTimeBy(3_100L)
+                runCurrent()
+
+                // A server whose state flag still reads Connected but which answers nothing is not
+                // running anything either; the wake lock must not outlive it by forever.
+                assertTrue("ses_hung" !in repository.state.value.activeSessionIds)
+                assertEquals(setOf("ses_hung"), repository.state.value.settledSessionIds)
+            } finally {
+                scope.cancel()
+            }
+        }
+
+    @Test
+    fun `a run waiting on a question is never settled`() =
+        runTest {
+            val dispatcher = StandardTestDispatcher(testScheduler)
+            val scope = TestScope(dispatcher)
+            val target =
+                FakeTarget(requireConnected = false).apply {
+                    pending =
+                        listOf(
+                            QuestionRequest(
+                                id = "q-1",
+                                sessionId = "ses_ask",
+                                questions = listOf(QuestionPrompt(question = "Which one?")),
+                            ),
+                        )
+                }
+            val registry =
+                RuntimeRegistry(
+                    store = FakeStore(selectedRuntimeId = target.id),
+                    localTarget = target,
+                    remoteFactory = { error("unused") },
+                )
+            val stalled = mutableListOf<String>()
+            val repository =
+                RuntimeActivityRepository(
+                    registry = registry,
+                    scope = scope,
+                    onSessionStalled = { sessionId, _, _, _ -> stalled += sessionId },
+                    stallThresholdMillis = 1_000L,
+                    stallCheckIntervalMillis = 100L,
+                    stallSettleAfterMillis = 2_000L,
+                    now = { testScheduler.currentTime },
+                )
+            try {
+                advanceTimeBy(200L)
+                runCurrent()
+
+                repository.markSessionRunning("ses_ask")
+                advanceTimeBy(6_000L)
+                runCurrent()
+
+                // A run blocked on the user is not a dead one: it is announced once, but answering
+                // it must stay possible, so no grace ever settles it.
+                assertEquals(listOf("ses_ask"), stalled)
+                assertTrue("ses_ask" in repository.state.value.activeSessionIds)
+                assertTrue(repository.state.value.settledSessionIds.isEmpty())
+            } finally {
+                scope.cancel()
+            }
+        }
+
+    @Test
+    fun `fresh activity re-arms the settle grace`() =
+        runTest {
+            val dispatcher = StandardTestDispatcher(testScheduler)
+            val scope = TestScope(dispatcher)
+            val target = FakeTarget(requireConnected = false)
+            val registry =
+                RuntimeRegistry(
+                    store = FakeStore(selectedRuntimeId = target.id),
+                    localTarget = target,
+                    remoteFactory = { error("unused") },
+                )
+            val stalled = mutableListOf<String>()
+            val repository =
+                RuntimeActivityRepository(
+                    registry = registry,
+                    scope = scope,
+                    onSessionStalled = { sessionId, _, _, _ -> stalled += sessionId },
+                    stallThresholdMillis = 1_000L,
+                    stallCheckIntervalMillis = 100L,
+                    stallSettleAfterMillis = 2_000L,
+                    now = { testScheduler.currentTime },
+                )
+            try {
+                advanceTimeBy(200L)
+                runCurrent()
+
+                repository.markSessionRunning("ses_rearm")
+                advanceTimeBy(2_000L)
+                runCurrent()
+
+                assertEquals(listOf("ses_rearm"), stalled)
+
+                // A late delta proves life: the stall claim, the grace, and the announcement all
+                // start over from the new activity.
+                target.eventFlow.emit(
+                    OpenCodeEvent.MessagePartDelta(
+                        sessionId = "ses_rearm",
+                        messageId = "m1",
+                        partId = "p1",
+                        field = "text",
+                        delta = "still alive",
+                    ),
+                )
+                advanceTimeBy(1L)
+                runCurrent()
+
+                // The original deadline (announced at 1_200, grace to 3_200) passes: the session is
+                // merely quiet again, which is a fresh stall, not the old one.
+                advanceTimeBy(1_000L)
+                runCurrent()
+                assertTrue("ses_rearm" in repository.state.value.activeSessionIds)
+                assertTrue(repository.state.value.settledSessionIds.isEmpty())
+                assertEquals(2, stalled.size)
+
+                advanceTimeBy(2_100L)
+                runCurrent()
+                assertTrue("ses_rearm" !in repository.state.value.activeSessionIds)
+                assertEquals(2, stalled.size)
+            } finally {
+                scope.cancel()
+            }
+        }
+
+    @Test
+    fun `a failed run settles by replay without waiting out the grace`() =
+        runTest {
+            val dispatcher = StandardTestDispatcher(testScheduler)
+            val scope = TestScope(dispatcher)
+            val target =
+                FakeTarget(requireConnected = false).apply {
+                    messages =
+                        listOf(
+                            OpenCodeMessage(
+                                info =
+                                    OpenCodeMessageInfo(
+                                        id = "m1",
+                                        sessionId = "ses_err",
+                                        role = "assistant",
+                                        error =
+                                            OpenCodeMessageError(
+                                                name = "ApiError",
+                                                data = mapOf("message" to JsonPrimitive("rate limited")),
+                                            ),
+                                    ),
+                            ),
+                        )
+                }
+            val registry =
+                RuntimeRegistry(
+                    store = FakeStore(selectedRuntimeId = target.id),
+                    localTarget = target,
+                    remoteFactory = { error("unused") },
+                )
+            val stalled = mutableListOf<String>()
+            val failed = mutableListOf<String>()
+            val repository =
+                RuntimeActivityRepository(
+                    registry = registry,
+                    scope = scope,
+                    onSessionStalled = { sessionId, _, _, _ -> stalled += sessionId },
+                    onSessionError = { sessionId, _, _ -> failed += sessionId.orEmpty() },
+                    stallThresholdMillis = 1_000L,
+                    stallCheckIntervalMillis = 100L,
+                    stallSettleAfterMillis = 60_000L,
+                    now = { testScheduler.currentTime },
+                )
+            try {
+                advanceTimeBy(200L)
+                runCurrent()
+
+                repository.markSessionRunning("ses_err")
+                advanceTimeBy(1_100L)
+                runCurrent()
+
+                // The transcript carries the provider's failure, so the missed SessionError is
+                // replayed the moment the silence is noticed - no settle grace is needed, and no
+                // "gone quiet" warning fires for a run whose end is already known.
+                assertTrue("ses_err" !in repository.state.value.activeSessionIds)
+                assertEquals(listOf("ses_err"), failed)
+                assertTrue(stalled.isEmpty())
+            } finally {
+                scope.cancel()
+            }
+        }
+
     private class FakeUnreadStore(
         override var unreadSessionIds: Set<String>,
     ) : UnreadSessionStore
@@ -1166,6 +1439,10 @@ class RuntimeActivityRepositoryTest {
         var messages: List<OpenCodeMessage> = emptyList()
 
         override suspend fun listMessages(sessionId: String): List<OpenCodeMessage> = messages
+
+        var pending: List<QuestionRequest> = emptyList()
+
+        override suspend fun pendingQuestions(directory: String?): List<QuestionRequest> = pending
 
         override suspend fun listProviders(): ProviderCatalog = ProviderCatalog()
 

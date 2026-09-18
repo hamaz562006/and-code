@@ -1133,6 +1133,7 @@
     <string name="activity_event_completed">Выполнение завершено</string>
     <string name="activity_event_error">Ошибка выполнения</string>
     <string name="activity_event_stalled">Выполнение перестало отвечать</string>
+    <string name="activity_event_settled">Зависшее выполнение завершено</string>
     <string name="activity_event_question">Вопрос</string>
     <string name="activity_event_unknown">Неподдерживаемое событие</string>
     <string name="connection_info_incomplete">Недостаточно данных подключения</string>
