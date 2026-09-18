@@ -6,6 +6,7 @@ import com.yugahashimoto.andcode.core.api.OpenCodeFileChange
 import com.yugahashimoto.andcode.core.api.OpenCodeFileNode
 import com.yugahashimoto.andcode.core.api.OpenCodeSearchMatch
 import com.yugahashimoto.andcode.core.api.OpenCodeVcsInfo
+import com.yugahashimoto.andcode.core.util.isNonGitWorkspaceError
 import com.yugahashimoto.andcode.core.util.safeMessage
 import com.yugahashimoto.andcode.runtime.OpenCodeBackend
 import com.yugahashimoto.andcode.runtime.WorkspaceRef
@@ -19,7 +20,7 @@ import kotlinx.coroutines.launch
 
 data class WorkspaceExplorerUiState(
     val workspace: WorkspaceRef,
-    val currentPath: String = ".",
+    val currentPath: String = WorkspaceFolders.GUEST_ROOT,
     val files: List<OpenCodeFileNode> = emptyList(),
     val searchQuery: String = "",
     val textMatches: List<OpenCodeSearchMatch> = emptyList(),
@@ -37,7 +38,8 @@ class WorkspaceExplorerViewModel(
     private val backend: OpenCodeBackend,
     workspace: WorkspaceRef,
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(WorkspaceExplorerUiState(workspace = workspace))
+    private val mutableState =
+        MutableStateFlow(WorkspaceExplorerUiState(workspace = workspace, currentPath = WorkspaceFolders.normalize(workspace.path)))
     val state: StateFlow<WorkspaceExplorerUiState> = mutableState.asStateFlow()
 
     init {
@@ -51,14 +53,14 @@ class WorkspaceExplorerViewModel(
 
     fun open(node: OpenCodeFileNode) {
         if (node.type == "directory") {
-            loadDirectory(node.path.trimEnd('/').ifBlank { "." })
+            loadDirectory(WorkspaceFolders.normalize(node.absolute))
         }
     }
 
     fun navigateUp() {
-        val path = mutableState.value.currentPath.trimEnd('/')
-        if (path == "." || path.isBlank()) return
-        val parent = path.substringBeforeLast('/', missingDelimiterValue = ".").ifBlank { "." }
+        val path = mutableState.value.currentPath
+        val parent = WorkspaceFolders.parentOf(path)
+        if (parent == path) return
         loadDirectory(parent)
     }
 
@@ -127,7 +129,7 @@ class WorkspaceExplorerViewModel(
                     changes = result.second.getOrDefault(emptyList()),
                     diff = result.third.getOrDefault(emptyList()),
                     isLoadingChanges = false,
-                    error = error?.takeUnless(::isNonGitWorkspace)?.safeMessage("OpenCode workspace operation failed"),
+                    error = error?.takeUnless(Throwable::isNonGitWorkspaceError)?.safeMessage("OpenCode workspace operation failed"),
                 )
             }
         }
@@ -143,7 +145,7 @@ class WorkspaceExplorerViewModel(
             )
         }
         viewModelScope.launch {
-            runCatching { backend.listFiles(mutableState.value.workspace.path, path) }
+            runCatching { backend.listFiles(path, ".") }
                 .onSuccess { files ->
                     mutableState.update {
                         it.copy(
@@ -164,8 +166,4 @@ class WorkspaceExplorerViewModel(
         }
     }
 
-    private fun isNonGitWorkspace(error: Throwable): Boolean {
-        val message = error.message.orEmpty().lowercase()
-        return "git" in message && ("not" in message || "repository" in message)
-    }
 }

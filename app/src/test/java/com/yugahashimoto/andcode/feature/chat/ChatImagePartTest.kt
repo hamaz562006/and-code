@@ -53,7 +53,7 @@ class ChatImagePartTest {
                 filename = "shot.png",
             )
 
-        val chat = part.toChatPart() as ChatPart.Image
+        val chat = part.toChatPart("m1") as ChatPart.Image
         assertEquals("p1", chat.id)
         assertEquals("image/png", chat.mime)
         assertEquals("data:image/png;base64,abc", chat.url)
@@ -64,7 +64,7 @@ class ChatImagePartTest {
     fun `drops an image file part that has no url`() {
         val part = OpenCodePart(id = "p2", type = "file", mime = "image/png", url = null)
 
-        assertNull(part.toChatPart())
+        assertNull(part.toChatPart("m1"))
     }
 
     @Test
@@ -78,7 +78,7 @@ class ChatImagePartTest {
                 filename = "log.txt",
             )
 
-        assertNull(part.toChatPart())
+        assertNull(part.toChatPart("m1"))
     }
 
     @Test
@@ -91,7 +91,7 @@ class ChatImagePartTest {
                 filename = "generated-image.png",
             )
 
-        assertEquals("image/png", (part.toChatPart() as ChatPart.Image).mime)
+        assertEquals("image/png", (part.toChatPart("m1") as ChatPart.Image).mime)
     }
 
     @Test
@@ -103,13 +103,13 @@ class ChatImagePartTest {
                 url = "data:image/webp;base64,abc",
             )
 
-        assertEquals("image/webp", (part.toChatPart() as ChatPart.Image).mime)
+        assertEquals("image/webp", (part.toChatPart("m1") as ChatPart.Image).mime)
     }
 
     @Test
     fun `uses wildcard mime for image part without metadata`() {
         val part = OpenCodePart(id = "p6", type = "image", url = "generated-image")
 
-        assertNull(part.toChatPart())
+        assertNull(part.toChatPart("m1"))
     }
 }

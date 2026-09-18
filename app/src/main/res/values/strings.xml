@@ -63,6 +63,7 @@
     <string name="activity_details_close">Close</string>
     <string name="file_changes_title">File changes</string>
     <string name="file_changes_generic">Files were changed</string>
+    <string name="diff_unavailable">Diff unavailable — this workspace isn\'t a Git repository</string>
     <string name="workspace_folder_label">Working folder</string>
     <string name="workspace_import_folder">Import folder…</string>
     <string name="workspace_clone_github">Clone from GitHub…</string>

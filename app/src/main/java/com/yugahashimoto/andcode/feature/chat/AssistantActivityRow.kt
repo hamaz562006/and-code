@@ -152,6 +152,8 @@ fun AssistantActivitySheet(
     onDismiss: () -> Unit,
     /** Whether reasoning cards should start expanded, per the auto-expand reasoning setting. */
     autoExpandReasoning: Boolean = false,
+    /** Opens the diff dialog for a tapped patch card. */
+    onOpenDiff: (ChatPart.Patch) -> Unit = {},
 ) {
     val summary = summarizeActivity(parts)
     val title = if (summary.isEmpty) stringResource(R.string.activity_details_title) else activitySummaryText(summary)
@@ -182,7 +184,7 @@ fun AssistantActivitySheet(
                 when (part) {
                     is ChatPart.Reasoning -> ReasoningCard(part, autoExpand = autoExpandReasoning)
                     is ChatPart.Tool -> ToolCard(part)
-                    is ChatPart.Patch -> PatchCard(part)
+                    is ChatPart.Patch -> PatchCard(part, onClick = { onOpenDiff(part) })
                     is ChatPart.Text -> Unit
                     is ChatPart.Image -> Unit
                     is ChatPart.Error -> Unit
@@ -401,9 +403,12 @@ fun ToolStatusChip(status: ToolStatus) {
 }
 
 @Composable
-fun PatchCard(part: ChatPart.Patch) {
+fun PatchCard(
+    part: ChatPart.Patch,
+    onClick: () -> Unit = {},
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
@@ -420,6 +425,13 @@ fun PatchCard(part: ChatPart.Patch) {
                     stringResource(R.string.file_changes_title),
                     fontWeight = FontWeight.Medium,
                     style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = stringResource(R.string.activity_details_open),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp),
                 )
             }
             Spacer(Modifier.height(6.dp))

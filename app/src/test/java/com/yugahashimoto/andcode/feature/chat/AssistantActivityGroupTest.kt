@@ -144,7 +144,7 @@ class AssistantActivityGroupTest {
                     tool("t5", "glob"),
                     tool("t6", "task"),
                     tool("t7", "todowrite"),
-                    ChatPart.Patch("p1", listOf("A.kt")),
+                    ChatPart.Patch("p1", listOf("A.kt"), "m1"),
                     ChatPart.Reasoning("r1", "thinking"),
                 ),
             )

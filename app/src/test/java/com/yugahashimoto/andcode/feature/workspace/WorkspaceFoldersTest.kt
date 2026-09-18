@@ -120,6 +120,17 @@ class WorkspaceFoldersTest {
     }
 
     @Test
+    fun `synthetic root names surface workspace and whatever device storage is mounted`() {
+        assertEquals(listOf("workspace"), WorkspaceFolders.syntheticRootNames(DeviceStorage.Mounts.None))
+        assertEquals(
+            listOf("workspace", "sdcard", "storage"),
+            WorkspaceFolders.syntheticRootNames(
+                DeviceStorage.Mounts(sharedStorage = temporaryFolder.newFolder("shared"), volumes = temporaryFolder.newFolder("vol")),
+            ),
+        )
+    }
+
+    @Test
     fun `only folders under the mount count as inside it`() {
         assertTrue(WorkspaceFolders.isInsideWorkspaceRoot("/workspace/app"))
         assertFalse(WorkspaceFolders.isInsideWorkspaceRoot("/workspace"))

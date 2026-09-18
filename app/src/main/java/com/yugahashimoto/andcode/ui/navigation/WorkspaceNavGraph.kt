@@ -161,7 +161,10 @@ fun NavGraphBuilder.workspaceNavGraph(
                     if (node.type == "directory") {
                         explorerViewModel.open(node)
                     } else {
-                        navController.navigate(codeViewerRoute(runtime.id, workspace.path, node.path))
+                        // node.path is relative to the directory currently being browsed
+                        // (explorerState.currentPath), not to the fixed workspace.path - the
+                        // explorer can now navigate outside the original workspace root.
+                        navController.navigate(codeViewerRoute(runtime.id, explorerState.currentPath, node.path))
                     }
                 },
                 onNavigateUp = explorerViewModel::navigateUp,

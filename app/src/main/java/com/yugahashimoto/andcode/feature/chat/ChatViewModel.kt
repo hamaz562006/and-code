@@ -8,6 +8,7 @@ import com.yugahashimoto.andcode.core.api.ConnectionQuality
 import com.yugahashimoto.andcode.core.api.ConnectionQualityMonitor
 import com.yugahashimoto.andcode.core.api.OpenCodeCommand
 import com.yugahashimoto.andcode.core.api.OpenCodeEvent
+import com.yugahashimoto.andcode.core.api.OpenCodeFileChange
 import com.yugahashimoto.andcode.core.api.OpenCodeMessage
 import com.yugahashimoto.andcode.core.api.OpenCodeMessageError
 import com.yugahashimoto.andcode.core.api.OpenCodePart
@@ -85,7 +86,7 @@ sealed interface ChatPart {
         val todos: List<TodoItem> = emptyList(),
     ) : ChatPart
 
-    data class Patch(override val id: String, val files: List<String>) : ChatPart
+    data class Patch(override val id: String, val files: List<String>, val messageId: String) : ChatPart
 
     data class Image(
         override val id: String,
@@ -96,6 +97,27 @@ sealed interface ChatPart {
 
     /** The model/provider failed; carries the human-readable error reported by the runtime. */
     data class Error(override val id: String, val message: String) : ChatPart
+}
+
+/**
+ * State of a diff fetched for a [ChatPart.Patch] card the user tapped open.
+ *
+ * Every state carries [files] so the dialog can always show the file list the chat already knew
+ * about, whether or not [RuntimeCapabilities.diffCapable] let the diff itself be fetched.
+ */
+sealed interface PatchDiffState {
+    val partId: String
+    val files: List<String>
+
+    data class Loading(override val partId: String, override val files: List<String>) : PatchDiffState
+
+    data class Loaded(
+        override val partId: String,
+        override val files: List<String>,
+        val changes: List<OpenCodeFileChange>,
+    ) : PatchDiffState
+
+    data class Unavailable(override val partId: String, override val files: List<String>) : PatchDiffState
 }
 
 data class ChatMessage(
@@ -242,7 +264,7 @@ private data class QueuedPrompt(
     val imagePreviews: List<Bitmap>,
 )
 
-internal fun OpenCodePart.toChatPart(): ChatPart? {
+internal fun OpenCodePart.toChatPart(messageId: String): ChatPart? {
     val partId = id ?: return null
     val stateMap = state.orEmpty()
     return when (type) {
@@ -277,7 +299,7 @@ internal fun OpenCodePart.toChatPart(): ChatPart? {
                 todos = parsedTodos,
             )
         }
-        "patch" -> ChatPart.Patch(partId, extractPatchFiles(stateMap))
+        "patch" -> ChatPart.Patch(partId, extractPatchFiles(stateMap), messageId)
         else -> null
     }
 }
@@ -514,6 +536,8 @@ data class ChatUiState(
      * same handoff [partialText] uses for dictation.
      */
     val editDraft: String? = null,
+    /** The diff dialog open on a tapped [ChatPart.Patch] card, or null when none is open. */
+    val patchDiff: PatchDiffState? = null,
 )
 
 class ChatViewModel(
@@ -1162,6 +1186,56 @@ class ChatViewModel(
                     }
             }
         }
+    }
+
+    /**
+     * Fetches and shows the diff for a tapped [ChatPart.Patch] card, or the "diff unavailable"
+     * state straight away when the backend cannot produce one at all
+     * ([com.yugahashimoto.andcode.runtime.RuntimeCapabilities.diffCapable]) — Antigravity has no
+     * diff surface, so this skips the round trip entirely rather than calling a backend already
+     * known to have nothing to return.
+     *
+     * A git-capable backend can still come back empty for a workspace that turns out not to be a
+     * git repository (see [ClaudeCodeTarget.sessionDiff]'s own git fallback); that is treated the
+     * same as [RuntimeCapabilities.diffCapable] being false, since [ChatPart.Patch.files] is only
+     * ever non-empty when the event stream already reported real changes, so an empty diff response
+     * in that situation is itself the "can't diff here" signal rather than "nothing changed".
+     */
+    fun openPatchDiff(patch: ChatPart.Patch) {
+        _uiState.update { it.copy(patchDiff = PatchDiffState.Loading(patch.id, patch.files)) }
+        val currentBackend = backend
+        if (currentBackend !is RuntimeTarget || !currentBackend.capabilities.diffCapable) {
+            _uiState.update { it.copy(patchDiff = PatchDiffState.Unavailable(patch.id, patch.files)) }
+            return
+        }
+        val sessionId = _uiState.value.sessionId
+        if (sessionId == null) {
+            _uiState.update { it.copy(patchDiff = PatchDiffState.Unavailable(patch.id, patch.files)) }
+            return
+        }
+        val directory = _uiState.value.sessionDirectory
+        viewModelScope.launch {
+            val changes =
+                runCatching { currentBackend.sessionDiff(sessionId, directory, patch.messageId) }
+                    .getOrDefault(emptyList())
+            // A dialog dismissed and reopened on a different patch while this fetch was still in
+            // flight must not have its answer land on the wrong card.
+            _uiState.update {
+                if (it.patchDiff?.partId != patch.id) return@update it
+                it.copy(
+                    patchDiff =
+                        if (changes.isEmpty()) {
+                            PatchDiffState.Unavailable(patch.id, patch.files)
+                        } else {
+                            PatchDiffState.Loaded(patch.id, patch.files, changes)
+                        },
+                )
+            }
+        }
+    }
+
+    fun dismissPatchDiff() {
+        _uiState.update { it.copy(patchDiff = null) }
     }
 
     /**
@@ -2111,7 +2185,7 @@ class ChatViewModel(
                 // would duplicate the bubble the composer already added.
                 if (messageRoles[messageId] == "user") return
                 val partId = part.id ?: messageId
-                val chatPart = part.toChatPart() ?: return
+                val chatPart = part.toChatPart(messageId) ?: return
                 val messageParts = streamedParts.getOrPut(messageId) { linkedMapOf() }
                 // Deltas can arrive before the part event that introduces them (see issue #26924):
                 // they are accumulated under the same part id, and the late snapshot must not wipe
@@ -2351,7 +2425,7 @@ class ChatViewModel(
 
     private fun toUiMessage(message: OpenCodeMessage): ChatMessage? {
         messageRoles[message.info.id] = message.info.role
-        val parts = message.parts.mapNotNull { it.toChatPart() }.withMessageError(message.info.id, message.info.error)
+        val parts = message.parts.mapNotNull { it.toChatPart(message.info.id) }.withMessageError(message.info.id, message.info.error)
         val attachments =
             message.parts.mapNotNull { part ->
                 if (part.type != "file") return@mapNotNull null

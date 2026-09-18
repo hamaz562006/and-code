@@ -1,6 +1,7 @@
 package com.yugahashimoto.andcode.runtime.local
 
 import com.yugahashimoto.andcode.core.api.*
+import com.yugahashimoto.andcode.core.storage.DeviceStorage
 import com.yugahashimoto.andcode.runtime.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +40,7 @@ class AntigravityTarget(internal val runtime: AntigravityRuntime) : RuntimeTarge
         ClaudeWorkspaceFiles(
             workspaceHostDir = File(runtime.runtimeDirectory, "workspace"),
             rootfsHostDir = File(runtime.runtimeDirectory, "environment/rootfs"),
+            deviceStorage = DeviceStorage::mounts,
         )
     private val titleScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val auth get() = runtime.auth()
@@ -287,6 +289,29 @@ class AntigravityTarget(internal val runtime: AntigravityRuntime) : RuntimeTarge
         directory: String,
         pattern: String,
     ): List<OpenCodeSearchMatch> = withContext(kotlinx.coroutines.Dispatchers.IO) { files.search(directory, pattern) }
+
+    // Antigravity has no git integration of its own, unlike ClaudeCodeTarget's vcsInfo/vcsStatus/
+    // vcsDiff (which shell out to git in the sandbox). These mirror that target's own non-git-repo
+    // fallback so a workspace here reads as "not a git repository" to callers - the Explorer's
+    // Changes tab and the chat's diff view both already recognize that message and fall back to a
+    // file-list-only view - instead of the generic, unrecognized OpenCodeBackend.unsupported() error.
+    override suspend fun vcsInfo(directory: String): OpenCodeVcsInfo = error("$directory is not a git repository")
+
+    override suspend fun vcsStatus(directory: String): List<OpenCodeFileChange> = emptyList()
+
+    override suspend fun vcsDiff(
+        directory: String,
+        mode: String,
+        context: Int?,
+    ): List<OpenCodeFileChange> = emptyList()
+
+    override suspend fun sessionDiff(
+        sessionId: String,
+        directory: String?,
+        messageId: String?,
+    ): List<OpenCodeFileChange> = emptyList()
+
+    override suspend fun fileStatus(directory: String): List<OpenCodeFileChange> = emptyList()
 
     override suspend fun listWorkspaces(): List<WorkspaceRef> =
         runtime.workspacePaths().map {

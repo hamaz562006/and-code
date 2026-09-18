@@ -5,6 +5,8 @@ import com.yugahashimoto.andcode.core.api.OpenCodeFileNode
 import com.yugahashimoto.andcode.core.api.OpenCodeSearchMatch
 import com.yugahashimoto.andcode.core.api.OpenCodeSearchSubmatch
 import com.yugahashimoto.andcode.core.api.OpenCodeSearchText
+import com.yugahashimoto.andcode.core.storage.DeviceStorage
+import com.yugahashimoto.andcode.feature.workspace.WorkspaceFolders
 import java.io.File
 
 /**
@@ -15,10 +17,13 @@ import java.io.File
  * directly. Without this the explorer throws "unsupported" the moment a Claude session is open.
  *
  * [rootfsHostDir] is the Linux rootfs, for workspaces set to a folder outside the `/workspace` mount.
+ * Root resolution is shared with the workspace folder picker ([WorkspaceFolders.hostDirectory]) so the
+ * explorer can reach exactly what that picker can reach: the whole rootfs, plus device storage.
  */
 class ClaudeWorkspaceFiles(
     private val workspaceHostDir: File,
     private val rootfsHostDir: File? = null,
+    private val deviceStorage: () -> DeviceStorage.Mounts = { DeviceStorage.Mounts.None },
 ) {
     fun list(
         directory: String,
@@ -29,15 +34,33 @@ class ClaudeWorkspaceFiles(
         val root = canonical(resolveRoot(directory)) ?: return emptyList()
         val target = resolve(root, path) ?: return emptyList()
         val children = target.listFiles()?.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() })).orEmpty()
-        return children.map { child ->
-            OpenCodeFileNode(
-                name = child.name,
-                path = child.relativeTo(root).path,
-                absolute = sandboxPath(directory, child.relativeTo(root).path),
-                type = if (child.isDirectory) "directory" else "file",
-                ignored = child.name.startsWith("."),
-            )
-        }
+        val nodes =
+            children.map { child ->
+                OpenCodeFileNode(
+                    name = child.name,
+                    path = child.relativeTo(root).path,
+                    absolute = sandboxPath(directory, child.relativeTo(root).path),
+                    type = if (child.isDirectory) "directory" else "file",
+                    ignored = child.name.startsWith("."),
+                )
+            }
+        // `/workspace` and device storage are bind mounts, invisible to a plain listing of the
+        // rootfs root — without these, browsing up to "/" would be a dead end with no way back in.
+        val atGuestRoot = WorkspaceFolders.normalize(directory) == WorkspaceFolders.GUEST_ROOT && (path.isBlank() || path == ".")
+        if (!atGuestRoot) return nodes
+        val existing = nodes.map { it.name }.toSet()
+        val synthetic =
+            WorkspaceFolders.syntheticRootNames(deviceStorage())
+                .filterNot { it in existing }
+                .map { name ->
+                    OpenCodeFileNode(
+                        name = name,
+                        path = name,
+                        absolute = "/$name",
+                        type = "directory",
+                    )
+                }
+        return (nodes + synthetic).sortedWith(compareBy({ it.type != "directory" }, { it.name.lowercase() }))
     }
 
     fun read(
@@ -129,27 +152,19 @@ class ClaudeWorkspaceFiles(
      *
      * Sessions record sandbox paths such as `/workspace/project`; everything under `/workspace` maps
      * into the app's own workspace directory. A workspace can also be set to a folder the Linux
-     * environment already has — `/root/project`, say — and those live in the rootfs instead; without
-     * [rootfsHostDir] they were resolved under the workspace mount, which is a different folder
-     * entirely.
+     * environment already has — `/root/project`, say — and those live in the rootfs instead. Shared
+     * with the workspace folder picker ([WorkspaceFolders.hostDirectory]) so the explorer can browse
+     * anywhere that picker can: the whole rootfs, plus device storage when it is mounted.
      */
-    private fun resolveRoot(directory: String): File {
-        val trimmed = directory.trim().trimEnd('/')
-        if (trimmed == WORKSPACE_MOUNT || trimmed.startsWith("$WORKSPACE_MOUNT/")) {
-            val relative = trimmed.removePrefix(WORKSPACE_MOUNT).trim('/')
-            return if (relative.isEmpty()) workspaceHostDir else File(workspaceHostDir, relative)
-        }
-        val rootfs = rootfsHostDir ?: return File(workspaceHostDir, trimmed.trim('/'))
-        val relative = trimmed.trim('/')
-        return if (relative.isEmpty()) rootfs else File(rootfs, relative)
-    }
+    private fun resolveRoot(directory: String): File? =
+        WorkspaceFolders.hostDirectory(rootfsHostDir, workspaceHostDir, directory, deviceStorage())
 
     private fun sandboxPath(
         directory: String,
         relative: String,
     ): String = directory.trimEnd('/') + "/" + relative
 
-    private fun canonical(file: File): File? = runCatching { file.canonicalFile }.getOrNull()
+    private fun canonical(file: File?): File? = file?.let { runCatching { it.canonicalFile }.getOrNull() }
 
     /** Null when [path] escapes [root]; the explorer must not reach outside the workspace. */
     private fun resolve(
@@ -162,7 +177,6 @@ class ClaudeWorkspaceFiles(
     }
 
     private companion object {
-        const val WORKSPACE_MOUNT = "/workspace"
         const val MAX_READ_BYTES = 2L * 1024 * 1024
         const val BINARY_SNIFF_BYTES = 1024
         const val DEFAULT_LIMIT = 200

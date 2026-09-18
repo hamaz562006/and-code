@@ -107,6 +107,16 @@ object WorkspaceFolders {
         return if (relative.isEmpty()) rootfs.absoluteFile.normalize() else containedIn(rootfs, relative)
     }
 
+    /**
+     * The bind-mount roots to show as synthetic entries when browsing [GUEST_ROOT].
+     *
+     * `/workspace` and the device storage mounts are bind mounts, so the rootfs usually has no entry
+     * for any of them: the folder holding every imported and cloned project, and the phone's own
+     * files, would both be missing from a plain listing of "/".
+     */
+    fun syntheticRootNames(mounts: DeviceStorage.Mounts): List<String> =
+        listOf(displayName(WORKSPACE_ROOT)) + DeviceStorage.guestRoots(mounts).map(::displayName)
+
     /** [relative] resolved under [root], or null when it climbs back out of it. */
     private fun containedIn(
         root: File,
