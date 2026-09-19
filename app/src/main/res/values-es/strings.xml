@@ -63,6 +63,7 @@
     <string name="activity_details_close">Cerrar</string>
     <string name="file_changes_title">Cambios en archivos</string>
     <string name="file_changes_generic">Se han modificado archivos</string>
+    <string name="diff_unavailable">Diferencias no disponibles: este espacio de trabajo no es un repositorio Git</string>
     <string name="workspace_folder_label">Carpeta de trabajo</string>
     <string name="workspace_import_folder">Importar carpeta…</string>
     <string name="workspace_clone_github">Clonar desde GitHub…</string>

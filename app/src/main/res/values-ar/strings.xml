@@ -63,6 +63,7 @@
     <string name="activity_details_close">إغلاق</string>
     <string name="file_changes_title">تغييرات الملفات</string>
     <string name="file_changes_generic">تم تغيير الملفات</string>
+    <string name="diff_unavailable">الفرق غير متاح — مساحة العمل هذه ليست مستودع Git</string>
     <string name="workspace_folder_label">مجلد العمل</string>
     <string name="workspace_import_folder">استيراد مجلد…</string>
     <string name="workspace_clone_github">استنساخ من GitHub…</string>

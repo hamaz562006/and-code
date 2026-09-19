@@ -63,6 +63,7 @@
     <string name="activity_details_close">閉じる</string>
     <string name="file_changes_title">ファイル変更</string>
     <string name="file_changes_generic">ファイルが変更されました</string>
+    <string name="diff_unavailable">差分は利用できません — このワークスペースは Git リポジトリではありません</string>
     <string name="workspace_folder_label">作業フォルダ</string>
     <string name="workspace_import_folder">フォルダをインポート…</string>
     <string name="workspace_clone_github">GitHubからClone…</string>

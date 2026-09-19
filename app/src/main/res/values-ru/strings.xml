@@ -63,6 +63,7 @@
     <string name="activity_details_close">Закрыть</string>
     <string name="file_changes_title">Изменения файлов</string>
     <string name="file_changes_generic">Файлы были изменены</string>
+    <string name="diff_unavailable">Diff недоступен — это рабочее пространство не является репозиторием Git</string>
     <string name="workspace_folder_label">Рабочая папка</string>
     <string name="workspace_import_folder">Импортировать папку…</string>
     <string name="workspace_clone_github">Клонировать из GitHub…</string>
