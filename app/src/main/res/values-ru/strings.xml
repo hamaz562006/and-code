@@ -501,6 +501,7 @@
     <string name="section_recent">Недавние</string>
     <string name="this_android">Этот Android</string>
     <string name="picker_no_providers">Подключённых провайдеров пока нет</string>
+    <string name="picker_connect_provider">Подключить провайдера</string>
 
     <string name="onboarding_welcome_title">Добро пожаловать в %1$s</string>
     <string name="onboarding_subtitle">Пишите, исправляйте и понимайте код. Для начала просто выберите путь выполнения.</string>

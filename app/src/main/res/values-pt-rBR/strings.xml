@@ -500,6 +500,7 @@
     <string name="section_recent">Recentes</string>
     <string name="this_android">Este Android</string>
     <string name="picker_no_providers">Nenhum provedor conectado ainda</string>
+    <string name="picker_connect_provider">Conectar um provedor</string>
 
     <string name="onboarding_welcome_title">Bem-vindo ao %1$s</string>
     <string name="onboarding_subtitle">Escreva, corrija e entenda código. Para começar, basta escolher um caminho de execução.</string>

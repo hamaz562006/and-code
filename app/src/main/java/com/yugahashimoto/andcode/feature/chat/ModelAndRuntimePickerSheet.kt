@@ -29,6 +29,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -76,6 +77,7 @@ fun ModelAndRuntimePickerSheet(
     hiddenModelKeys: Set<String> = emptySet(),
     onToggleFavorite: (String, String) -> Unit = { _, _ -> },
     showLocalSuffix: Boolean = true,
+    onConnectProvider: (() -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
@@ -282,6 +284,17 @@ fun ModelAndRuntimePickerSheet(
                                 onToggleFavorite = { onToggleFavorite(provider.id, model.id) },
                             )
                         }
+                    }
+                }
+            }
+
+            if (onConnectProvider != null) {
+                item {
+                    TextButton(
+                        onClick = onConnectProvider,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    ) {
+                        Text(stringResource(R.string.picker_connect_provider))
                     }
                 }
             }
