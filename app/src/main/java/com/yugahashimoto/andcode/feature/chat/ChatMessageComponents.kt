@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
@@ -227,6 +228,7 @@ private fun ErrorPartCard(
                         part.message
                     },
                 color = MaterialTheme.colorScheme.onSurface,
+                style = LocalTextStyle.current.copy(textDirection = TextDirection.Content),
             )
             if (zenFreeTier && onOpenProviderSettings != null) {
                 Spacer(Modifier.height(12.dp))
@@ -316,7 +318,10 @@ private fun InlineText(
     // forward those to another app and crash with FileUriExposedException (issue #300).
     ProvideSafeUriHandler {
         SelectionContainer {
-            Text(text = annotated, style = style)
+            // Resolve paragraph direction from the content (first-strong heuristic) instead of
+            // the app layout direction, so mixed Arabic/English text (issue #341) is not laid out
+            // with a forced base direction that visually reverses line starts and ends.
+            Text(text = annotated, style = style.copy(textDirection = TextDirection.Content))
         }
     }
 }
@@ -365,7 +370,8 @@ private fun LinkedText(
         }
     // Same file:// guard as InlineText above (issue #300).
     ProvideSafeUriHandler {
-        Text(text = annotated, style = style)
+        // Content-based paragraph direction for mixed RTL/LTR input (issue #341).
+        Text(text = annotated, style = style.copy(textDirection = TextDirection.Content))
     }
 }
 
@@ -435,7 +441,8 @@ private fun MarkdownText(
                                     .horizontalScroll(rememberScrollState())
                                     .padding(10.dp),
                             fontFamily = FontFamily.Monospace,
-                            style = MaterialTheme.typography.bodySmall,
+                            // Code is always laid out LTR, even in RTL app locales (issue #341).
+                            style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Ltr),
                         )
                     }
                 is MarkdownBlock.BulletList ->

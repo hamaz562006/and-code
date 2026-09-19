@@ -116,6 +116,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -1352,6 +1353,9 @@ private fun ChatComposer(
                                 color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = MaterialTheme.typography.bodyLarge.fontSize,
                                 lineHeight = MaterialTheme.typography.bodyLarge.lineHeight,
+                                // Follow the typed content's direction so Arabic (RTL) input lays
+                                // out correctly even when the app language is LTR (issue #341).
+                                textDirection = TextDirection.Content,
                             ),
                         keyboardOptions =
                             KeyboardOptions(
