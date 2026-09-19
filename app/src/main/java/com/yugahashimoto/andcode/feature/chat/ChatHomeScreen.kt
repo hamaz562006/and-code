@@ -226,6 +226,7 @@ fun ChatHomeScreen(
     onOpenLocalSetup: () -> Unit,
     onOpenRemoteSetup: () -> Unit,
     onRefreshCatalog: () -> Unit = {},
+    onOpenProviderSettings: (() -> Unit)? = null,
     onOpenDrawer: () -> Unit,
     subagents: List<SubagentInfo> = emptyList(),
     onSubagentClick: (String) -> Unit = {},
@@ -705,6 +706,14 @@ fun ChatHomeScreen(
             recentModelKeys = recentModelKeys,
             hiddenModelKeys = hiddenModelKeys,
             onToggleFavorite = onToggleFavorite,
+            onConnectProvider =
+                onOpenProviderSettings?.let { open ->
+                    {
+                        showModelPicker = false
+                        onModelPickerClosed()
+                        open()
+                    }
+                },
             onDismiss = {
                 showModelPicker = false
                 onModelPickerClosed()

@@ -501,6 +501,7 @@
     <string name="section_recent">最近利用</string>
     <string name="this_android">このAndroid</string>
     <string name="picker_no_providers">接続済みのプロバイダがありません</string>
+    <string name="picker_connect_provider">プロバイダを接続</string>
 
     <!-- Model visibility settings -->
     <string name="model_visibility_row">表示するモデル</string>

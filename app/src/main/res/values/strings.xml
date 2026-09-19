@@ -488,6 +488,7 @@
     <string name="section_recent">Recent</string>
     <string name="this_android">This Android</string>
     <string name="picker_no_providers">No connected providers yet</string>
+    <string name="picker_connect_provider">Connect a provider</string>
 
     <!-- Model visibility settings -->
     <string name="model_visibility_row">Visible models</string>

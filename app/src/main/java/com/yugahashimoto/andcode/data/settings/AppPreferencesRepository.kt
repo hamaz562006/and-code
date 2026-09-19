@@ -132,42 +132,23 @@ class AppPreferencesRepository(
         agents: List<OpenCodeAgent>,
     ) {
         val current = mutableState.value
-        val connected = catalog.connected.toSet()
-        val providers = catalog.all.filter { it.id in connected }
-        // Nothing to reconcile against yet. Rewriting the selection from an empty catalogue - which
-        // is what the state holds for the moment between switching runtime and its providers
-        // arriving - would blank a choice that is about to become valid again.
-        if (providers.isEmpty()) return
-        // The last model the user picked *on this runtime*, which is the one to come back to when
-        // the agent changes: the current selection belongs to the agent being left and its id means
-        // nothing here, so without this the picker kept showing e.g. Claude's "sonnet" under
-        // OpenCode.
-        val recent =
-            settings.recentModelKeys.asSequence()
-                .mapNotNull { key -> key.substringBefore('/').takeIf { it in connected }?.to(key.substringAfter('/')) }
-                .firstOrNull { (provider, model) -> model in providers.firstOrNull { it.id == provider }?.models.orEmpty() }
-        val providerId =
-            current.providerId?.takeIf { it in connected }
-                ?: recent?.first
-                ?: "opencode".takeIf { it in connected }
-                ?: providers.firstOrNull()?.id
-        val provider = providers.firstOrNull { it.id == providerId }
-        val modelId =
-            current.modelId?.takeIf { it in provider?.models.orEmpty() }
-                ?: recent?.second?.takeIf { providerId == recent.first && it in provider?.models.orEmpty() }
-                ?: providerId?.let { catalog.default[it] }?.takeIf { it in provider?.models.orEmpty() }
-                ?: provider?.models?.values
-                    ?.firstOrNull { it.status == null || it.status == "active" }
-                    ?.id
+        val reconciled =
+            reconcileModelSelection(
+                currentProviderId = current.providerId,
+                currentModelId = current.modelId,
+                catalog = catalog,
+                recentModelKeys = settings.recentModelKeys,
+            )
+        if (reconciled != null &&
+            (reconciled.providerId != current.providerId || reconciled.modelId != current.modelId)
+        ) {
+            selectModel(reconciled.providerId, reconciled.modelId)
+        }
         val primaryAgents = agents.filter { it.mode == null || it.mode == "primary" }
         val agentId =
             current.agentId?.takeIf { selected -> primaryAgents.any { it.name == selected } }
                 ?: primaryAgents.firstOrNull { it.name == "build" }?.name
                 ?: primaryAgents.firstOrNull()?.name
-
-        if (providerId != current.providerId || modelId != current.modelId) {
-            selectModel(providerId, modelId)
-        }
         if (agentId != current.agentId) {
             selectAgent(agentId)
         }
@@ -384,4 +365,53 @@ class AppPreferencesRepository(
         settings.autoArchiveMaxSessions = clamped
         mutableState.update { it.copy(autoArchiveMaxSessions = clamped) }
     }
+}
+
+internal data class ReconciledModelSelection(
+    val providerId: String?,
+    val modelId: String?,
+)
+
+internal fun reconcileModelSelection(
+    currentProviderId: String?,
+    currentModelId: String?,
+    catalog: ProviderCatalog,
+    recentModelKeys: List<String> = emptyList(),
+): ReconciledModelSelection? {
+    val connected = catalog.connected.toSet()
+    val providers = catalog.all.filter { it.id in connected }
+    if (providers.isEmpty()) return null
+
+    fun modelsOf(providerId: String?) = providers.firstOrNull { it.id == providerId }?.models.orEmpty()
+
+    if (currentProviderId != null && currentProviderId in connected) {
+        val models = modelsOf(currentProviderId)
+        val modelId =
+            currentModelId?.takeIf { it in models }
+                ?: catalog.default[currentProviderId]?.takeIf { it in models }
+                ?: models.values.firstOrNull { it.status == null || it.status == "active" }?.id
+        return ReconciledModelSelection(currentProviderId, modelId)
+    }
+
+    // A restart often reports only the default provider as connected before NVIDIA / Copilot /
+    // DeepSeek credentials are applied. Overwriting the saved pick with that default is what made
+    // configuration appear to reset after every restart.
+    if (!currentProviderId.isNullOrBlank() && !currentModelId.isNullOrBlank()) {
+        return null
+    }
+
+    val recent =
+        recentModelKeys.asSequence()
+            .mapNotNull { key -> key.substringBefore('/').takeIf { it in connected }?.to(key.substringAfter('/')) }
+            .firstOrNull { (provider, model) -> model in modelsOf(provider) }
+    val providerId =
+        recent?.first
+            ?: "opencode".takeIf { it in connected }
+            ?: providers.firstOrNull()?.id
+    val models = modelsOf(providerId)
+    val modelId =
+        recent?.second?.takeIf { providerId == recent.first && it in models }
+            ?: providerId?.let { catalog.default[it] }?.takeIf { it in models }
+            ?: models.values.firstOrNull { it.status == null || it.status == "active" }?.id
+    return ReconciledModelSelection(providerId, modelId)
 }

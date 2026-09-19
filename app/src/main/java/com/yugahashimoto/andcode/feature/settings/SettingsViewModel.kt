@@ -472,7 +472,7 @@ class SettingsViewModel(
                     .onSuccess { completed ->
                         if (completed) {
                             if (target.kind == BackendKind.LOCAL) {
-                                credentials.unmanageProvider(dialog.providerId)
+                                credentials.setCredential(dialog.providerId, apiKey)
                             }
                             finishProviderAuth(ProviderAuthNotice.CONNECTED)
                         } else {

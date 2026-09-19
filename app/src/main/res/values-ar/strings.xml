@@ -503,6 +503,7 @@
     <string name="section_recent">الأخيرة</string>
     <string name="this_android">هذا Android</string>
     <string name="picker_no_providers">لا يوجد موفرون متصلون بعد</string>
+    <string name="picker_connect_provider">توصيل موفر</string>
 
     <string name="onboarding_welcome_title">مرحبًا بك في %1$s</string>
     <string name="onboarding_subtitle">اكتب وأصلح وافهم الكود. للبدء، ما عليك سوى اختيار مسار تنفيذ واحد.</string>

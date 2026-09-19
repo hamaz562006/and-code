@@ -1075,6 +1075,9 @@ fun AndCodeApp(
                                     }
                                 }
                             },
+                            onOpenProviderSettings = {
+                                navController.navigate(ROUTE_SETTINGS_PROVIDERS)
+                            },
                             onSelectModel = settingsViewModel::selectModel,
                             onSelectAgent = settingsViewModel::selectAgent,
                             selectedVariant = chatState.selectedVariant,
