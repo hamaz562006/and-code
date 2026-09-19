@@ -39,4 +39,14 @@ data class RuntimeCapabilities(
      * runtime actually ran.
      */
     val editMessages: Boolean = false,
+    /**
+     * True when [com.yugahashimoto.andcode.runtime.OpenCodeBackend.sessionDiff] can return real diff
+     * content for this backend, so the chat UI can fetch and render one when a turn changes files.
+     *
+     * OpenCode (local and remote) and Claude Code are git-backed, so this is optimistic per backend
+     * rather than per workspace — a given Claude Code workspace might not actually be a git repo, in
+     * which case [sessionDiff] itself returns nothing and the UI falls back to a file-list-only view.
+     * Antigravity has no diff implementation at all, so this stays false there.
+     */
+    val diffCapable: Boolean = false,
 )

@@ -1151,6 +1151,8 @@ fun AndCodeApp(
                             onOpenUrl = { url ->
                                 UrlLauncher.openUrl(context, url)
                             },
+                            onOpenPatchDiff = chatViewModel::openPatchDiff,
+                            onDismissPatchDiff = chatViewModel::dismissPatchDiff,
                         )
                     }
 

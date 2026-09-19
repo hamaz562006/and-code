@@ -83,7 +83,7 @@ class ChatErrorPartTest {
         // error on their own, only the message-level info.error does.
         val retryPart = OpenCodePart(id = "r1", type = "retry")
 
-        assertNull(retryPart.toChatPart())
+        assertNull(retryPart.toChatPart("m1"))
     }
 
     @Test

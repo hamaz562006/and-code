@@ -757,7 +757,7 @@ class ChatViewModelTest {
                     ),
             )
 
-        val reasoning = part.toChatPart() as ChatPart.Reasoning
+        val reasoning = part.toChatPart("m1") as ChatPart.Reasoning
         assertEquals("Deep thought", reasoning.text)
     }
 
@@ -773,7 +773,7 @@ class ChatViewModelTest {
                 state = mapOf("text" to JsonPrimitive("State fallback")),
             )
 
-        val reasoning = part.toChatPart() as ChatPart.Reasoning
+        val reasoning = part.toChatPart("m1") as ChatPart.Reasoning
         assertEquals("Top level", reasoning.text)
     }
 

@@ -33,14 +33,9 @@ class RuntimeFolderBrowser(
             host.listFiles().orEmpty()
                 .filter { it.isDirectory }
                 .map { it.name }
-        // `/workspace` and the device storage mounts are bind mounts, so the rootfs usually has no
-        // entry for any of them: the folder holding every imported and cloned project, and the
-        // phone's own files, would both be missing from the top level.
         val merged =
             if (WorkspaceFolders.normalize(path) == WorkspaceFolders.GUEST_ROOT) {
-                names +
-                    WorkspaceFolders.displayName(WorkspaceFolders.WORKSPACE_ROOT) +
-                    DeviceStorage.guestRoots(mounts).map(WorkspaceFolders::displayName)
+                names + WorkspaceFolders.syntheticRootNames(mounts)
             } else {
                 names
             }

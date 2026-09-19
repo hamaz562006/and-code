@@ -1,5 +1,6 @@
 package com.yugahashimoto.andcode.runtime.local
 
+import com.yugahashimoto.andcode.core.storage.DeviceStorage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
@@ -106,5 +107,79 @@ class ClaudeWorkspaceFilesTest {
             parentFile?.mkdirs()
             writeText(content)
         }
+    }
+}
+
+class ClaudeWorkspaceFilesRootfsTest {
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
+
+    private lateinit var workspace: File
+    private lateinit var rootfs: File
+
+    @Before
+    fun setUp() {
+        workspace = temporaryFolder.newFolder("workspace")
+        rootfs = temporaryFolder.newFolder("rootfs")
+        File(rootfs, "root/project").mkdirs()
+        File(rootfs, "root/project/notes.md").writeText("todo")
+    }
+
+    @Test
+    fun `browses a folder outside workspace via the rootfs`() {
+        val files = ClaudeWorkspaceFiles(workspace, rootfsHostDir = rootfs)
+
+        val nodes = files.list("/root/project", ".")
+
+        assertEquals(listOf("notes.md"), nodes.map { it.name })
+        assertEquals("/root/project/notes.md", nodes.single().absolute)
+    }
+
+    @Test
+    fun `listing the guest root includes a synthetic workspace entry`() {
+        val files = ClaudeWorkspaceFiles(workspace, rootfsHostDir = rootfs)
+
+        val nodes = files.list("/", ".")
+
+        assertTrue(nodes.any { it.name == "workspace" && it.type == "directory" && it.absolute == "/workspace" })
+        assertTrue(nodes.any { it.name == "root" })
+    }
+
+    @Test
+    fun `listing the guest root includes mounted device storage`() {
+        val storage = temporaryFolder.newFolder("sdcard")
+        val files =
+            ClaudeWorkspaceFiles(
+                workspace,
+                rootfsHostDir = rootfs,
+                deviceStorage = { DeviceStorage.Mounts(sharedStorage = storage) },
+            )
+
+        val nodes = files.list("/", ".")
+
+        assertTrue(nodes.any { it.name == "sdcard" })
+    }
+
+    @Test
+    fun `browses device storage once mounted`() {
+        val storage = temporaryFolder.newFolder("sdcard")
+        File(storage, "Download").mkdirs()
+        val files =
+            ClaudeWorkspaceFiles(
+                workspace,
+                rootfsHostDir = rootfs,
+                deviceStorage = { DeviceStorage.Mounts(sharedStorage = storage) },
+            )
+
+        val nodes = files.list("/sdcard", ".")
+
+        assertEquals(listOf("Download"), nodes.map { it.name })
+    }
+
+    @Test
+    fun `finds nothing outside the mounted directories when the rootfs is unavailable`() {
+        val files = ClaudeWorkspaceFiles(workspace, rootfsHostDir = null)
+
+        assertTrue(files.list("/root/project", ".").isEmpty())
     }
 }

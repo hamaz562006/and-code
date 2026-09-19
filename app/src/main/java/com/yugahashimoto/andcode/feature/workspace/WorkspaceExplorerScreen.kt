@@ -389,7 +389,7 @@ private fun FilesTab(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    IconButton(onClick = onNavigateUp, enabled = state.currentPath != ".") {
+                    IconButton(onClick = onNavigateUp, enabled = state.currentPath != WorkspaceFolders.GUEST_ROOT) {
                         Icon(Icons.Default.ArrowUpward, contentDescription = stringResource(R.string.parent_folder))
                     }
                 }
@@ -816,7 +816,7 @@ private fun ChangeCard(
 }
 
 @Composable
-private fun UnifiedDiffView(patch: String) {
+internal fun UnifiedDiffView(patch: String) {
     SelectionContainer {
         Column(
             modifier =
@@ -847,7 +847,7 @@ private fun UnifiedDiffView(patch: String) {
 }
 
 @Composable
-private fun SplitDiffView(patch: String) {
+internal fun SplitDiffView(patch: String) {
     val oldLines = mutableListOf<String>()
     val newLines = mutableListOf<String>()
     patch.lines().forEach { line ->

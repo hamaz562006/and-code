@@ -18,6 +18,7 @@ import com.yugahashimoto.andcode.core.api.OpenCodeTodo
 import com.yugahashimoto.andcode.core.api.OpenCodeVcsInfo
 import com.yugahashimoto.andcode.core.api.PromptRequest
 import com.yugahashimoto.andcode.core.api.QuestionRequest
+import com.yugahashimoto.andcode.core.storage.DeviceStorage
 import com.yugahashimoto.andcode.runtime.BackendKind
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.PermissionResponse
@@ -83,6 +84,7 @@ class ClaudeCodeTarget(
                 questions = bridge,
                 toolEvents = true,
                 resume = true,
+                diffCapable = true,
             )
         }
 
@@ -232,6 +234,7 @@ class ClaudeCodeTarget(
         ClaudeWorkspaceFiles(
             workspaceHostDir = File(runtime.runtimeDirectory, "workspace"),
             rootfsHostDir = File(runtime.runtimeDirectory, "environment/rootfs"),
+            deviceStorage = DeviceStorage::mounts,
         )
 
     val auth: ClaudeAuthCoordinator get() = runtime.auth

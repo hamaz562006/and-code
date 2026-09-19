@@ -63,6 +63,7 @@
     <string name="activity_details_close">Fermer</string>
     <string name="file_changes_title">Modifications de fichiers</string>
     <string name="file_changes_generic">Des fichiers ont été modifiés</string>
+    <string name="diff_unavailable">Diff indisponible — cet espace de travail n\'est pas un dépôt Git</string>
     <string name="workspace_folder_label">Dossier de travail</string>
     <string name="workspace_import_folder">Importer un dossier…</string>
     <string name="workspace_clone_github">Cloner depuis GitHub…</string>

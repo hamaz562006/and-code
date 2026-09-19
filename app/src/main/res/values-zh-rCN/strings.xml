@@ -63,6 +63,7 @@
     <string name="activity_details_close">关闭</string>
     <string name="file_changes_title">文件更改</string>
     <string name="file_changes_generic">文件已更改</string>
+    <string name="diff_unavailable">差异不可用 — 此工作区不是 Git 仓库</string>
     <string name="workspace_folder_label">工作文件夹</string>
     <string name="workspace_import_folder">导入文件夹…</string>
     <string name="workspace_clone_github">从 GitHub 克隆…</string>

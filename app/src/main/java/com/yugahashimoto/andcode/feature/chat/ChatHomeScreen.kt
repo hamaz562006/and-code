@@ -233,6 +233,9 @@ fun ChatHomeScreen(
     githubRefs: List<GitHubReference> = emptyList(),
     onOpenUrl: (String) -> Unit = {},
     onImageAttachment: (Bitmap) -> Unit = {},
+    /** Fetches and opens the diff dialog for a tapped [ChatPart.Patch] card. */
+    onOpenPatchDiff: (ChatPart.Patch) -> Unit = {},
+    onDismissPatchDiff: () -> Unit = {},
 ) {
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -716,8 +719,13 @@ fun ChatHomeScreen(
                 parts = parts,
                 autoExpandReasoning = autoExpandReasoning,
                 onDismiss = { activityGroupId = null },
+                onOpenDiff = onOpenPatchDiff,
             )
         }
+    }
+
+    state.patchDiff?.let { patchDiff ->
+        ChatDiffDialog(state = patchDiff, onDismiss = onDismissPatchDiff)
     }
 
     showActionSheet?.let { target ->

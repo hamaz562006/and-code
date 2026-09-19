@@ -72,8 +72,21 @@ class WorkspaceExplorerViewModelTest {
 
             viewModel.open(backend.rootFiles.first { it.type == "directory" })
             advanceUntilIdle()
-            assertEquals("src", viewModel.state.value.currentPath)
+            assertEquals("/repo/src", viewModel.state.value.currentPath)
             assertEquals(listOf("Main.kt"), viewModel.state.value.files.map { it.name })
+        }
+
+    @Test
+    fun `navigating up leaves the workspace root and reaches its parent`() =
+        runTest(dispatcher) {
+            val backend = FakeBackend()
+            val viewModel = WorkspaceExplorerViewModel(backend, workspace())
+            advanceUntilIdle()
+
+            viewModel.navigateUp()
+            advanceUntilIdle()
+
+            assertEquals("/", viewModel.state.value.currentPath)
         }
 
     @Test
@@ -123,9 +136,9 @@ class WorkspaceExplorerViewModelTest {
             directory: String,
             path: String,
         ): List<OpenCodeFileNode> =
-            when (path) {
-                "." -> rootFiles
-                "src" -> listOf(OpenCodeFileNode("Main.kt", "src/Main.kt", "/repo/src/Main.kt", "file"))
+            when (directory) {
+                "/repo" -> rootFiles
+                "/repo/src" -> listOf(OpenCodeFileNode("Main.kt", "Main.kt", "/repo/src/Main.kt", "file"))
                 else -> emptyList()
             }
 

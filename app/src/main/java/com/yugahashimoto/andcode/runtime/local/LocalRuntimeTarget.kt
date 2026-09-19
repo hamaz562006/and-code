@@ -55,6 +55,7 @@ class LocalRuntimeTarget(
             providerModelList = true,
             abortsBeforeInterrupt = true,
             editMessages = true,
+            diffCapable = true,
         )
 
     private val mutableState = MutableStateFlow(mapStatus(runtimeManager.status()))
