@@ -30,6 +30,7 @@ data class PiControllerState(
 
 class PiController(
     private val installer: LocalRuntimeInstaller,
+    private val target: PiTarget? = null,
     private val scope: CoroutineScope,
 ) {
     private val mutableState = MutableStateFlow(PiControllerState())
@@ -97,5 +98,8 @@ class PiController(
                             else -> PiInstallStatus.Idle
                         },
                 )
+            if (version != null) {
+                target?.connect()
+            }
         }
 }

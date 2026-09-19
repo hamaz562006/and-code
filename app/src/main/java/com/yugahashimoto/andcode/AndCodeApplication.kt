@@ -69,6 +69,8 @@ import com.yugahashimoto.andcode.runtime.local.LocalRuntimeServiceController
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeTarget
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeUpdater
 import com.yugahashimoto.andcode.runtime.local.PiController
+import com.yugahashimoto.andcode.runtime.local.PiRuntime
+import com.yugahashimoto.andcode.runtime.local.PiTarget
 import com.yugahashimoto.andcode.runtime.local.SystemPromptStore
 import com.yugahashimoto.andcode.runtime.local.VerifiedRuntimeDownloader
 import com.yugahashimoto.andcode.runtime.local.applyOpenCodeSystemPrompt
@@ -199,6 +201,12 @@ class AndCodeApplication : Application() {
     lateinit var antigravityController: AntigravityController
         private set
 
+    lateinit var piRuntime: PiRuntime
+        private set
+
+    lateinit var piTarget: PiTarget
+        private set
+
     lateinit var piController: PiController
         private set
 
@@ -315,7 +323,16 @@ class AndCodeApplication : Application() {
         antigravityRuntime = AntigravityRuntime(runtimeDirectory, installer::installedRuntime, githubToken = { settings.githubToken })
         antigravityTarget = AntigravityTarget(antigravityRuntime)
         antigravityController = AntigravityController(installer, antigravityTarget, runtimeWork, applicationScope)
-        piController = PiController(installer, applicationScope)
+        piRuntime =
+            PiRuntime(
+                runtimeDirectory = runtimeDirectory,
+                installedRuntimeProvider = installer::installedRuntime,
+                accessCoordinator = accessCoordinator,
+                githubToken = { settings.githubToken },
+                scope = applicationScope,
+            )
+        piTarget = PiTarget(piRuntime)
+        piController = PiController(installer, piTarget, applicationScope)
         runtimeMessages = AndroidLocalRuntimeMessages(this)
         gitCloneRepository =
             GitCloneRepository(
@@ -420,11 +437,12 @@ class AndCodeApplication : Application() {
             RuntimeRegistry(
                 store = settings,
                 localTarget = LocalRuntimeTarget(localRuntimeManager, messages = runtimeMessages),
-                additionalTargets = listOf(claudeCodeTarget, antigravityTarget),
+                additionalTargets = listOf(claudeCodeTarget, antigravityTarget, piTarget),
             )
         // Surface the installed/version state to the workspace picker without waiting for the
-        // first chat to touch Antigravity.
+        // first chat to touch Antigravity or Pi.
         applicationScope.launch { antigravityTarget.connect() }
+        applicationScope.launch { piTarget.connect() }
         claudeCodeController =
             ClaudeCodeController(
                 target = claudeCodeTarget,
