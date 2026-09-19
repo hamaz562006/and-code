@@ -55,6 +55,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.yugahashimoto.andcode.R
@@ -267,8 +268,12 @@ fun ReasoningCard(
                 Spacer(Modifier.height(6.dp))
                 Text(
                     text = part.text.ifBlank { stringResource(R.string.reasoning_empty) },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    style =
+                        MaterialTheme.typography.bodySmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            // Content-based paragraph direction for mixed RTL/LTR prose (issue #341).
+                            textDirection = TextDirection.Content,
+                        ),
                 )
             }
         }
@@ -334,7 +339,8 @@ fun ToolCard(part: ChatPart.Tool) {
                                 .horizontalScroll(rememberScrollState())
                                 .padding(vertical = 4.dp),
                         fontFamily = FontFamily.Monospace,
-                        style = MaterialTheme.typography.bodySmall,
+                        // Tool input is a command: always LTR (issue #341).
+                        style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Ltr),
                     )
                 }
                 part.output?.let { output ->
@@ -354,7 +360,8 @@ fun ToolCard(part: ChatPart.Tool) {
                                 .horizontalScroll(rememberScrollState())
                                 .padding(vertical = 4.dp),
                         fontFamily = FontFamily.Monospace,
-                        style = MaterialTheme.typography.bodySmall,
+                        // Tool output can be RTL prose; resolve from content (issue #341).
+                        style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
                     )
                     if (part.outputTruncated) {
                         Text(
