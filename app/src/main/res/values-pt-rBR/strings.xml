@@ -893,6 +893,7 @@
     <string name="agent_opencode_name">OpenCode</string>
     <string name="agent_claude_code_name">Claude Code</string>
     <string name="agent_antigravity_name">Antigravity</string>
+    <string name="agent_codex_name">Codex</string>
     <string name="runtime_error_install_failed">Não foi possível instalar o ambiente local</string>
     <string name="runtime_error_reinstall_failed">Não foi possível reinstalar o ambiente local</string>
     <string name="runtime_error_start_failed">Não foi possível iniciar o OpenCode local</string>
@@ -992,6 +993,10 @@
     <string name="claude_error_install_failed">A instalação do Claude Code falhou</string>
     <string name="claude_error_update_failed">A atualização do Claude Code falhou</string>
     <string name="claude_error_process_exited">O Claude Code parou antes de concluir o turno (%1$s)</string>
+    <string name="codex_error_not_installed">O Codex não está instalado</string>
+    <string name="codex_error_install_failed">A instalação do Codex falhou</string>
+    <string name="codex_error_login_failed">O login do Codex falhou</string>
+    <string name="codex_error_process_exited">O Codex parou antes de concluir o turno (%1$s)</string>
     <string name="setup_download_agents_description">Prepara o ambiente Linux compartilhado e os agentes escolhidos.</string>
     <string name="settings_agents_row">Agentes</string>
     <string name="settings_agents_section">Agentes</string>

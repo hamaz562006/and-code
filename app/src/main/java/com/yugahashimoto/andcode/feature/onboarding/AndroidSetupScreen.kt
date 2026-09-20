@@ -1004,6 +1004,9 @@ private fun SignInStep(
                         onDisconnectProvider = onDisconnectProvider,
                         header = false,
                     )
+                // Codex has no onboarding step yet (see docs/CODEX.md): it is never in `agents`
+                // here, since that list is built from the toggles above, which do not offer it.
+                LocalAgent.CODEX -> Unit
             }
         }
     }

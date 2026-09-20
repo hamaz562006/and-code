@@ -895,6 +895,7 @@
     <string name="agent_opencode_name">OpenCode</string>
     <string name="agent_claude_code_name">Claude Code</string>
     <string name="agent_antigravity_name">Antigravity</string>
+    <string name="agent_codex_name">Codex</string>
     <string name="runtime_error_install_failed">Не удалось установить локальную среду</string>
     <string name="runtime_error_reinstall_failed">Не удалось переустановить локальную среду</string>
     <string name="runtime_error_start_failed">Не удалось запустить локальный OpenCode</string>
@@ -994,6 +995,10 @@
     <string name="claude_error_install_failed">Не удалось установить Claude Code</string>
     <string name="claude_error_update_failed">Не удалось обновить Claude Code</string>
     <string name="claude_error_process_exited">Claude Code остановился, не завершив ход (%1$s)</string>
+    <string name="codex_error_not_installed">Codex не установлен</string>
+    <string name="codex_error_install_failed">Не удалось установить Codex</string>
+    <string name="codex_error_login_failed">Не удалось выполнить вход в Codex</string>
+    <string name="codex_error_process_exited">Codex остановился, не завершив ход (%1$s)</string>
     <string name="setup_download_agents_description">Подготовка общей среды Linux и выбранных агентов.</string>
     <string name="settings_agents_row">Агенты</string>
     <string name="settings_agents_section">Агенты</string>

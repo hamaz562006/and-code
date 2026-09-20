@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.nsd.NsdManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -258,6 +259,12 @@ fun WorkspacesScreen(
                                     LocalAgent.CLAUDE_CODE -> state.claude.installed
                                     LocalAgent.OPEN_CODE -> state.localStatus is LocalRuntimeStatus.Ready
                                     LocalAgent.ANTIGRAVITY -> target.state is RuntimeState.Connected
+                                    // Unreachable today: AndCodeApplication.kt does not register a
+                                    // Codex target at all yet (see docs/CODEX.md), so `state.targets`
+                                    // never contains one. Kept only because `when` over a `LocalAgent?`
+                                    // must be exhaustive; the same "actually connected" check
+                                    // Antigravity uses is the right one once Codex is registered.
+                                    LocalAgent.CODEX -> target.state is RuntimeState.Connected
                                     null -> true
                                 },
                         ) {
@@ -842,25 +849,13 @@ private fun targetSubtitle(
     remoteUrl: String?,
 ): String =
     if (target.agent == LocalAgent.CLAUDE_CODE) {
-        when (val runtimeState = target.state) {
-            is RuntimeState.Connected -> stringResource(R.string.claude_installed_version, runtimeState.version)
-            is RuntimeState.Failed -> compactRuntimeError(runtimeState.message)
-            is RuntimeState.Unavailable -> stringResource(R.string.claude_status_not_installed)
-            RuntimeState.Connecting -> stringResource(R.string.claude_status_installing)
-            RuntimeState.Disconnected -> stringResource(R.string.claude_status_not_installed)
-        }
+        localAgentSubtitle(target.state, R.string.claude_installed_version, R.string.claude_status_not_installed)
     } else if (target.agent == LocalAgent.ANTIGRAVITY) {
-        when (val runtimeState = target.state) {
-            // Both of these now read like the OpenCode and Claude Code rows, which they did not: an
-            // installed Antigravity showed a bare "1.1.7" beside "OpenCode 1.18.5", and an
-            // uninstalled one showed the target's raw English reason ("Antigravity is not installed
-            // or incompatible with this ABI") where Claude Code shows "Not installed".
-            is RuntimeState.Connected -> stringResource(R.string.antigravity_installed_version, runtimeState.version)
-            RuntimeState.Connecting -> stringResource(R.string.claude_status_installing)
-            is RuntimeState.Failed -> compactRuntimeError(runtimeState.message)
-            is RuntimeState.Unavailable -> stringResource(R.string.runtime_status_not_installed)
-            RuntimeState.Disconnected -> stringResource(R.string.runtime_status_not_installed)
-        }
+        // Both of these now read like the OpenCode and Claude Code rows, which they did not: an
+        // installed Antigravity showed a bare "1.1.7" beside "OpenCode 1.18.5", and an
+        // uninstalled one showed the target's raw English reason ("Antigravity is not installed
+        // or incompatible with this ABI") where Claude Code shows "Not installed".
+        localAgentSubtitle(target.state, R.string.antigravity_installed_version, R.string.runtime_status_not_installed)
     } else {
         when (target.type) {
             RuntimeType.REMOTE ->
@@ -889,6 +884,21 @@ private fun targetSubtitle(
                     is LocalRuntimeStatus.UnsupportedAbi -> stringResource(R.string.unsupported_abi, localStatus.abi)
                 }
         }
+    }
+
+/** The install/version subtitle shared by every CLI-driven local agent (Claude Code, Antigravity, Codex). */
+@Composable
+private fun localAgentSubtitle(
+    state: RuntimeState,
+    @StringRes installedVersionRes: Int,
+    @StringRes notInstalledRes: Int,
+): String =
+    when (state) {
+        is RuntimeState.Connected -> stringResource(installedVersionRes, state.version)
+        RuntimeState.Connecting -> stringResource(R.string.claude_status_installing)
+        is RuntimeState.Failed -> compactRuntimeError(state.message)
+        is RuntimeState.Unavailable -> stringResource(notInstalledRes)
+        RuntimeState.Disconnected -> stringResource(notInstalledRes)
     }
 
 @Composable

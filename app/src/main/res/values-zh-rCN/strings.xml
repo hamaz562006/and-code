@@ -889,6 +889,7 @@
     <string name="agent_opencode_name">OpenCode</string>
     <string name="agent_claude_code_name">Claude Code</string>
     <string name="agent_antigravity_name">Antigravity</string>
+    <string name="agent_codex_name">Codex</string>
     <string name="runtime_error_install_failed">无法安装本地运行时</string>
     <string name="runtime_error_reinstall_failed">无法重新安装本地运行时</string>
     <string name="runtime_error_start_failed">无法启动本地 OpenCode</string>
@@ -988,6 +989,10 @@
     <string name="claude_error_install_failed">Claude Code 安装失败</string>
     <string name="claude_error_update_failed">Claude Code 更新失败</string>
     <string name="claude_error_process_exited">Claude Code 在完成本轮前退出（%1$s）</string>
+    <string name="codex_error_not_installed">Codex 未安装</string>
+    <string name="codex_error_install_failed">Codex 安装失败</string>
+    <string name="codex_error_login_failed">Codex 登录失败</string>
+    <string name="codex_error_process_exited">Codex 在完成本轮前退出（%1$s）</string>
     <string name="setup_download_agents_description">准备共享的 Linux 环境以及你选择的智能体。</string>
     <string name="settings_agents_row">智能体</string>
     <string name="settings_agents_section">智能体</string>
