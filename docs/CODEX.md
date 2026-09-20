@@ -139,3 +139,8 @@ verbatim from a live, unauthenticated `codex app-server` process where possible,
 protocol's own JSON Schema (with a note in the test) where a fixture required a signed-in account.
 `CodexInstallerTest` builds small synthetic tarballs matching the real npm tarball's directory layout
 to exercise extraction and SHA-512 verification without downloading the real ~140 MB archive in CI.
+
+`CodexRuntime` itself (the process/server lifecycle, `sessionsWithTurnInFlight` crash recovery,
+approval dispatch) has no dedicated unit tests yet - exercising it needs a fake process or a fake
+`CodexJsonRpcClient` rather than JSON fixtures. Follow-up work, tracked alongside device acceptance
+above since registering the target is the point at which this orchestration actually starts running.

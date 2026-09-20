@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
@@ -34,21 +35,34 @@ class CodexJsonRpcClient(
     private val output: OutputStream,
     private val onNotification: (method: String, params: JsonElement?) -> Unit,
     /**
+     * Serializes every write to [output]. A constructor parameter (not a class body property) so
+     * [onServerRequest]'s own default value below can use it: a default parameter expression can only
+     * reference earlier constructor parameters, not class body members - the same restriction that
+     * already keeps that default from calling the [respond]/[respondError] instance methods directly.
+     */
+    private val writeLock: Mutex = Mutex(),
+    /**
      * A request the server sent to us (an approval prompt, most often): unlike a notification it
      * carries an `id` and expects a matching [respond] or [respondError] call, but not necessarily
      * before this callback returns - the app answers these from user input, which can take a while.
      */
     private val onServerRequest: (id: JsonElement, method: String, params: JsonElement?) -> Unit = { id, method, _ ->
-        // No approval UI wired up: refuse rather than hang the server waiting for a reply forever.
-        // Written directly instead of through respond()/respondError() - those are instance methods,
-        // not reachable from a constructor parameter's own default value - but in the exact same
-        // wire shape: JsonElement.toString() already renders valid JSON for a primitive id.
+        // No approval UI wired up: refuse rather than hang the server waiting for a reply forever, in
+        // the exact wire shape respond()/respondError() would produce. Routed through writeLock via
+        // runBlocking (this callback runs synchronously on the reader thread, not inside a coroutine)
+        // so it cannot interleave with a call()/notify()/respond() write and corrupt the
+        // newline-delimited JSON stream. Unreached in production, where CodexRuntime always supplies
+        // its own onServerRequest, but tests and future callers still go through it.
         runCatching {
-            output.write(
-                """{"jsonrpc":"2.0","id":$id,"error":{"code":-32601,"message":"No server-request handler installed for $method"}}""".toByteArray(),
-            )
-            output.write("\n".toByteArray())
-            output.flush()
+            runBlocking {
+                writeLock.withLock {
+                    output.write(
+                        """{"jsonrpc":"2.0","id":$id,"error":{"code":-32601,"message":"No server-request handler installed for $method"}}""".toByteArray(),
+                    )
+                    output.write("\n".toByteArray())
+                    output.flush()
+                }
+            }
         }
     },
     private val onClientError: (Throwable) -> Unit = {},
@@ -66,7 +80,6 @@ class CodexJsonRpcClient(
      * coroutine sent the request.
      */
     private val pending = ConcurrentHashMap<Long, CompletableDeferred<JsonObject>>()
-    private val writeLock = Mutex()
 
     class RpcError(val code: Long, message: String) : Exception(message)
 

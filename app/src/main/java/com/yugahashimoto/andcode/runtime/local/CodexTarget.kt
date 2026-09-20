@@ -54,7 +54,7 @@ class CodexTarget(private val runtime: CodexRuntime) : RuntimeTarget {
     // ClaudeStreamJsonParser does. questions stays false: item/tool/requestUserInput has no UI wired
     // up (see CodexRuntime.handleServerRequest's else branch). Each turn is a multiplexed RPC call
     // rather than a fresh process, so forcesQueue does not apply the way it does for Antigravity.
-    override val capabilities = RuntimeCapabilities(permissions = true, toolEvents = true)
+    override val capabilities = RuntimeCapabilities(permissions = true, toolEvents = true, providerModelList = true)
 
     private val mutableState = MutableStateFlow<RuntimeState>(RuntimeState.Disconnected)
     override val state: StateFlow<RuntimeState> = mutableState.asStateFlow()
