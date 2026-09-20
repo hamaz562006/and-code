@@ -168,6 +168,8 @@ val appModule =
             RuntimeRegistry(
                 store = get(),
                 localTarget = LocalRuntimeTarget(get(), messages = get()),
+                // Codex is deliberately not registered here yet - see the matching comment in
+                // AndCodeApplication.kt's own RuntimeRegistry construction.
                 additionalTargets =
                     listOf(
                         AntigravityTarget(

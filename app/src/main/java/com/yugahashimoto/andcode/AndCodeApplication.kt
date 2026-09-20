@@ -44,6 +44,7 @@ import com.yugahashimoto.andcode.runtime.RuntimeRegistry
 import com.yugahashimoto.andcode.runtime.local.AdbConnectionManager
 import com.yugahashimoto.andcode.runtime.local.AdbShellRunner
 import com.yugahashimoto.andcode.runtime.local.AndroidClaudeMessages
+import com.yugahashimoto.andcode.runtime.local.AndroidCodexMessages
 import com.yugahashimoto.andcode.runtime.local.AndroidLocalRuntimeMessages
 import com.yugahashimoto.andcode.runtime.local.AntigravityController
 import com.yugahashimoto.andcode.runtime.local.AntigravityRuntime
@@ -51,6 +52,8 @@ import com.yugahashimoto.andcode.runtime.local.AntigravityTarget
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeController
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeRuntime
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeTarget
+import com.yugahashimoto.andcode.runtime.local.CodexRuntime
+import com.yugahashimoto.andcode.runtime.local.CodexTarget
 import com.yugahashimoto.andcode.runtime.local.CustomProviderStore
 import com.yugahashimoto.andcode.runtime.local.DefaultLocalRuntimeUpdateEngine
 import com.yugahashimoto.andcode.runtime.local.GitCloneRepository
@@ -193,6 +196,12 @@ class AndCodeApplication : Application() {
     lateinit var antigravityTarget: AntigravityTarget
         private set
 
+    lateinit var codexRuntime: CodexRuntime
+        private set
+
+    lateinit var codexTarget: CodexTarget
+        private set
+
     lateinit var antigravityController: AntigravityController
         private set
 
@@ -303,6 +312,15 @@ class AndCodeApplication : Application() {
         antigravityRuntime = AntigravityRuntime(runtimeDirectory, installer::installedRuntime, githubToken = { settings.githubToken })
         antigravityTarget = AntigravityTarget(antigravityRuntime)
         antigravityController = AntigravityController(installer, antigravityTarget, runtimeWork, applicationScope)
+        codexRuntime =
+            CodexRuntime(
+                runtimeDirectory = runtimeDirectory,
+                installedRuntimeProvider = installer::installedRuntime,
+                accessCoordinator = accessCoordinator,
+                messages = AndroidCodexMessages(this),
+                githubToken = { settings.githubToken },
+            )
+        codexTarget = CodexTarget(codexRuntime)
         runtimeMessages = AndroidLocalRuntimeMessages(this)
         gitCloneRepository =
             GitCloneRepository(
@@ -407,6 +425,13 @@ class AndCodeApplication : Application() {
             RuntimeRegistry(
                 store = settings,
                 localTarget = LocalRuntimeTarget(localRuntimeManager, messages = runtimeMessages),
+                // codexTarget is deliberately not registered here yet: every screen that lists
+                // RuntimeRegistry.targets (the Workspaces list, the chat runtime picker sheet, the
+                // drawer's agent switcher) offers whatever it contains for the user to select, and
+                // Codex has no install path anywhere in the app yet (see docs/CODEX.md) - registering
+                // it would offer a dead end in all three places rather than the one this app tried,
+                // and failed, to patch around individually. CodexTarget/CodexRuntime are still fully
+                // built, wired with DI and unit-tested; only registry visibility is withheld.
                 additionalTargets = listOf(claudeCodeTarget, antigravityTarget),
             )
         // Surface the installed/version state to the workspace picker without waiting for the
