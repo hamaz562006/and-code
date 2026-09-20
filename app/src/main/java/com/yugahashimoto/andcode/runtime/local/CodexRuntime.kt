@@ -420,6 +420,11 @@ class CodexRuntime(
             events.tryEmit(OpenCodeEvent.SessionError(sessionId, error))
             events.tryEmit(OpenCodeEvent.SessionIdle(sessionId))
         }
+        // Every pending approval was waiting on a reply from this now-dead process: its rpcId means
+        // nothing to a server that isn't running any more (respondToPermission already no-ops once
+        // `server` is null, but without this the map entry itself would otherwise sit forever, since
+        // nothing else ever removes an entry the user never actually answered).
+        pendingApprovals.clear()
         scope.launch {
             serverLock.withLock {
                 if (server?.process === process) server = null

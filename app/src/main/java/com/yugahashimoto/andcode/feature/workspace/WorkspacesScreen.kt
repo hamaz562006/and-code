@@ -886,7 +886,11 @@ private fun targetSubtitle(
         }
     }
 
-/** The install/version subtitle shared by every CLI-driven local agent (Claude Code, Antigravity, Codex). */
+/**
+ * The install/version subtitle shared by Claude Code and Antigravity today; Codex has no branch
+ * here yet because CodexTarget is not registered in RuntimeRegistry (see docs/CODEX.md) - this is
+ * meant to gain a matching `target.agent == LocalAgent.CODEX` call site once it is.
+ */
 @Composable
 private fun localAgentSubtitle(
     state: RuntimeState,
