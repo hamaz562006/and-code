@@ -111,6 +111,12 @@ android {
     namespace = "com.yugahashimoto.andcode"
     compileSdk = 35
 
+    // F-Droid's scanner rejects the encrypted "Dependency metadata" signing block AGP adds.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     defaultConfig {
         applicationId = "com.yugahashimoto.andcode"
         minSdk = 26
