@@ -1,0 +1,2 @@
+- Smaller download: the APK no longer bundles native libraries for architectures the on-device runtime does not support (only arm64-v8a and x86_64 remain).
+- Fastlane store metadata added for the F-Droid listing.

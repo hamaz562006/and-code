@@ -1,0 +1,23 @@
+AndCode is a native Android GUI for AI coding agents. Chat with OpenCode, Claude Code and Google Antigravity through a touch-first interface, with no terminal, no SSH and no PC required for on-device use.
+
+The agents run on your own device inside a Linux environment set up through PRoot, or you can connect to an OpenCode server on your PC, Mac or Linux machine.
+
+Features
+• Native GUI for coding agents, no CLI needed for day-to-day use
+• On-device runtime with Alpine Linux, Git, bash, curl and ripgrep
+• Open git repositories, browse the file tree and view files with syntax highlighting
+• Review diffs before accepting changes
+• Approve or reject dangerous tool operations
+• Create, resume, rename and delete sessions
+• Scheduled tasks: run prompts once or on a cron schedule, with run history
+• Live models, providers and agents from your connected agent
+• Real-time streaming with collapsible reasoning, tool calls and command output
+• Voice input with wake word detection, and text-to-speech
+• Digital assistant and home screen widget
+• Remote OpenCode over LAN or Tailscale, with mDNS and QR code discovery
+• Connection credentials encrypted with the Android Keystore
+• Localized in English, Japanese, Chinese (Simplified), Russian, Spanish, French, Portuguese (Brazil) and Arabic
+
+Supported architectures: arm64-v8a and x86_64.
+
+AndCode is an independent open-source project. It does not provide the underlying AI services, subscriptions or model access, and it is not affiliated with OpenCode, Anthropic or Google. Authentication and inference are handled by the official CLI or the provider you configure.
