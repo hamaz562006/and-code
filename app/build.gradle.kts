@@ -111,12 +111,18 @@ android {
     namespace = "com.yugahashimoto.andcode"
     compileSdk = 35
 
+    // F-Droid's scanner rejects the encrypted "Dependency metadata" signing block AGP adds.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     defaultConfig {
         applicationId = "com.yugahashimoto.andcode"
         minSdk = 26
         targetSdk = 35
-        versionCode = 62
-        versionName = "1.2.23"
+        versionCode = 63
+        versionName = "1.2.24"
         buildConfigField("String", "GITHUB_CLIENT_ID", "\"$githubClientId\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
