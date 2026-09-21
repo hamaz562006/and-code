@@ -125,6 +125,13 @@ android {
         versionName = "1.2.24"
         buildConfigField("String", "GITHUB_CLIENT_ID", "\"$githubClientId\"")
 
+        // The on-device runtime (see ANDROID_ABIS in scripts/prepare_android_runtime_native_libs.py)
+        // only exists for these two ABIs. Without the filter JNA and Vosk drag in libraries for
+        // armeabi, mips, mips64, x86 and armeabi-v7a that nothing can use.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
