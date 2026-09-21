@@ -86,7 +86,9 @@ jobs:
           # signing config F-Droid's own build server produces (gradleprops: andcode.fdroidBuild=true,
           # no client ID), so this asset is what fdroiddata's Binaries:/AllowedAPKSigningKeys: verify
           # a reproducible build against - it must be built exactly the way F-Droid builds it.
-          ./gradlew -Pandcode.fdroidBuild=true :app:assembleFdroidRelease
+          # GITHUB_CLIENT_ID is set at step level above, so it must be unset here explicitly:
+          # otherwise it is baked into BuildConfig and classes.dex no longer matches F-Droid's.
+          env -u GITHUB_CLIENT_ID ./gradlew -Pandcode.fdroidBuild=true :app:assembleFdroidRelease
 
       - name: Resolve tag
         id: tag
