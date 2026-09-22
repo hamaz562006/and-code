@@ -118,10 +118,15 @@ $ npm view @openai/codex@0.155.1-linux-x64 dist
 SHA-512 string npm itself records). `CodexInstaller` downloads that tarball, verifies it against the
 SHA-512 (the same "trust the official channel's own recorded digest over HTTPS" principle
 `AntigravityReleaseClient` uses for GitHub's SHA-256, just a different registry and a stronger hash),
-and extracts only `package/vendor/<target-triple>/bin/codex` - confirmed to run correctly fully
-isolated from its sibling `codex-resources`/`codex-path` directories (voice runtime, bundled
-`bwrap`, bundled `ripgrep`), none of which this app uses. The full tarball is 100+ MB and mostly
-those unused resources; only the ~250 MB *uncompressed* binary itself is installed.
+and extracts the two binaries in `package/vendor/<target-triple>/bin/`: `codex` and
+`codex-code-mode-host`. The second is not optional: Codex runs every model tool call - image generation,
+MCP tools - in "code mode", spawning `codex-code-mode-host` from the directory `codex` lives in. Installed
+without it (as the first release of this integration was), each tool call failed with `failed to spawn
+code-mode host /usr/local/bin/codex-code-mode-host` and image generation silently produced nothing.
+`CodexInstaller.isInstalledIn` requires both, so such an install reports "Not installed" and is redone.
+The sibling `codex-resources`/`codex-path` directories (voice runtime, bundled `bwrap`, bundled `ripgrep`)
+are still skipped; the tarball is 100+ MB and mostly those, while the two binaries are ~250 MB and
+~65 MB uncompressed.
 
 ## Sandboxing
 

@@ -48,20 +48,58 @@ class CodexInstallerTest {
                     "package/vendor/aarch64-unknown-linux-musl/bin/codex" to "wrong arch".toByteArray(),
                 ),
             )
-        val destination = tempFolder.newFile("extracted-codex")
+        val binDir = tempFolder.newFolder("extracted")
 
-        CodexInstaller.extractBinary(tarball, "x86_64-unknown-linux-musl", destination)
+        CodexInstaller.extractBinaries(tarball, "x86_64-unknown-linux-musl", binDir, names = listOf("codex"))
 
-        assertArrayEquals(binaryBytes, destination.readBytes())
+        assertArrayEquals(binaryBytes, java.io.File(binDir, "codex").readBytes())
+    }
+
+    /**
+     * `bin/codex-code-mode-host` sits next to `bin/codex` in the real 0.155.1 tarball, and Codex runs
+     * every model tool call - image generation included - through it: installed without it, each call
+     * failed with "failed to spawn code-mode host /usr/local/bin/codex-code-mode-host".
+     */
+    @Test
+    fun `installs the code-mode host next to codex`() {
+        val codex = "codex".toByteArray()
+        val host = "code-mode host".toByteArray()
+        val tarball =
+            buildTarGz(
+                mapOf(
+                    "package/vendor/aarch64-unknown-linux-musl/bin/codex" to codex,
+                    "package/vendor/aarch64-unknown-linux-musl/bin/codex-code-mode-host" to host,
+                    "package/vendor/aarch64-unknown-linux-musl/codex-resources/voice/bin/codex-voice-host" to "voice".toByteArray(),
+                ),
+            )
+        val binDir = tempFolder.newFolder("bin")
+
+        CodexInstaller.extractBinaries(tarball, "aarch64-unknown-linux-musl", binDir)
+
+        assertArrayEquals(codex, java.io.File(binDir, "codex").readBytes())
+        assertArrayEquals(host, java.io.File(binDir, "codex-code-mode-host").readBytes())
+        assertTrue(!java.io.File(binDir, "codex-voice-host").exists())
+    }
+
+    @Test
+    fun `an install missing the code-mode host is not installed`() {
+        val rootfs = tempFolder.newFolder("rootfs")
+        java.io.File(rootfs, "usr/local/bin").mkdirs()
+        java.io.File(rootfs, "usr/local/bin/codex").writeText("codex")
+
+        assertTrue(!CodexInstaller.isInstalledIn(rootfs))
+
+        java.io.File(rootfs, "usr/local/bin/codex-code-mode-host").writeText("host")
+        assertTrue(CodexInstaller.isInstalledIn(rootfs))
     }
 
     @Test
     fun `a tarball with no matching entry fails loudly instead of installing nothing`() {
         val tarball = buildTarGz(mapOf("package/vendor/aarch64-unknown-linux-musl/bin/codex" to "arm binary".toByteArray()))
-        val destination = tempFolder.newFile("extracted-codex")
+        val binDir = tempFolder.newFolder("extracted")
 
         assertThrows(IllegalStateException::class.java) {
-            CodexInstaller.extractBinary(tarball, "x86_64-unknown-linux-musl", destination)
+            CodexInstaller.extractBinaries(tarball, "x86_64-unknown-linux-musl", binDir)
         }
     }
 
