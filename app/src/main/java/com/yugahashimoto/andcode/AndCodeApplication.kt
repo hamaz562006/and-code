@@ -39,6 +39,7 @@ import com.yugahashimoto.andcode.feature.schedule.ScheduleManager
 import com.yugahashimoto.andcode.feature.support.GitHubStarCoordinator
 import com.yugahashimoto.andcode.feature.support.GitHubStarService
 import com.yugahashimoto.andcode.feature.wakeword.VoskModelStore
+import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import com.yugahashimoto.andcode.runtime.RuntimeRegistry
 import com.yugahashimoto.andcode.runtime.RuntimeState
@@ -83,10 +84,12 @@ import com.yugahashimoto.andcode.startup.shouldRestoreOnForegroundReturn
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -211,6 +214,10 @@ class AndCodeApplication : Application() {
     lateinit var codexController: CodexController
         private set
 
+    /** Which agents the shared sandbox holds, for callers that must not pay for a full runtime check. */
+    lateinit var localRuntimeInstaller: LocalRuntimeInstaller
+        private set
+
     lateinit var runtimeMessages: LocalRuntimeMessages
         private set
 
@@ -279,6 +286,7 @@ class AndCodeApplication : Application() {
                 abi = abi,
                 accessCoordinator = accessCoordinator,
             )
+        localRuntimeInstaller = installer
         val launcher =
             LocalRuntimeProcessLauncher(
                 runtimeDirectory = runtimeDirectory,
@@ -332,8 +340,17 @@ class AndCodeApplication : Application() {
         // nothing in the foreground on some devices: hold the app there while Codex is signing in or
         // running a turn (see CodexKeepAliveService).
         applicationScope.launch {
-            codexRuntime.needsForeground.collect { needed ->
-                if (needed) CodexKeepAliveService.start(this@AndCodeApplication) else CodexKeepAliveService.stop(this@AndCodeApplication)
+            codexRuntime.needsForeground.collectLatest { needed ->
+                if (needed) {
+                    CodexKeepAliveService.start(this@AndCodeApplication)
+                } else {
+                    // A short grace before stopping: a sign-in cancelled the moment it began would
+                    // otherwise stop the service before its onCreate reached startForeground, which
+                    // the platform treats as a broken foreground-service start. collectLatest drops
+                    // this stop if Codex needs the foreground again within the grace period.
+                    delay(CODEX_KEEPALIVE_STOP_GRACE_MS)
+                    CodexKeepAliveService.stop(this@AndCodeApplication)
+                }
             }
         }
         codexController = CodexController(codexRuntime, codexTarget, installer, abi, runtimeWork, applicationScope)
@@ -452,7 +469,11 @@ class AndCodeApplication : Application() {
         // selectIfUnset never overrides a runtime the user picked.
         applicationScope.launch {
             codexTarget.state.collect { state ->
-                if (state is RuntimeState.Connected) runtimeRegistry.selectIfUnset(codexTarget.id)
+                // Only when OpenCode is not part of this setup: with it installed, OpenCode's own
+                // Ready path establishes the default, and Codex's quicker `--version` check would
+                // otherwise win that race and pick a Codex that may not be signed in yet.
+                val openCodeInstalled = installer.installedMetadata()?.has(LocalAgent.OPEN_CODE) == true
+                if (state is RuntimeState.Connected && !openCodeInstalled) runtimeRegistry.selectIfUnset(codexTarget.id)
             }
         }
         claudeCodeController =
@@ -644,6 +665,8 @@ class AndCodeApplication : Application() {
     }
 
     private companion object {
+        private const val CODEX_KEEPALIVE_STOP_GRACE_MS = 2_000L
+
         /**
          * How long [debounceFalseEdge] rides out a drop to "no active sessions" before releasing
          * the `"sessions"` wake-lock lease. Long enough to survive a transient SSE/HTTP blip during

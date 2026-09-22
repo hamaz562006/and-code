@@ -68,11 +68,18 @@ Verified on the physical device (Codex-only, signed in with ChatGPT, 2026-09-23)
 
 ### Not verified
 
-Anything that needs a signed-in account: completing the ChatGPT sign-in end to end after the fix above,
-the API-key sign-in and logout through the UI, a real turn, approval prompts, abort, attachments, and
-whether threads listed after an app restart include chats whose only turn failed. The model picker is empty
-while signed out ("No connected providers yet"), so an unauthenticated chat can only be started with no
-model selected.
+API-key sign-in and sign-out through the UI, approval prompts, abort, attachments, MCP servers on a device
+(the `codex mcp` commands and their JSON were verified against the CLI itself, not through the app), and
+whether threads listed after an app restart include chats whose only turn failed.
+
+### MCP servers
+
+Settings > Agents > Codex > MCP servers uses the same screen as the other agents. Codex keeps servers in
+`~/.codex/config.toml` next to the rest of its configuration, so the app never edits that file itself:
+`CodexMcp` runs `codex mcp list --json` / `add` / `remove` (verified against codex-cli 0.142.5 with an
+isolated `CODEX_HOME`, fixtures in `CodexMcpTest`), and a running app-server is told to re-read them with
+`config/mcpServer/reload` (params `null` per the schema). Like Claude Code and Antigravity, a configured
+server is always used, so the screen offers removal rather than a connect toggle.
 
 ## Why this is more tractable than Antigravity's integration
 

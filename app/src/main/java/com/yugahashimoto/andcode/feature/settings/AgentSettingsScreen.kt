@@ -113,6 +113,7 @@ fun CodexAgentSettingsScreen(
     signIn: CodexSignInActions,
     onInstall: () -> Unit,
     onSignOut: () -> Unit,
+    onOpenMcp: () -> Unit,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.CODEX.displayNameRes), onBack = onBack) {
@@ -132,6 +133,15 @@ fun CodexAgentSettingsScreen(
                     onSignOut = onSignOut,
                 )
             }
+        }
+        // The same agent-scoped section Claude Code and Antigravity have, so every agent's MCP
+        // servers are configured from that agent's own screen.
+        SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+            SettingsRow(
+                icon = Icons.Default.Extension,
+                title = stringResource(R.string.mcp_settings_row),
+                onClick = onOpenMcp,
+            )
         }
     }
     if (signInDialog != null) {

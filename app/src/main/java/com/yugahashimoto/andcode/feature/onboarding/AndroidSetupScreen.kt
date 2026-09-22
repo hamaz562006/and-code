@@ -217,8 +217,17 @@ fun AndroidSetupScreen(
     // download and the agents queued behind it were simply never installed, which is how a setup
     // that reported success could still leave Claude Code missing. What is left is a re-read of the
     // install state, because the runtime service - not these controllers - ran the install.
-    LaunchedEffect(openCodeReady) {
-        if (!openCodeReady) return@LaunchedEffect
+    //
+    // OpenCode reaching Ready is one trigger, but a selection without OpenCode never reaches it: the
+    // shared runtime status stays NotInstalled for a sandbox OpenCode was not asked into. There the
+    // controller that ran the install (Antigravity's or Codex's) knows only its own agent, so the
+    // others it provisioned alongside were never re-read and the step never completed. Re-reading
+    // every selected agent when any install stops running covers both.
+    var installWasRunning by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(openCodeReady, packageInstallRunning) {
+        val installJustFinished = installWasRunning && !packageInstallRunning
+        installWasRunning = packageInstallRunning
+        if (!openCodeReady && !installJustFinished) return@LaunchedEffect
         if (claudeSelected) onRefreshClaudeState()
         if (antigravitySelected) onRefreshAntigravityState()
         if (codexSelected) onRefreshCodexState()
@@ -265,11 +274,18 @@ fun AndroidSetupScreen(
                     runtimeStatus is LocalRuntimeStatus.Broken ||
                     claude.install is ClaudeInstallStatus.Failed ||
                     antigravity.error != null ||
+                    codex.install is CodexInstallStatus.Failed ||
                     fullDevelopmentToolsInstallFailed
                 ) {
                     SetupPrimaryAction(stringResource(R.string.claude_retry_install_button), true) {
                         onStartSetup(
-                            if (antigravity.error != null) setOf(LocalAgent.ANTIGRAVITY) else selectedAgents,
+                            when {
+                                antigravity.error != null -> setOf(LocalAgent.ANTIGRAVITY)
+                                // Retried on its own: the rest of the selection is already installed,
+                                // and a Codex-only retry goes through CodexController.install.
+                                codex.install is CodexInstallStatus.Failed && !openCodeSelected -> setOf(LocalAgent.CODEX)
+                                else -> selectedAgents
+                            },
                             installFullDevelopmentTools,
                         )
                     }
@@ -778,9 +794,19 @@ private fun RuntimeDownloadStep(
 @Composable
 private fun CodexInstallProgress(codex: CodexUiState) {
     when (val install = codex.install) {
-        CodexInstallStatus.Installing -> {
-            Text(stringResource(R.string.codex_installing), fontWeight = FontWeight.Medium)
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        is CodexInstallStatus.Installing -> {
+            Text(install.step?.takeIf(String::isNotBlank) ?: stringResource(R.string.codex_installing), fontWeight = FontWeight.Medium)
+            val progress = install.progress
+            if (progress != null) {
+                LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                Text(
+                    text = "${(progress * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
         }
         is CodexInstallStatus.Failed ->
             Text(install.message ?: stringResource(R.string.codex_error_install_failed), color = MaterialTheme.colorScheme.error)

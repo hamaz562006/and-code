@@ -40,9 +40,14 @@ fun CodexCard(
     Spacer(Modifier.height(12.dp))
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (val install = codex.install) {
-            CodexInstallStatus.Installing -> {
-                Text(stringResource(R.string.codex_installing), style = MaterialTheme.typography.bodySmall)
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            is CodexInstallStatus.Installing -> {
+                Text(install.step ?: stringResource(R.string.codex_installing), style = MaterialTheme.typography.bodySmall)
+                val progress = install.progress
+                if (progress != null) {
+                    LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                } else {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
             }
             is CodexInstallStatus.Failed -> {
                 SelectionContainer {

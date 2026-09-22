@@ -425,6 +425,7 @@ fun NavGraphBuilder.settingsNavGraph(
                 ),
             onInstall = app.codexController::install,
             onSignOut = app.codexController::signOut,
+            onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_CODEX) },
             onBack = { navController.popBackStack() },
         )
     }
@@ -499,6 +500,15 @@ fun NavGraphBuilder.settingsNavGraph(
         com.yugahashimoto.andcode.feature.settings.McpScreen(
             registry = runtimeRegistry,
             agent = com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY,
+            onOpenBrowser = {},
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable(ROUTE_SETTINGS_MCP_CODEX) {
+        com.yugahashimoto.andcode.feature.settings.McpScreen(
+            registry = runtimeRegistry,
+            agent = com.yugahashimoto.andcode.runtime.LocalAgent.CODEX,
             onOpenBrowser = {},
             onBack = { navController.popBackStack() },
         )

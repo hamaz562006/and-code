@@ -1,5 +1,6 @@
 package com.yugahashimoto.andcode.runtime.local
 
+import com.yugahashimoto.andcode.core.api.McpServer
 import com.yugahashimoto.andcode.core.api.OpenCodeAgent
 import com.yugahashimoto.andcode.core.api.OpenCodeEvent
 import com.yugahashimoto.andcode.core.api.OpenCodeFileContent
@@ -27,6 +28,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import java.io.File
 
 /**
@@ -165,6 +169,27 @@ class CodexTarget(
             instructions = messages.signInBrowserInstructions,
         )
     }
+
+    override suspend fun mcpServers(): List<McpServer> = runtime.mcpServers()
+
+    /**
+     * Adds a server through `codex mcp add`. The dialog sends the same `{name, url | command}` body
+     * it sends Claude Code and Antigravity, so it is translated here rather than given its own form.
+     */
+    override suspend fun addMcpServer(body: JsonObject): McpServer {
+        val name = body.text("name")?.trim()?.takeIf(String::isNotEmpty) ?: error("An MCP server needs a name")
+        runtime.addMcpServer(name, body.text("url"), body.text("command"))
+        return runtime.mcpServers().firstOrNull { it.name == name } ?: McpServer(name = name)
+    }
+
+    /**
+     * Deletes the server's configuration. Codex, like Claude Code, uses every server it has
+     * configured, so there is no disconnect to offer - removal is the only operation (see
+     * McpUiState.supportsConnectToggle).
+     */
+    override suspend fun disconnectMcpServer(name: String): Boolean = runtime.removeMcpServer(name)
+
+    private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
 
     /** Abandons a browser sign-in that [authorizeProvider] started and the user never finished. */
     suspend fun cancelSignIn() {

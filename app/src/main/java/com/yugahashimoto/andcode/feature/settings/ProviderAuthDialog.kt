@@ -47,11 +47,13 @@ fun ProviderAuthDialog(
     }
 
     // Waiting on the browser for an "auto" method is not a request that has to finish: the user can
-    // walk away from it, and without this a stuck browser sign-in held the dialog open until it timed out.
+    // walk away from it, and without this a stuck browser sign-in held the dialog open until it timed
+    // out. Only the Cancel button does this, though - a stray tap outside the dialog just after
+    // returning from the browser must not throw away a sign-in that is about to complete.
     val cancellable = !state.isSubmitting || authorization?.method == "auto"
 
     AlertDialog(
-        onDismissRequest = { if (cancellable) onDismiss() },
+        onDismissRequest = { if (!state.isSubmitting) onDismiss() },
         title = { Text(stringResource(R.string.provider_connect_title, state.providerName)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

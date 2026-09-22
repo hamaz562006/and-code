@@ -75,13 +75,23 @@ class CodexLoginTrackerTest {
     }
 
     @Test
-    fun `clearing drops a pending sign-in`() {
+    fun `abandoning fails the pending sign-in instead of dropping it`() {
         val tracker = CodexLoginTracker().apply { begin("login-1") }
 
-        tracker.clear()
+        tracker.abandon()
 
         assertEquals(false, tracker.pending)
-        assertNull(tracker.outcome("login-1"))
+        assertEquals(CodexLoginTracker.Outcome.Failed(null), tracker.outcome("login-1"))
+    }
+
+    @Test
+    fun `abandoning keeps an outcome that already arrived`() {
+        val tracker = CodexLoginTracker().apply { begin("login-1") }
+        tracker.onCompleted(body("""{"success":true,"loginId":"login-1"}"""))
+
+        tracker.abandon()
+
+        assertEquals(CodexLoginTracker.Outcome.Succeeded, tracker.outcome("login-1"))
     }
 
     @Test

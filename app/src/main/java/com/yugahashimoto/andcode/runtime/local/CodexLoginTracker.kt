@@ -47,9 +47,14 @@ class CodexLoginTracker {
     val pending: Boolean
         get() = activeLoginId?.let { !outcomes.containsKey(it) } == true
 
-    fun clear() {
-        outcomes.clear()
-        activeLoginId = null
+    /**
+     * Ends the sign-in in progress as failed, because the app-server that owned it is gone. Recorded
+     * rather than dropped, so the dialog polling [outcome] fails at once instead of spinning until
+     * its timeout on a sign-in that can no longer complete.
+     */
+    fun abandon() {
+        val loginId = activeLoginId ?: return
+        outcomes.putIfAbsent(loginId, Outcome.Failed(null))
     }
 
     fun forget(loginId: String) {

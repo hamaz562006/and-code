@@ -1,5 +1,6 @@
 package com.yugahashimoto.andcode.runtime.local
 
+import com.yugahashimoto.andcode.core.api.McpServer
 import com.yugahashimoto.andcode.core.api.OpenCodeEvent
 import com.yugahashimoto.andcode.core.api.OpenCodeMessage
 import com.yugahashimoto.andcode.core.api.OpenCodeSession
@@ -22,6 +23,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -215,8 +217,9 @@ class CodexRuntime(
      */
     suspend fun startChatgptLogin(): ChatgptLogin {
         val result = call("account/login/start", buildJsonObject { put("type", JsonPrimitive("chatgpt")) })
-        val loginId = result.string("loginId") ?: error("Codex did not return a login id")
-        val authUrl = result.string("authUrl") ?: error("Codex did not return a sign-in URL")
+        // Shown in the sign-in dialog, so the translated message rather than a protocol detail.
+        val loginId = result.string("loginId") ?: error(messages.loginFailed)
+        val authUrl = result.string("authUrl") ?: error(messages.loginFailed)
         logins.begin(loginId)
         refreshForegroundNeed()
         return ChatgptLogin(loginId, authUrl)
@@ -237,13 +240,49 @@ class CodexRuntime(
         runCatching { call("account/login/cancel", buildJsonObject { put("loginId", JsonPrimitive(loginId)) }) }
     }
 
-    suspend fun isSignedIn(): Boolean =
-        runCatching {
-            val result = call("account/read")
-            result["account"] != null
-        }.getOrDefault(false)
+    suspend fun isSignedIn(): Boolean = runCatching { hasSignedInAccount(call("account/read")) }.getOrDefault(false)
 
     suspend fun modelList(): JsonObject = call("model/list")
+
+    /** The configured MCP servers, from `codex mcp list --json`. */
+    suspend fun mcpServers(): List<McpServer> =
+        withContext(Dispatchers.IO) {
+            if (!isInstalled()) return@withContext emptyList()
+            CodexMcp.parseList(runCommand(CodexMcp.LIST_SCRIPT, timeoutSeconds = MCP_TIMEOUT_SECONDS).output)
+        }
+
+    /** Adds a server with `codex mcp add`: a streamable-HTTP [url], or a local [command] line. */
+    suspend fun addMcpServer(
+        name: String,
+        url: String?,
+        command: String?,
+    ) {
+        val script = CodexMcp.addScript(name, url, command) ?: error("An MCP server needs a command or a URL")
+        withContext(Dispatchers.IO) {
+            val result = runCommand(script, timeoutSeconds = MCP_TIMEOUT_SECONDS)
+            check(result.exitCode == 0) { result.output.trim().ifBlank { "codex mcp add failed" } }
+        }
+        reloadMcpServers()
+    }
+
+    /** Deletes a server with `codex mcp remove`; false when Codex could not run the command. */
+    suspend fun removeMcpServer(name: String): Boolean {
+        val removed =
+            withContext(Dispatchers.IO) { runCommand(CodexMcp.removeScript(name), timeoutSeconds = MCP_TIMEOUT_SECONDS).exitCode == 0 }
+        if (removed) reloadMcpServers()
+        return removed
+    }
+
+    /**
+     * Asks a running app-server to re-read its MCP configuration after `codex mcp` changed it, so the
+     * next turn sees the change without restarting the process (and cutting short any turn in
+     * flight). `config/mcpServer/reload` takes a `null` params value per the protocol schema. With no
+     * server running there is nothing to reload: the next one reads the file when it starts.
+     */
+    private suspend fun reloadMcpServers() {
+        val running = server?.takeIf { it.process.isAlive } ?: return
+        runCatching { running.client.call("config/mcpServer/reload", JsonNull) }
+    }
 
     suspend fun listSessions(): List<OpenCodeSession> {
         val result = call("thread/list")
@@ -393,6 +432,11 @@ class CodexRuntime(
             // mid-stop (e.g. abort()'s turn/interrupt racing logout()) would hang forever instead of
             // failing.
             current.client.failPending(IllegalStateException("Codex was stopped"))
+            // A deliberate stop (sign-out, API-key sign-in, disconnect) ends whatever the process
+            // was doing just as a crash does, so it has to settle the same state - otherwise a turn
+            // or sign-in it cut short kept needsForeground true, and CodexKeepAliveService and its
+            // notification stayed up until the process died.
+            settleServerGone(messages.processExited(null, "Codex was stopped"))
         }
         server = null
     }
@@ -465,6 +509,16 @@ class CodexRuntime(
         // cut short - the same "settle what a dead process left running" step ClaudeCodeRuntime
         // takes, needed because turn/start itself already returned before the actual work streamed
         // in via later notifications.
+        settleServerGone(error)
+        scope.launch {
+            serverLock.withLock {
+                if (server?.process === process) server = null
+            }
+        }
+    }
+
+    /** Settles everything that was waiting on an app-server that is no longer running. */
+    private fun settleServerGone(error: String) {
         sessionsWithTurnInFlight.toMap().forEach { (sessionId, turnId) ->
             sessionsWithTurnInFlight -= sessionId
             itemParser.forgetTurn(turnId)
@@ -475,19 +529,14 @@ class CodexRuntime(
             events.tryEmit(OpenCodeEvent.SessionError(sessionId, error))
             events.tryEmit(OpenCodeEvent.SessionIdle(sessionId))
         }
-        // Every pending approval was waiting on a reply from this now-dead process: its rpcId means
-        // nothing to a server that isn't running any more (respondToPermission already no-ops once
-        // `server` is null, but without this the map entry itself would otherwise sit forever, since
-        // nothing else ever removes an entry the user never actually answered).
+        // Every pending approval was waiting on a reply from this process: its rpcId means nothing
+        // to a server that isn't running any more (respondToPermission already no-ops once `server`
+        // is null, but without this the map entry itself would otherwise sit forever, since nothing
+        // else ever removes an entry the user never actually answered).
         pendingApprovals.clear()
         // A sign-in that was waiting on this process can no longer complete.
-        logins.clear()
+        logins.abandon()
         refreshForegroundNeed()
-        scope.launch {
-            serverLock.withLock {
-                if (server?.process === process) server = null
-            }
-        }
     }
 
     private fun handleNotification(
@@ -590,6 +639,7 @@ class CodexRuntime(
     private companion object {
         const val DEFAULT_TITLE = "Codex"
         const val LOGIN_COMPLETED_METHOD = "account/login/completed"
+        const val MCP_TIMEOUT_SECONDS = 30L
 
         fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
 
@@ -611,3 +661,10 @@ internal val defaultCodexJson =
  * (`Codex %1$s`), which otherwise read "Codex codex-cli 0.155.1".
  */
 internal fun parseVersionLine(line: String): String = line.trim().removePrefix("codex-cli").trim()
+
+/**
+ * Whether an `account/read` result names an account. Signed out it is `{"account": null, ...}`, which
+ * kotlinx.serialization decodes to [JsonNull] - a real element, not a missing key - so a plain `!= null`
+ * check reported every signed-out install as signed in.
+ */
+internal fun hasSignedInAccount(accountRead: JsonObject): Boolean = accountRead["account"] is JsonObject

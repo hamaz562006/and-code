@@ -11,11 +11,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Where a Codex install has got to. Codex's download reports no fine-grained progress. */
+/** Where a Codex install has got to. */
 sealed interface CodexInstallStatus {
     data object Idle : CodexInstallStatus
 
-    data object Installing : CodexInstallStatus
+    /**
+     * [progress] and [step] come from [LocalRuntimeInstaller] when this install also provisions the
+     * shared environment (a setup without OpenCode); adding Codex to an existing environment is one
+     * download with neither, so both are null there.
+     */
+    data class Installing(val progress: Float? = null, val step: String? = null) : CodexInstallStatus
 
     /** [message] is null when nothing more specific is known, so the UI shows its own translated default. */
     data class Failed(val message: String?) : CodexInstallStatus
@@ -90,12 +95,19 @@ class CodexController(
         installFullDevelopmentTools: Boolean = false,
     ) {
         if (mutableState.value.install is CodexInstallStatus.Installing) return
-        mutableState.update { it.copy(install = CodexInstallStatus.Installing) }
+        mutableState.update { it.copy(install = CodexInstallStatus.Installing()) }
         scope.launch {
             runtimeWork.withLease(INSTALL_LEASE_TAG) {
                 runCatching {
-                    if (installer.installedRuntime() == null) {
-                        installer.install(agents + LocalAgent.CODEX, installFullDevelopmentTools) { _, _, _ -> }
+                    val existing = installer.installedMetadata()
+                    // Another selected agent the environment does not have yet needs the full
+                    // install, which provisions the whole selection at once (and carries over what is
+                    // already there); only adding Codex alone to an existing environment can skip it.
+                    val othersMissing = (agents - LocalAgent.CODEX).any { existing?.has(it) != true }
+                    if (installer.installedRuntime() == null || othersMissing) {
+                        installer.install(agents + LocalAgent.CODEX, installFullDevelopmentTools) { progress, step, _ ->
+                            mutableState.update { it.copy(install = CodexInstallStatus.Installing(progress, step)) }
+                        }
                     } else {
                         if (installFullDevelopmentTools) installer.installFullDevelopmentTools()
                         runtime.install(abi)

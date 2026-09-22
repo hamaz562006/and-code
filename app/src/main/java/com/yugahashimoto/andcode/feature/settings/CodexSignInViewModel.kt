@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.yugahashimoto.andcode.runtime.local.CodexModels
 import com.yugahashimoto.andcode.runtime.local.CodexTarget
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
@@ -85,6 +87,19 @@ class CodexSignInViewModel(
         // A browser sign-in the user walked away from would otherwise keep Codex's local callback
         // listener bound until the next attempt.
         viewModelScope.launch(NonCancellable) { runCatching { target.cancelSignIn() } }
+    }
+
+    /**
+     * The dialog can go away without Cancel - the task swiped off, the screen left mid-sign-in - and
+     * a sign-in nothing polls any more would keep Codex's callback listener bound and
+     * CodexKeepAliveService running. viewModelScope is already cancelled here, so this runs on a
+     * scope of its own.
+     */
+    override fun onCleared() {
+        if (mutableDialog.value?.authorization != null) {
+            CoroutineScope(Dispatchers.IO + NonCancellable).launch { runCatching { target.cancelSignIn() } }
+        }
+        super.onCleared()
     }
 
     private suspend fun submitApiKey(dialog: ProviderAuthDialogState) {
