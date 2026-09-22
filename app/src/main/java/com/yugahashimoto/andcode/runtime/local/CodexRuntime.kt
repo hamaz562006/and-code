@@ -107,6 +107,11 @@ class CodexRuntime(
 
     fun events(): Flow<OpenCodeEvent> = events
 
+    /** Tells listeners Codex became usable, the event a chat that could not reach it waits for. */
+    fun announceConnected() {
+        events.tryEmit(OpenCodeEvent.ServerConnected)
+    }
+
     fun isInstalled(): Boolean {
         val rootfs = installedRuntimeProvider()?.rootfs ?: return false
         return CodexInstaller.isInstalledIn(rootfs)

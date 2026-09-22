@@ -66,6 +66,19 @@ selected, and a send creates a thread and surfaces the 401 from the API.
 Verified on the physical device (Codex-only, signed in with ChatGPT, 2026-09-23): launch opens the chat on
 `codex` with a Codex model selected, and a real turn returns a reply.
 
+### Generated images and chats opened before Codex was usable
+
+- `image_gen` results arrive as an `imageGeneration` item (`result`: the PNG as base64, `savedPath`:
+  `/root/.codex/generated_images/<thread>/<id>.png`, verified on a device). `CodexItemParser` turns a
+  completed one into a `file` part with an image MIME type pointing at `savedPath`, which the chat resolves
+  into the rootfs and renders like other agents' generated images (a data URI only when no file was
+  saved). While it is still generating it is an `image_gen` tool part carrying just the prompt.
+- A chat opened while Codex was unusable (not installed yet, or installed without the code-mode host)
+  checked health a few times, failed, and stayed disconnected: a message sent there sat in the offline
+  queue. `CodexTarget.connect` now emits `ServerConnected` when Codex becomes usable, which the chat
+  already handles by reconnecting and sending the queue, and the application refreshes the agent and
+  model lists so the composer stops showing another runtime's ("build").
+
 ### Not verified
 
 API-key sign-in and sign-out through the UI, approval prompts, abort, attachments, MCP servers on a physical

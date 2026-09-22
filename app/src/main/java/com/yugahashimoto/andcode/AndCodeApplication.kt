@@ -474,6 +474,12 @@ class AndCodeApplication : Application() {
                 // otherwise win that race and pick a Codex that may not be signed in yet.
                 val openCodeInstalled = installer.installedMetadata()?.has(LocalAgent.OPEN_CODE) == true
                 if (state is RuntimeState.Connected && !openCodeInstalled) runtimeRegistry.selectIfUnset(codexTarget.id)
+                // The chat's agent and model lists were read while Codex was unusable, so they held
+                // another runtime's (an OpenCode "build" agent, no Codex model) until something else
+                // refreshed them. Re-read them now that Codex can answer.
+                if (state is RuntimeState.Connected && runtimeRegistry.selected.value?.id == codexTarget.id && ::catalogRepository.isInitialized) {
+                    catalogRepository.refresh()
+                }
             }
         }
         claudeCodeController =

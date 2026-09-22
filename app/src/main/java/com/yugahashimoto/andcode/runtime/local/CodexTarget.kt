@@ -79,7 +79,13 @@ class CodexTarget(
         withContext(Dispatchers.IO) {
             runCatching {
                 val version = runtime.version() ?: error("Codex is not installed or incompatible with this ABI")
+                val wasConnected = mutableState.value is RuntimeState.Connected
                 mutableState.value = RuntimeState.Connected(version)
+                // A chat opened while Codex was unusable (not yet installed, or an install that
+                // predates the code-mode host) checked health once, failed, and then sat
+                // disconnected: a message sent there went to the offline queue and never left it.
+                // ServerConnected is what the chat listens for to recover and drain that queue.
+                if (!wasConnected) runtime.announceConnected()
                 OpenCodeHealth(true, version)
             }.onFailure { mutableState.value = RuntimeState.Unavailable(it.message ?: "Codex unavailable") }
         }
