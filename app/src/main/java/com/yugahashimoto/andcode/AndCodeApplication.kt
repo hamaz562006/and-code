@@ -468,6 +468,7 @@ class AndCodeApplication : Application() {
         // no runtime at all and send nowhere. Fill an empty selection with Codex once it connects;
         // selectIfUnset never overrides a runtime the user picked.
         applicationScope.launch {
+            var previous: RuntimeState? = null
             codexTarget.state.collect { state ->
                 // Only when OpenCode is not part of this setup: with it installed, OpenCode's own
                 // Ready path establishes the default, and Codex's quicker `--version` check would
@@ -476,10 +477,12 @@ class AndCodeApplication : Application() {
                 if (state is RuntimeState.Connected && !openCodeInstalled) runtimeRegistry.selectIfUnset(codexTarget.id)
                 // The chat's agent and model lists were read while Codex was unusable, so they held
                 // another runtime's (an OpenCode "build" agent, no Codex model) until something else
-                // refreshed them. Re-read them now that Codex can answer.
-                if (state is RuntimeState.Connected && runtimeRegistry.selected.value?.id == codexTarget.id && ::catalogRepository.isInitialized) {
-                    catalogRepository.refresh()
-                }
+                // refreshed them. Re-read them when Codex recovers from being unusable - not on the
+                // first connect at launch, which RuntimeCatalogRepository already loads by itself.
+                val recovered = state is RuntimeState.Connected && (previous is RuntimeState.Unavailable || previous is RuntimeState.Failed)
+                val codexSelected = runtimeRegistry.selected.value?.id == codexTarget.id
+                if (recovered && codexSelected && ::catalogRepository.isInitialized) catalogRepository.refresh()
+                previous = state
             }
         }
         claudeCodeController =
