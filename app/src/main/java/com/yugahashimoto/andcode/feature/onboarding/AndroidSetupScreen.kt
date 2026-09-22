@@ -63,15 +63,20 @@ import com.yugahashimoto.andcode.R
 import com.yugahashimoto.andcode.core.UrlLauncher
 import com.yugahashimoto.andcode.core.api.OpenCodeProvider
 import com.yugahashimoto.andcode.core.api.ProviderAuthMethod
+import com.yugahashimoto.andcode.feature.settings.CodexSignInActions
 import com.yugahashimoto.andcode.feature.settings.ProviderAuthDialog
+import com.yugahashimoto.andcode.feature.settings.ProviderAuthDialogState
 import com.yugahashimoto.andcode.feature.settings.SettingsUiState
 import com.yugahashimoto.andcode.feature.workspace.ClaudeCodeCard
+import com.yugahashimoto.andcode.feature.workspace.CodexCard
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import com.yugahashimoto.andcode.runtime.local.AntigravityControllerState
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeUiState
 import com.yugahashimoto.andcode.runtime.local.ClaudeInstallStatus
 import com.yugahashimoto.andcode.runtime.local.ClaudePermissionMode
+import com.yugahashimoto.andcode.runtime.local.CodexInstallStatus
+import com.yugahashimoto.andcode.runtime.local.CodexUiState
 import com.yugahashimoto.andcode.ui.theme.AndCodeTheme
 import kotlinx.coroutines.delay
 
@@ -108,6 +113,13 @@ fun AndroidSetupScreen(
     onCancelAntigravitySignIn: () -> Unit = {},
     onSignOutAntigravity: () -> Unit = {},
     onSelectAntigravityPermissionMode: (com.yugahashimoto.andcode.runtime.local.AntigravityPermissionMode) -> Unit = {},
+    codex: CodexUiState = CodexUiState(),
+    /** Codex signs in through its own dialog state, not [settingsState]'s, which is OpenCode's. */
+    codexSignInDialog: ProviderAuthDialogState? = null,
+    codexSignIn: CodexSignInActions =
+        CodexSignInActions({}, {}, {}, {}, {}, {}),
+    onSignOutCodex: () -> Unit = {},
+    onRefreshCodexState: () -> Unit = {},
     onOpenUrl: (String) -> Unit,
     settingsState: SettingsUiState,
     onOpenProviderAuth: (String) -> Unit,
@@ -146,8 +158,10 @@ fun AndroidSetupScreen(
     val openCodeSelected = LocalAgent.OPEN_CODE in selectedAgents
     val claudeSelected = LocalAgent.CLAUDE_CODE in selectedAgents
     val antigravitySelected = LocalAgent.ANTIGRAVITY in selectedAgents
+    val codexSelected = LocalAgent.CODEX in selectedAgents
     val openCodeReady = runtimeStatus is LocalRuntimeStatus.Ready || runtimeStatus is LocalRuntimeStatus.Stopped
     val antigravityReady = antigravitySelected && antigravity.installed && !antigravity.busy
+    val codexReady = codex.installed && codex.install !is CodexInstallStatus.Installing && codex.install !is CodexInstallStatus.Failed
     val claudeReady = claude.installed && claude.install !is ClaudeInstallStatus.Installing && claude.install !is ClaudeInstallStatus.Failed
     // Only what is selected *and* actually on the device: an agent whose binary is missing has no
     // sign-in to offer, and Claude Code's card would shell out to /usr/bin/claude and fail there.
@@ -158,6 +172,7 @@ fun AndroidSetupScreen(
             LocalAgent.OPEN_CODE.takeIf { openCodeSelected && openCodeReady },
             LocalAgent.CLAUDE_CODE.takeIf { claudeSelected && claude.installed },
             LocalAgent.ANTIGRAVITY.takeIf { antigravitySelected && antigravity.installed },
+            LocalAgent.CODEX.takeIf { codexSelected && codex.installed },
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
@@ -169,12 +184,14 @@ fun AndroidSetupScreen(
     val packageInstallRunning =
         runtimeStatus is LocalRuntimeStatus.Installing ||
             claude.install is ClaudeInstallStatus.Installing ||
+            codex.install is CodexInstallStatus.Installing ||
             antigravity.busy
     val fullToolsReady = !installFullDevelopmentTools || fullDevelopmentToolsInstalled
     val agentsInstallComplete =
         (!openCodeSelected || openCodeReady) &&
             (!claudeSelected || claudeReady) &&
             (!antigravitySelected || antigravityReady) &&
+            (!codexSelected || codexReady) &&
             fullToolsReady
     val installComplete = agentsInstallComplete && !fullToolsInstallPending
 
@@ -200,10 +217,20 @@ fun AndroidSetupScreen(
     // download and the agents queued behind it were simply never installed, which is how a setup
     // that reported success could still leave Claude Code missing. What is left is a re-read of the
     // install state, because the runtime service - not these controllers - ran the install.
-    LaunchedEffect(openCodeReady) {
-        if (!openCodeReady) return@LaunchedEffect
+    //
+    // OpenCode reaching Ready is one trigger, but a selection without OpenCode never reaches it: the
+    // shared runtime status stays NotInstalled for a sandbox OpenCode was not asked into. There the
+    // controller that ran the install (Antigravity's or Codex's) knows only its own agent, so the
+    // others it provisioned alongside were never re-read and the step never completed. Re-reading
+    // every selected agent when any install stops running covers both.
+    var installWasRunning by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(openCodeReady, packageInstallRunning) {
+        val installJustFinished = installWasRunning && !packageInstallRunning
+        installWasRunning = packageInstallRunning
+        if (!openCodeReady && !installJustFinished) return@LaunchedEffect
         if (claudeSelected) onRefreshClaudeState()
         if (antigravitySelected) onRefreshAntigravityState()
+        if (codexSelected) onRefreshCodexState()
     }
 
     LaunchedEffect(openCodeReady, openCodeSelected, settingsState.availableProviders, settingsState.providerAuthMethods) {
@@ -247,10 +274,15 @@ fun AndroidSetupScreen(
                     runtimeStatus is LocalRuntimeStatus.Broken ||
                     claude.install is ClaudeInstallStatus.Failed ||
                     antigravity.error != null ||
+                    codex.install is CodexInstallStatus.Failed ||
                     fullDevelopmentToolsInstallFailed
                 ) {
                     SetupPrimaryAction(stringResource(R.string.claude_retry_install_button), true) {
                         onStartSetup(
+                            // A failed Codex install is retried with the whole selection too: the
+                            // failure may have discarded the other agents with it, and
+                            // CodexController.install already installs Codex alone when the rest are
+                            // there.
                             if (antigravity.error != null) setOf(LocalAgent.ANTIGRAVITY) else selectedAgents,
                             installFullDevelopmentTools,
                         )
@@ -337,9 +369,11 @@ fun AndroidSetupScreen(
                         runtimeStatus = runtimeStatus,
                         claude = claude,
                         antigravity = antigravity,
+                        codex = codex,
                         openCodeSelected = openCodeSelected,
                         claudeSelected = claudeSelected,
                         antigravitySelected = antigravitySelected,
+                        codexSelected = codexSelected,
                     )
                 4 ->
                     SignInStep(
@@ -359,6 +393,9 @@ fun AndroidSetupScreen(
                         onOpenUrl = onOpenUrl,
                         onSelectClaudePermissionMode = onSelectClaudePermissionMode,
                         onSelectAntigravityPermissionMode = onSelectAntigravityPermissionMode,
+                        codex = codex,
+                        onSignInCodex = codexSignIn.onOpen,
+                        onSignOutCodex = onSignOutCodex,
                         settingsState = settingsState,
                         onOpenProviderAuth = onOpenProviderAuth,
                         onDisconnectProvider = onDisconnectProvider,
@@ -372,6 +409,20 @@ fun AndroidSetupScreen(
                     )
             }
         }
+    }
+
+    codexSignInDialog?.let { dialog ->
+        ProviderAuthDialog(
+            state = dialog,
+            onSelectMethod = codexSignIn.onSelectMethod,
+            // Neither Codex method has prompts, and its OAuth method needs no pasted code.
+            onInputChange = { _, _ -> },
+            onApiKeyChange = codexSignIn.onApiKeyChange,
+            onSubmit = codexSignIn.onSubmit,
+            onCompleteCode = {},
+            onLaunchBrowser = codexSignIn.onLaunchBrowser,
+            onDismiss = codexSignIn.onDismiss,
+        )
     }
 
     settingsState.providerAuthDialog?.let { dialog ->
@@ -534,7 +585,7 @@ private fun AgentSelectionStep(
             title = stringResource(R.string.setup_step_agents),
             description = stringResource(R.string.setup_agents_description),
         )
-        // OpenCode, Claude Code, Antigravity - and the sign-in step follows the same order.
+        // OpenCode, Claude Code, Antigravity, Codex - and the sign-in step follows the same order.
         AgentOption(
             title = stringResource(R.string.agent_opencode_name),
             description = stringResource(R.string.setup_agent_opencode_desc),
@@ -552,6 +603,12 @@ private fun AgentSelectionStep(
             description = stringResource(R.string.setup_agent_antigravity_desc),
             selected = LocalAgent.ANTIGRAVITY in selectedAgents,
             onToggle = { onToggle(LocalAgent.ANTIGRAVITY) },
+        )
+        AgentOption(
+            title = stringResource(R.string.agent_codex_name),
+            description = stringResource(R.string.setup_agent_codex_desc),
+            selected = LocalAgent.CODEX in selectedAgents,
+            onToggle = { onToggle(LocalAgent.CODEX) },
         )
         if (selectedAgents.size >= 2) {
             Text(
@@ -679,9 +736,11 @@ private fun RuntimeDownloadStep(
     runtimeStatus: LocalRuntimeStatus,
     claude: ClaudeCodeUiState,
     antigravity: AntigravityControllerState,
+    codex: CodexUiState,
     openCodeSelected: Boolean,
     claudeSelected: Boolean,
     antigravitySelected: Boolean,
+    codexSelected: Boolean,
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
     // each step is shown under the agent it names. Without this the OpenCode panel displayed
@@ -720,6 +779,41 @@ private fun RuntimeDownloadStep(
                 if (step != null) SharedInstallProgress(step) else AntigravityInstallProgress(antigravity)
             }
         }
+        if (codexSelected) {
+            SetupPanel {
+                Text(stringResource(R.string.agent_codex_name), fontWeight = FontWeight.SemiBold)
+                val step = stepFor(LocalAgent.CODEX)
+                if (step != null) SharedInstallProgress(step) else CodexInstallProgress(codex)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CodexInstallProgress(codex: CodexUiState) {
+    when (val install = codex.install) {
+        is CodexInstallStatus.Installing -> {
+            Text(install.step?.takeIf(String::isNotBlank) ?: stringResource(R.string.codex_installing), fontWeight = FontWeight.Medium)
+            val progress = install.progress
+            if (progress != null) {
+                LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                Text(
+                    text = "${(progress * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+        }
+        is CodexInstallStatus.Failed ->
+            Text(install.message ?: stringResource(R.string.codex_error_install_failed), color = MaterialTheme.colorScheme.error)
+        CodexInstallStatus.Idle ->
+            if (codex.installed) {
+                ReadyAgentRow(stringResource(R.string.codex_installed_version, codex.version.orEmpty()))
+            } else {
+                Text(stringResource(R.string.runtime_status_not_installed), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
     }
 }
 
@@ -941,6 +1035,9 @@ private fun SignInStep(
     onOpenUrl: (String) -> Unit,
     onSelectClaudePermissionMode: (ClaudePermissionMode) -> Unit,
     onSelectAntigravityPermissionMode: (com.yugahashimoto.andcode.runtime.local.AntigravityPermissionMode) -> Unit,
+    codex: CodexUiState,
+    onSignInCodex: () -> Unit,
+    onSignOutCodex: () -> Unit,
     settingsState: SettingsUiState,
     onOpenProviderAuth: (String) -> Unit,
     onDisconnectProvider: (String) -> Unit,
@@ -1004,9 +1101,13 @@ private fun SignInStep(
                         onDisconnectProvider = onDisconnectProvider,
                         header = false,
                     )
-                // Codex has no onboarding step yet (see docs/CODEX.md): it is never in `agents`
-                // here, since that list is built from the toggles above, which do not offer it.
-                LocalAgent.CODEX -> Unit
+                LocalAgent.CODEX ->
+                    CodexCard(
+                        codex = codex,
+                        onInstall = {},
+                        onSignIn = onSignInCodex,
+                        onSignOut = onSignOutCodex,
+                    )
             }
         }
     }

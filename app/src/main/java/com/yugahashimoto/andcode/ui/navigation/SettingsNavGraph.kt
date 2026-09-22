@@ -20,6 +20,9 @@ import com.yugahashimoto.andcode.feature.assistant.TtsPreview
 import com.yugahashimoto.andcode.feature.settings.AgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.AntigravityAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ClaudeCodeAgentSettingsScreen
+import com.yugahashimoto.andcode.feature.settings.CodexAgentSettingsScreen
+import com.yugahashimoto.andcode.feature.settings.CodexSignInActions
+import com.yugahashimoto.andcode.feature.settings.CodexSignInViewModel
 import com.yugahashimoto.andcode.feature.settings.GitHubSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ModelVisibilityScreen
 import com.yugahashimoto.andcode.feature.settings.OpenCodeAgentSettingsScreen
@@ -277,6 +280,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenOpenCode = { navController.navigate(ROUTE_SETTINGS_AGENT_OPENCODE) },
             onOpenClaudeCode = { navController.navigate(ROUTE_SETTINGS_AGENT_CLAUDE) },
             onOpenAntigravity = { navController.navigate(ROUTE_SETTINGS_AGENT_ANTIGRAVITY) },
+            onOpenCodex = { navController.navigate(ROUTE_SETTINGS_AGENT_CODEX) },
             onBack = { navController.popBackStack() },
         )
     }
@@ -393,6 +397,39 @@ fun NavGraphBuilder.settingsNavGraph(
         )
     }
 
+    composable(ROUTE_SETTINGS_AGENT_CODEX) {
+        val app = context.applicationContext as com.yugahashimoto.andcode.AndCodeApplication
+        val codex by app.codexController.state.collectAsState()
+        val signInViewModel: CodexSignInViewModel =
+            androidx.lifecycle.viewmodel.compose.viewModel(
+                key = "settings-agent-codex-sign-in",
+                factory =
+                    com.yugahashimoto.andcode.ui.ViewModelFactory {
+                        CodexSignInViewModel(app.codexTarget, onSignedIn = app.codexController::refresh)
+                    },
+            )
+        val signInDialog by signInViewModel.dialog.collectAsState()
+        // Re-read on open: an install can have finished, or the account been signed out, since the last look.
+        androidx.compose.runtime.LaunchedEffect(Unit) { app.codexController.refresh() }
+        CodexAgentSettingsScreen(
+            codex = codex,
+            signInDialog = signInDialog,
+            signIn =
+                CodexSignInActions(
+                    onOpen = signInViewModel::open,
+                    onSelectMethod = signInViewModel::selectMethod,
+                    onApiKeyChange = signInViewModel::updateApiKey,
+                    onSubmit = signInViewModel::submit,
+                    onDismiss = signInViewModel::dismiss,
+                    onLaunchBrowser = { url -> UrlLauncher.openUrl(context, url) },
+                ),
+            onInstall = app.codexController::install,
+            onSignOut = app.codexController::signOut,
+            onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_CODEX) },
+            onBack = { navController.popBackStack() },
+        )
+    }
+
     composable(ROUTE_SETTINGS_PROVIDERS) {
         val settingsState by settingsViewModel.state.collectAsState()
         // Re-read on open: the runtime that owns providers may have started since the last look.
@@ -463,6 +500,15 @@ fun NavGraphBuilder.settingsNavGraph(
         com.yugahashimoto.andcode.feature.settings.McpScreen(
             registry = runtimeRegistry,
             agent = com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY,
+            onOpenBrowser = {},
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable(ROUTE_SETTINGS_MCP_CODEX) {
+        com.yugahashimoto.andcode.feature.settings.McpScreen(
+            registry = runtimeRegistry,
+            agent = com.yugahashimoto.andcode.runtime.LocalAgent.CODEX,
             onOpenBrowser = {},
             onBack = { navController.popBackStack() },
         )

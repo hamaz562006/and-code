@@ -13,8 +13,13 @@ import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 internal fun hasUsableRuntimeSetup(
     localRuntimeStatus: LocalRuntimeStatus,
     hasRemoteConnection: Boolean,
+    /**
+     * Claude Code, Antigravity or Codex is installed in the shared sandbox. [localRuntimeStatus] only
+     * describes OpenCode, which a setup that picked another agent never installs.
+     */
+    hasOtherLocalAgent: Boolean = false,
 ): Boolean {
-    if (hasRemoteConnection) return true
+    if (hasRemoteConnection || hasOtherLocalAgent) return true
 
     return when (localRuntimeStatus) {
         is LocalRuntimeStatus.Stopped,

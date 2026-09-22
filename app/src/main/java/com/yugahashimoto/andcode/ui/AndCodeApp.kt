@@ -88,6 +88,8 @@ import com.yugahashimoto.andcode.feature.schedule.ScheduleEditorScreen
 import com.yugahashimoto.andcode.feature.schedule.ScheduleListScreen
 import com.yugahashimoto.andcode.feature.schedule.ScheduleRunsScreen
 import com.yugahashimoto.andcode.feature.schedule.ScheduleViewModel
+import com.yugahashimoto.andcode.feature.settings.CodexSignInActions
+import com.yugahashimoto.andcode.feature.settings.CodexSignInViewModel
 import com.yugahashimoto.andcode.feature.settings.DiagnosticsSheet
 import com.yugahashimoto.andcode.feature.settings.GitHubRepo
 import com.yugahashimoto.andcode.feature.settings.SettingsViewModel
@@ -107,6 +109,7 @@ import com.yugahashimoto.andcode.ui.navigation.ROUTE_ONBOARDING
 import com.yugahashimoto.andcode.ui.navigation.ROUTE_REMOTE_CONNECTION
 import com.yugahashimoto.andcode.ui.navigation.ROUTE_SCHEDULES
 import com.yugahashimoto.andcode.ui.navigation.ROUTE_SCHEDULE_EDIT
+import com.yugahashimoto.andcode.ui.navigation.ROUTE_SETTINGS_AGENT_CODEX
 import com.yugahashimoto.andcode.ui.navigation.ROUTE_SETTINGS_PROVIDERS
 import com.yugahashimoto.andcode.ui.navigation.SCHEDULE_DETAIL_ROUTE_PATTERN
 import com.yugahashimoto.andcode.ui.navigation.SCHEDULE_EDIT_ARG_ID
@@ -126,6 +129,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -193,6 +197,13 @@ fun AndCodeApp(
     val runtimeTargets by app.runtimeRegistry.targets.collectAsState()
     val preferences by app.preferences.state.collectAsState()
     val antigravityState by app.antigravityController.state.collectAsState()
+    val codexState by app.codexController.state.collectAsState()
+    val codexSignInViewModel: CodexSignInViewModel =
+        androidx.lifecycle.viewmodel.compose.viewModel(
+            key = "setup-codex-sign-in",
+            factory = ViewModelFactory { CodexSignInViewModel(app.codexTarget, onSignedIn = app.codexController::refresh) },
+        )
+    val codexSignInDialog by codexSignInViewModel.dialog.collectAsState()
 
     var collapsedSections by remember { mutableStateOf(setOf<String>()) }
 
@@ -709,10 +720,20 @@ fun AndCodeApp(
 
     // Local agents that are actually provisioned. A target reports Unavailable while its agent is
     // missing, which is exactly the case the switcher must not offer.
+    //
+    // Observed, not read once: a local agent's target connects asynchronously after launch (Codex
+    // checks its binary in the background), and reading `state.value` here left the drawer on the
+    // state it had at first composition - an installed Codex stayed hidden until something else
+    // happened to recompose it.
+    val targetStates by
+        remember(runtimeTargets) {
+            combine(runtimeTargets.map { target -> target.state.map { state -> target.id to state } }) { pairs -> pairs.toMap() }
+        }.collectAsState(initial = emptyMap())
     val drawerAgents =
         runtimeTargets.mapNotNull { target ->
             val agent = target.agent ?: return@mapNotNull null
-            DrawerAgent(target.id, agent).takeIf { target.state.value !is RuntimeState.Unavailable }
+            val state = targetStates[target.id] ?: target.state.value
+            DrawerAgent(target.id, agent).takeIf { state !is RuntimeState.Unavailable }
         }
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -932,6 +953,10 @@ fun AndCodeApp(
                                     workspaceViewModel.setupLocalRuntime(agents, installFullDevelopmentTools)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY in agents) {
                                     app.antigravityController.install(agents, installFullDevelopmentTools)
+                                } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CODEX in agents) {
+                                    // No OpenCode to carry the install: Codex's own install provisions
+                                    // the shared environment and every other selected agent with it.
+                                    app.codexController.install(agents, installFullDevelopmentTools)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE in agents) {
                                     workspaceViewModel.installClaudeCode(installFullDevelopmentTools)
                                 }
@@ -947,6 +972,19 @@ fun AndCodeApp(
                             onSubmitAntigravitySignInCode = app.antigravityController::submitAuthCode,
                             onCancelAntigravitySignIn = app.antigravityController::cancelAuth,
                             onSignOutAntigravity = app.antigravityController::logout,
+                            codex = codexState,
+                            codexSignInDialog = codexSignInDialog,
+                            codexSignIn =
+                                CodexSignInActions(
+                                    onOpen = codexSignInViewModel::open,
+                                    onSelectMethod = codexSignInViewModel::selectMethod,
+                                    onApiKeyChange = codexSignInViewModel::updateApiKey,
+                                    onSubmit = codexSignInViewModel::submit,
+                                    onDismiss = codexSignInViewModel::dismiss,
+                                    onLaunchBrowser = { url -> UrlLauncher.openUrl(context, url) },
+                                ),
+                            onSignOutCodex = app.codexController::signOut,
+                            onRefreshCodexState = app.codexController::refresh,
                             onSelectAntigravityPermissionMode = { mode ->
                                 app.antigravityController.setPermissionMode(mode, chatState.sessionId)
                             },
@@ -1076,7 +1114,10 @@ fun AndCodeApp(
                                 }
                             },
                             onOpenProviderSettings = {
-                                navController.navigate(ROUTE_SETTINGS_PROVIDERS)
+                                // OpenCode's provider list cannot connect Codex: its sign-in lives on
+                                // Codex's own settings screen.
+                                val codexSelected = selectedRuntime?.agent == com.yugahashimoto.andcode.runtime.LocalAgent.CODEX
+                                navController.navigate(if (codexSelected) ROUTE_SETTINGS_AGENT_CODEX else ROUTE_SETTINGS_PROVIDERS)
                             },
                             onSelectModel = settingsViewModel::selectModel,
                             onSelectAgent = settingsViewModel::selectAgent,

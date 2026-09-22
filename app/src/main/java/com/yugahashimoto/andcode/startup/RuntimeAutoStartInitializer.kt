@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.startup.Initializer
 import com.yugahashimoto.andcode.AndCodeApplication
 import com.yugahashimoto.andcode.hasUsableRuntimeSetup
+import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import com.yugahashimoto.andcode.runtime.local.AdbConnectionState
 import kotlinx.coroutines.CoroutineScope
@@ -89,11 +90,22 @@ class RuntimeAutoStartInitializer : Initializer<RuntimeAutoStartInitializer.Resu
          * flag itself did not survive.
          */
         internal fun syncOnboardingCompleted(app: AndCodeApplication) {
+            val localRuntimeStatus = app.localRuntimeManager.status()
+            val hasRemoteConnection = app.settings.connections().isNotEmpty()
             val setupConfigured =
-                hasUsableRuntimeSetup(
-                    localRuntimeStatus = app.localRuntimeManager.status(),
-                    hasRemoteConnection = app.settings.connections().isNotEmpty(),
-                )
+                hasUsableRuntimeSetup(localRuntimeStatus, hasRemoteConnection) ||
+                    // Only asked when OpenCode and the remotes did not already answer, and only of
+                    // the metadata file (a read lock): this runs on the main thread at every launch.
+                    hasUsableRuntimeSetup(
+                        localRuntimeStatus,
+                        hasRemoteConnection,
+                        hasOtherLocalAgent =
+                            runCatching {
+                                app.localRuntimeInstaller.installedMetadata()?.let { metadata ->
+                                    listOf(LocalAgent.CLAUDE_CODE, LocalAgent.ANTIGRAVITY, LocalAgent.CODEX).any(metadata::has)
+                                } == true
+                            }.getOrDefault(false),
+                    )
             if (app.settings.onboardingCompleted != setupConfigured) {
                 app.settings.onboardingCompleted = setupConfigured
             }

@@ -1,5 +1,6 @@
 package com.yugahashimoto.andcode.runtime.local
 
+import com.yugahashimoto.andcode.core.api.McpServer
 import com.yugahashimoto.andcode.core.api.OpenCodeEvent
 import com.yugahashimoto.andcode.core.api.OpenCodeMessage
 import com.yugahashimoto.andcode.core.api.OpenCodeSession
@@ -12,6 +13,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -19,6 +23,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -85,6 +90,21 @@ class CodexRuntime(
 
     private val pendingApprovals = ConcurrentHashMap<String, PendingApproval>()
 
+    private val logins = CodexLoginTracker()
+
+    private val mutableNeedsForeground = MutableStateFlow(false)
+
+    /**
+     * True while a ChatGPT sign-in is waiting on the browser or a turn is in flight: the two times
+     * Codex must keep talking to the network with the app out of the foreground. The application
+     * runs [CodexKeepAliveService] for exactly as long as this is true.
+     */
+    val needsForeground: StateFlow<Boolean> = mutableNeedsForeground.asStateFlow()
+
+    private fun refreshForegroundNeed() {
+        mutableNeedsForeground.value = sessionsWithTurnInFlight.isNotEmpty() || logins.pending
+    }
+
     fun events(): Flow<OpenCodeEvent> = events
 
     fun isInstalled(): Boolean {
@@ -132,7 +152,9 @@ class CodexRuntime(
         if (!isInstalled()) return null
         val result = runCommand("${CodexSandboxLauncher.CODEX_BINARY} --version", timeoutSeconds = 30)
         if (result.exitCode != 0) return null
-        return result.output.lineSequence().map(String::trim).firstOrNull(String::isNotEmpty)?.also { cachedVersion = it }
+        return result.output.lineSequence().map(
+            String::trim,
+        ).firstOrNull(String::isNotEmpty)?.let(::parseVersionLine)?.also { cachedVersion = it }
     }
 
     /**
@@ -183,13 +205,88 @@ class CodexRuntime(
         stopServer()
     }
 
-    suspend fun isSignedIn(): Boolean =
-        runCatching {
-            val result = call("account/read")
-            result["account"] != null
-        }.getOrDefault(false)
+    /** A ChatGPT browser sign-in that has been started: [authUrl] is what to open, [loginId] what to poll. */
+    data class ChatgptLogin(val loginId: String, val authUrl: String)
+
+    /**
+     * Starts Codex's ChatGPT browser sign-in (`account/login/start`, `type: chatgpt`).
+     *
+     * Codex serves its own OAuth callback on a local port, which the browser reaches through the
+     * device's loopback because PRoot shares the host network - so, unlike the paste-a-code flows,
+     * nothing has to be copied back by the user. Completion is read with [chatgptLoginOutcome].
+     */
+    suspend fun startChatgptLogin(): ChatgptLogin {
+        val result = call("account/login/start", buildJsonObject { put("type", JsonPrimitive("chatgpt")) })
+        // Shown in the sign-in dialog, so the translated message rather than a protocol detail.
+        val loginId = result.string("loginId") ?: error(messages.loginFailed)
+        val authUrl = result.string("authUrl") ?: error(messages.loginFailed)
+        logins.begin(loginId)
+        refreshForegroundNeed()
+        return ChatgptLogin(loginId, authUrl)
+    }
+
+    /** How [loginId] ended, or null while the browser round trip is still in progress. */
+    fun chatgptLoginOutcome(loginId: String): CodexLoginTracker.Outcome? = logins.outcome(loginId)
+
+    /** Drops the recorded outcome once the UI has consumed it. */
+    fun forgetChatgptLogin(loginId: String) {
+        logins.forget(loginId)
+        refreshForegroundNeed()
+    }
+
+    suspend fun cancelChatgptLogin(loginId: String) {
+        logins.forget(loginId)
+        refreshForegroundNeed()
+        runCatching { call("account/login/cancel", buildJsonObject { put("loginId", JsonPrimitive(loginId)) }) }
+    }
+
+    suspend fun isSignedIn(): Boolean = runCatching { hasSignedInAccount(call("account/read")) }.getOrDefault(false)
 
     suspend fun modelList(): JsonObject = call("model/list")
+
+    /** The configured MCP servers, from `codex mcp list --json`. */
+    suspend fun mcpServers(): List<McpServer> =
+        withContext(Dispatchers.IO) {
+            if (!isInstalled()) return@withContext emptyList()
+            CodexMcp.parseList(runCommand(CodexMcp.LIST_SCRIPT, timeoutSeconds = MCP_TIMEOUT_SECONDS).output)
+        }
+
+    /** Adds a server with `codex mcp add`: a streamable-HTTP [url], or a local [command] line. */
+    suspend fun addMcpServer(
+        name: String,
+        url: String?,
+        command: String?,
+    ) {
+        val script = CodexMcp.addScript(name, url, command) ?: error("An MCP server needs a command or a URL")
+        withContext(Dispatchers.IO) {
+            val result = runCommand(script, timeoutSeconds = MCP_TIMEOUT_SECONDS)
+            check(result.exitCode == 0) { result.output.trim().ifBlank { "codex mcp add failed" } }
+        }
+        reloadMcpServers()
+    }
+
+    /** Deletes a server with `codex mcp remove`. */
+    suspend fun removeMcpServer(name: String): Boolean {
+        // A failure throws with Codex's own output, like addMcpServer, so the screen shows why rather
+        // than just refreshing a list that still has the server in it.
+        withContext(Dispatchers.IO) {
+            val result = runCommand(CodexMcp.removeScript(name), timeoutSeconds = MCP_TIMEOUT_SECONDS)
+            check(result.exitCode == 0) { result.output.trim().ifBlank { "codex mcp remove failed" } }
+        }
+        reloadMcpServers()
+        return true
+    }
+
+    /**
+     * Asks a running app-server to re-read its MCP configuration after `codex mcp` changed it, so the
+     * next turn sees the change without restarting the process (and cutting short any turn in
+     * flight). `config/mcpServer/reload` takes a `null` params value per the protocol schema. With no
+     * server running there is nothing to reload: the next one reads the file when it starts.
+     */
+    private suspend fun reloadMcpServers() {
+        val running = server?.takeIf { it.process.isAlive } ?: return
+        runCatching { running.client.call("config/mcpServer/reload", JsonNull) }
+    }
 
     suspend fun listSessions(): List<OpenCodeSession> {
         val result = call("thread/list")
@@ -289,6 +386,7 @@ class CodexRuntime(
                 // before turn/completed ever arrives - without the turn id there is nothing to pass
                 // to itemParser.forgetTurn, and the entry would leak for the rest of the app's life.
                 result["turn"]?.jsonObject?.string("id")?.let { turnId -> sessionsWithTurnInFlight[sessionId] = turnId }
+                refreshForegroundNeed()
             }.onFailure { error ->
                 events.tryEmit(OpenCodeEvent.SessionError(sessionId, error.message))
                 events.tryEmit(OpenCodeEvent.SessionIdle(sessionId))
@@ -338,6 +436,11 @@ class CodexRuntime(
             // mid-stop (e.g. abort()'s turn/interrupt racing logout()) would hang forever instead of
             // failing.
             current.client.failPending(IllegalStateException("Codex was stopped"))
+            // A deliberate stop (sign-out, API-key sign-in, disconnect) ends whatever the process
+            // was doing just as a crash does, so it has to settle the same state - otherwise a turn
+            // or sign-in it cut short kept needsForeground true, and CodexKeepAliveService and its
+            // notification stayed up until the process died.
+            settleServerGone(messages.stopped)
         }
         server = null
     }
@@ -410,6 +513,16 @@ class CodexRuntime(
         // cut short - the same "settle what a dead process left running" step ClaudeCodeRuntime
         // takes, needed because turn/start itself already returned before the actual work streamed
         // in via later notifications.
+        settleServerGone(error)
+        scope.launch {
+            serverLock.withLock {
+                if (server?.process === process) server = null
+            }
+        }
+    }
+
+    /** Settles everything that was waiting on an app-server that is no longer running. */
+    private fun settleServerGone(error: String) {
         sessionsWithTurnInFlight.toMap().forEach { (sessionId, turnId) ->
             sessionsWithTurnInFlight -= sessionId
             itemParser.forgetTurn(turnId)
@@ -420,16 +533,14 @@ class CodexRuntime(
             events.tryEmit(OpenCodeEvent.SessionError(sessionId, error))
             events.tryEmit(OpenCodeEvent.SessionIdle(sessionId))
         }
-        // Every pending approval was waiting on a reply from this now-dead process: its rpcId means
-        // nothing to a server that isn't running any more (respondToPermission already no-ops once
-        // `server` is null, but without this the map entry itself would otherwise sit forever, since
-        // nothing else ever removes an entry the user never actually answered).
+        // Every pending approval was waiting on a reply from this process: its rpcId means nothing
+        // to a server that isn't running any more (respondToPermission already no-ops once `server`
+        // is null, but without this the map entry itself would otherwise sit forever, since nothing
+        // else ever removes an entry the user never actually answered).
         pendingApprovals.clear()
-        scope.launch {
-            serverLock.withLock {
-                if (server?.process === process) server = null
-            }
-        }
+        // A sign-in that was waiting on this process can no longer complete.
+        logins.abandon()
+        refreshForegroundNeed()
     }
 
     private fun handleNotification(
@@ -437,6 +548,11 @@ class CodexRuntime(
         params: JsonElement?,
     ) {
         val body = params as? JsonObject ?: return
+        if (method == LOGIN_COMPLETED_METHOD) {
+            logins.onCompleted(body)
+            refreshForegroundNeed()
+            return
+        }
         val sessionId = body.string("threadId") ?: return
         val parsed = itemParser.handleNotification(sessionId, method, body)
         if (parsed.events.any { it is OpenCodeEvent.SessionIdle }) {
@@ -445,6 +561,7 @@ class CodexRuntime(
             // schema does not require it) - fall back to the turnId this runtime captured from
             // turn/start's own response so that case cannot leak an assistantMessages entry either.
             sessionsWithTurnInFlight.remove(sessionId)?.let(itemParser::forgetTurn)
+            refreshForegroundNeed()
         }
         parsed.messages.forEach { message -> messageStore.upsert(sessionId, message) }
         parsed.events.forEach(events::tryEmit)
@@ -525,6 +642,8 @@ class CodexRuntime(
 
     private companion object {
         const val DEFAULT_TITLE = "Codex"
+        const val LOGIN_COMPLETED_METHOD = "account/login/completed"
+        const val MCP_TIMEOUT_SECONDS = 30L
 
         fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
 
@@ -538,3 +657,18 @@ internal val defaultCodexJson =
         isLenient = true
         encodeDefaults = true
     }
+
+/**
+ * The bare version from a `codex --version` line, which prints `codex-cli 0.155.1`.
+ *
+ * The product name is dropped because every place that shows the version already names the agent
+ * (`Codex %1$s`), which otherwise read "Codex codex-cli 0.155.1".
+ */
+internal fun parseVersionLine(line: String): String = line.trim().removePrefix("codex-cli").trim()
+
+/**
+ * Whether an `account/read` result names an account. Signed out it is `{"account": null, ...}`, which
+ * kotlinx.serialization decodes to [JsonNull] - a real element, not a missing key - so a plain `!= null`
+ * check reported every signed-out install as signed in.
+ */
+internal fun hasSignedInAccount(accountRead: JsonObject): Boolean = accountRead["account"] is JsonObject

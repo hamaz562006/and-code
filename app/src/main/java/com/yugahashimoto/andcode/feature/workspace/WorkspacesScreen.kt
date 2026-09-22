@@ -259,11 +259,6 @@ fun WorkspacesScreen(
                                     LocalAgent.CLAUDE_CODE -> state.claude.installed
                                     LocalAgent.OPEN_CODE -> state.localStatus is LocalRuntimeStatus.Ready
                                     LocalAgent.ANTIGRAVITY -> target.state is RuntimeState.Connected
-                                    // Unreachable today: AndCodeApplication.kt does not register a
-                                    // Codex target at all yet (see docs/CODEX.md), so `state.targets`
-                                    // never contains one. Kept only because `when` over a `LocalAgent?`
-                                    // must be exhaustive; the same "actually connected" check
-                                    // Antigravity uses is the right one once Codex is registered.
                                     LocalAgent.CODEX -> target.state is RuntimeState.Connected
                                     null -> true
                                 },
@@ -850,6 +845,8 @@ private fun targetSubtitle(
 ): String =
     if (target.agent == LocalAgent.CLAUDE_CODE) {
         localAgentSubtitle(target.state, R.string.claude_installed_version, R.string.claude_status_not_installed)
+    } else if (target.agent == LocalAgent.CODEX) {
+        localAgentSubtitle(target.state, R.string.codex_installed_version, R.string.runtime_status_not_installed)
     } else if (target.agent == LocalAgent.ANTIGRAVITY) {
         // Both of these now read like the OpenCode and Claude Code rows, which they did not: an
         // installed Antigravity showed a bare "1.1.7" beside "OpenCode 1.18.5", and an
@@ -887,9 +884,8 @@ private fun targetSubtitle(
     }
 
 /**
- * The install/version subtitle shared by Claude Code and Antigravity today; Codex has no branch
- * here yet because CodexTarget is not registered in RuntimeRegistry (see docs/CODEX.md) - this is
- * meant to gain a matching `target.agent == LocalAgent.CODEX` call site once it is.
+ * The install/version subtitle shared by the agents that install into the shared sandbox (Claude
+ * Code, Antigravity, Codex).
  */
 @Composable
 private fun localAgentSubtitle(
