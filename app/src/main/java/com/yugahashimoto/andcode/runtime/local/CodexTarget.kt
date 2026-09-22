@@ -40,7 +40,10 @@ import java.io.File
  * live, signed-in account (see docs/CODEX.md), so wiring them up is left for a follow-up rather than
  * guessed at.
  */
-class CodexTarget(private val runtime: CodexRuntime) : RuntimeTarget {
+class CodexTarget(
+    private val runtime: CodexRuntime,
+    private val messages: CodexMessages = CodexMessages.Default,
+) : RuntimeTarget {
     override val id = LocalAgent.CODEX.targetId
     override val displayName = "Codex"
     override val agent = LocalAgent.CODEX
@@ -55,6 +58,9 @@ class CodexTarget(private val runtime: CodexRuntime) : RuntimeTarget {
     // up (see CodexRuntime.handleServerRequest's else branch). Each turn is a multiplexed RPC call
     // rather than a fresh process, so forcesQueue does not apply the way it does for Antigravity.
     override val capabilities = RuntimeCapabilities(permissions = true, toolEvents = true, providerModelList = true)
+
+    /** The ChatGPT sign-in [completeProviderOAuth] is waiting on, set by [authorizeProvider]. */
+    @Volatile private var activeLoginId: String? = null
 
     private val mutableState = MutableStateFlow<RuntimeState>(RuntimeState.Disconnected)
     override val state: StateFlow<RuntimeState> = mutableState.asStateFlow()
@@ -115,8 +121,16 @@ class CodexTarget(private val runtime: CodexRuntime) : RuntimeTarget {
 
     override suspend fun listAgents(): List<OpenCodeAgent> = CodexModels.agents()
 
+    // Index 0 is the ChatGPT browser sign-in, 1 the API key: authorizeProvider and setProviderApiKey
+    // answer for exactly these two, and the dialog that lists them is the one OpenCode's providers use.
     override suspend fun providerAuthMethods(): Map<String, List<ProviderAuthMethod>> =
-        mapOf(CodexModels.PROVIDER_ID to listOf(ProviderAuthMethod(type = "api", label = "API key")))
+        mapOf(
+            CodexModels.PROVIDER_ID to
+                listOf(
+                    ProviderAuthMethod(type = "oauth", label = messages.signInChatgptLabel),
+                    ProviderAuthMethod(type = "api", label = messages.signInApiKeyLabel),
+                ),
+        )
 
     override suspend fun setProviderApiKey(
         providerId: String,
@@ -137,14 +151,48 @@ class CodexTarget(private val runtime: CodexRuntime) : RuntimeTarget {
         providerId: String,
         methodIndex: Int,
         inputs: Map<String, String>,
-    ): ProviderAuthAuthorization =
-        // Codex also supports a ChatGPT browser sign-in (`account/login/start`), not implemented
-        // here: it is a device/browser round trip this app has no verified transcript for yet (see
-        // docs/CODEX.md), unlike the plain `codex login --with-api-key` path `setProviderApiKey`
-        // uses. Only the API-key method is advertised in `providerAuthMethods`, so this is not
-        // reachable from the current UI; it exists only to satisfy the interface explicitly rather
-        // than silently inheriting `unsupported()`.
-        error("Codex only supports API-key sign-in in this app; browser sign-in is not implemented yet")
+    ): ProviderAuthAuthorization {
+        require(providerId == CodexModels.PROVIDER_ID && methodIndex == CHATGPT_METHOD_INDEX) {
+            "Codex has no browser sign-in for provider '$providerId' method $methodIndex"
+        }
+        val login = withContext(Dispatchers.IO) { runtime.startChatgptLogin() }
+        activeLoginId = login.loginId
+        // "auto": the UI opens the URL, then polls completeProviderOAuth until the browser has been
+        // through Codex's local callback - the same shape as OpenCode's own OAuth providers.
+        return ProviderAuthAuthorization(
+            url = login.authUrl,
+            method = "auto",
+            instructions = messages.signInBrowserInstructions,
+        )
+    }
+
+    /** Abandons a browser sign-in that [authorizeProvider] started and the user never finished. */
+    suspend fun cancelSignIn() {
+        val loginId = activeLoginId ?: return
+        activeLoginId = null
+        withContext(Dispatchers.IO) { runtime.cancelChatgptLogin(loginId) }
+    }
+
+    override suspend fun completeProviderOAuth(
+        providerId: String,
+        methodIndex: Int,
+        code: String?,
+    ): Boolean {
+        val loginId = activeLoginId ?: return false
+        return when (val outcome = runtime.chatgptLoginOutcome(loginId)) {
+            null -> false
+            CodexLoginTracker.Outcome.Succeeded -> {
+                activeLoginId = null
+                runtime.forgetChatgptLogin(loginId)
+                true
+            }
+            is CodexLoginTracker.Outcome.Failed -> {
+                activeLoginId = null
+                runtime.forgetChatgptLogin(loginId)
+                throw IllegalStateException(outcome.message)
+            }
+        }
+    }
 
     override suspend fun sendMessage(
         sessionId: String,
@@ -193,4 +241,9 @@ class CodexTarget(private val runtime: CodexRuntime) : RuntimeTarget {
     ): List<OpenCodeSearchMatch> = withContext(Dispatchers.IO) { files.search(directory, pattern) }
 
     override suspend fun listWorkspaces(): List<WorkspaceRef> = listOf(WorkspaceRef("/workspace", "workspace", "/workspace"))
+
+    private companion object {
+        /** Position of the ChatGPT sign-in in [providerAuthMethods]; the API key follows it. */
+        const val CHATGPT_METHOD_INDEX = 0
+    }
 }

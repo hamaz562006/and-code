@@ -41,6 +41,7 @@ import com.yugahashimoto.andcode.feature.support.GitHubStarService
 import com.yugahashimoto.andcode.feature.wakeword.VoskModelStore
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import com.yugahashimoto.andcode.runtime.RuntimeRegistry
+import com.yugahashimoto.andcode.runtime.RuntimeState
 import com.yugahashimoto.andcode.runtime.local.AdbConnectionManager
 import com.yugahashimoto.andcode.runtime.local.AdbShellRunner
 import com.yugahashimoto.andcode.runtime.local.AndroidClaudeMessages
@@ -52,6 +53,8 @@ import com.yugahashimoto.andcode.runtime.local.AntigravityTarget
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeController
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeRuntime
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeTarget
+import com.yugahashimoto.andcode.runtime.local.CodexController
+import com.yugahashimoto.andcode.runtime.local.CodexKeepAliveService
 import com.yugahashimoto.andcode.runtime.local.CodexRuntime
 import com.yugahashimoto.andcode.runtime.local.CodexTarget
 import com.yugahashimoto.andcode.runtime.local.CustomProviderStore
@@ -205,6 +208,9 @@ class AndCodeApplication : Application() {
     lateinit var antigravityController: AntigravityController
         private set
 
+    lateinit var codexController: CodexController
+        private set
+
     lateinit var runtimeMessages: LocalRuntimeMessages
         private set
 
@@ -312,15 +318,25 @@ class AndCodeApplication : Application() {
         antigravityRuntime = AntigravityRuntime(runtimeDirectory, installer::installedRuntime, githubToken = { settings.githubToken })
         antigravityTarget = AntigravityTarget(antigravityRuntime)
         antigravityController = AntigravityController(installer, antigravityTarget, runtimeWork, applicationScope)
+        val codexMessages = AndroidCodexMessages(this)
         codexRuntime =
             CodexRuntime(
                 runtimeDirectory = runtimeDirectory,
                 installedRuntimeProvider = installer::installedRuntime,
                 accessCoordinator = accessCoordinator,
-                messages = AndroidCodexMessages(this),
+                messages = codexMessages,
                 githubToken = { settings.githubToken },
             )
-        codexTarget = CodexTarget(codexRuntime)
+        codexTarget = CodexTarget(codexRuntime, codexMessages)
+        // Codex is a child of this process, so it is cut off from the network the moment the app has
+        // nothing in the foreground on some devices: hold the app there while Codex is signing in or
+        // running a turn (see CodexKeepAliveService).
+        applicationScope.launch {
+            codexRuntime.needsForeground.collect { needed ->
+                if (needed) CodexKeepAliveService.start(this@AndCodeApplication) else CodexKeepAliveService.stop(this@AndCodeApplication)
+            }
+        }
+        codexController = CodexController(codexRuntime, codexTarget, installer, abi, runtimeWork, applicationScope)
         runtimeMessages = AndroidLocalRuntimeMessages(this)
         gitCloneRepository =
             GitCloneRepository(
@@ -425,18 +441,20 @@ class AndCodeApplication : Application() {
             RuntimeRegistry(
                 store = settings,
                 localTarget = LocalRuntimeTarget(localRuntimeManager, messages = runtimeMessages),
-                // codexTarget is deliberately not registered here yet: every screen that lists
-                // RuntimeRegistry.targets (the Workspaces list, the chat runtime picker sheet, the
-                // drawer's agent switcher) offers whatever it contains for the user to select, and
-                // Codex has no install path anywhere in the app yet (see docs/CODEX.md) - registering
-                // it would offer a dead end in all three places rather than the one this app tried,
-                // and failed, to patch around individually. CodexTarget/CodexRuntime are still fully
-                // built, wired with DI and unit-tested; only registry visibility is withheld.
-                additionalTargets = listOf(claudeCodeTarget, antigravityTarget),
+                additionalTargets = listOf(claudeCodeTarget, antigravityTarget, codexTarget),
             )
         // Surface the installed/version state to the workspace picker without waiting for the
         // first chat to touch Antigravity.
         applicationScope.launch { antigravityTarget.connect() }
+        // A setup without OpenCode has nothing else to establish a default runtime: the auto-start
+        // path only ever selects the OpenCode-local target, so a Codex-only install used to open on
+        // no runtime at all and send nowhere. Fill an empty selection with Codex once it connects;
+        // selectIfUnset never overrides a runtime the user picked.
+        applicationScope.launch {
+            codexTarget.state.collect { state ->
+                if (state is RuntimeState.Connected) runtimeRegistry.selectIfUnset(codexTarget.id)
+            }
+        }
         claudeCodeController =
             ClaudeCodeController(
                 target = claudeCodeTarget,

@@ -33,6 +33,26 @@ class CodexJsonRpcClientTest {
             assertTrue(output.toString(Charsets.UTF_8.name()).contains("\"method\":\"initialize\""))
         }
 
+    /**
+     * `codex app-server` rejects a request without `params` outright - verified on a device:
+     * `{"method":"account/read"}` answers `Invalid request: missing field \`params\``, and the same
+     * for `model/list` and `thread/list`, while `"params":{}` succeeds. Omitting it made every
+     * no-argument call fail, which read as "not signed in" right after a successful sign-in.
+     */
+    @Test
+    fun `a call with no params still sends an empty params object`() =
+        runBlocking {
+            val output = ByteArrayOutputStream()
+            val client = CodexJsonRpcClient(output, onNotification = { _, _ -> })
+
+            val pending = async { client.call("account/read") }
+            kotlinx.coroutines.yield()
+            client.receiveLine("""{"id":1,"result":{"account":null,"requiresOpenaiAuth":true}}""")
+            pending.await()
+
+            assertTrue(output.toString(Charsets.UTF_8.name()).contains("\"params\":{}"))
+        }
+
     @Test
     fun `a JSON-RPC error fails the matching call`() =
         runBlocking {

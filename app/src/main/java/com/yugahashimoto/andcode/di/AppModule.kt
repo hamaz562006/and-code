@@ -1,6 +1,7 @@
 package com.yugahashimoto.andcode.di
 
 import android.os.Build
+import com.yugahashimoto.andcode.AndCodeApplication
 import com.yugahashimoto.andcode.core.api.GitHubApiClient
 import com.yugahashimoto.andcode.core.notification.RuntimeNotificationHelper
 import com.yugahashimoto.andcode.data.connection.SecureSettingsRepository
@@ -168,13 +169,15 @@ val appModule =
             RuntimeRegistry(
                 store = get(),
                 localTarget = LocalRuntimeTarget(get(), messages = get()),
-                // Codex is deliberately not registered here yet - see the matching comment in
-                // AndCodeApplication.kt's own RuntimeRegistry construction.
                 additionalTargets =
                     listOf(
                         AntigravityTarget(
                             AntigravityRuntime(get(), (get<LocalRuntimeInstaller>())::installedRuntime),
                         ),
+                        // The application's own instance, not a second CodexTarget: Codex runs one
+                        // long-lived app-server whose approvals and threads a second runtime would
+                        // not see. Resolved lazily, after AndCodeApplication.onCreate has built it.
+                        (androidContext().applicationContext as AndCodeApplication).codexTarget,
                     ),
             )
         }

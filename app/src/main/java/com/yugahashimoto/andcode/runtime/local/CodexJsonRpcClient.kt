@@ -97,7 +97,9 @@ class CodexJsonRpcClient(
                     put("jsonrpc", JsonPrimitive("2.0"))
                     put("id", JsonPrimitive(id))
                     put("method", JsonPrimitive(method))
-                    params?.let { put("params", it) }
+                    // Always present: the app-server rejects a request with no `params` at all
+                    // ("missing field `params`"), even for methods that take no arguments.
+                    put("params", params ?: JsonObject(emptyMap()))
                 }
             // writeLine() itself is inside the try, not just deferred.await(): a write that throws
             // (a broken pipe from an already-dead process) must still remove this id from `pending`,

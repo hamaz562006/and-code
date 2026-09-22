@@ -55,4 +55,17 @@ class OnboardingGateTest {
             ),
         )
     }
+
+    // A setup guide run that picked only Codex (or only Claude Code / Antigravity) leaves OpenCode
+    // NotInstalled; that used to send every restart back to the welcome screen.
+    @Test
+    fun installedAgentOtherThanOpenCodeIsUsable() {
+        assertTrue(
+            hasUsableRuntimeSetup(
+                localRuntimeStatus = LocalRuntimeStatus.NotInstalled,
+                hasRemoteConnection = false,
+                hasOtherLocalAgent = true,
+            ),
+        )
+    }
 }

@@ -4,43 +4,75 @@ Support for OpenAI's Codex CLI, run inside the same shared Alpine/PRoot sandbox 
 Claude Code (`CodexRuntime`, `CodexTarget`, `CodexInstaller`, `CodexSandboxLauncher`,
 `CodexJsonRpcClient`, `CodexItemParser`, `CodexModels`).
 
-## Status: backend only, not registered in the running app yet
+## Status: registered, installable from Settings, verified on an emulator (unauthenticated)
 
-This adds a real, unit-tested `RuntimeTarget` implementation (`CodexTarget`/`CodexRuntime`) and wires
-it through DI, but **deliberately does not add `codexTarget` to `RuntimeRegistry`'s
-`additionalTargets`** in either `AndCodeApplication.kt` or `di/AppModule.kt` yet. `RuntimeRegistry.
-targets` is the one list every target picker in the app reads from unconditionally - the Workspaces
-screen, the chat model/runtime picker sheet, and the drawer's agent switcher all offer whatever it
-contains for the user to select, with no per-agent "is this actually usable" gate of their own. An
-earlier draft of this change registered the target and then tried to patch each of those call sites
-individually to hide it; that approach missed two of the three (the picker sheet and the drawer) and
-was abandoned as fragile. Withholding registration at the one shared source fixes all three at once,
-and is simpler to reason about than three independent filters that all have to agree.
+`codexTarget` is registered in `RuntimeRegistry` (`AndCodeApplication.kt`, and `di/AppModule.kt` reusing
+the same instance) so it appears in the runtime picker and the drawer's agent switcher. It is offered
+only once installed: `CodexController.refresh` always calls `CodexTarget.connect()`, which leaves the
+target `Unavailable` while Codex is missing, and the drawer hides `Unavailable` targets.
 
-This also means: no install button, no onboarding step, no settings screen exist for Codex.
-`AndroidSetupScreen.kt` and `AgentSettingsScreen.kt` hardcode each agent at many call sites (selection
-state, per-agent toggle rows, step tracking, install dispatch, sign-in state), and Claude Code's and
-Antigravity's own screens are 300+ line dedicated files each. Building that surface, and then
-registering `codexTarget` once it exists, is a second, independently reviewable change, not folded
-into this one. `CodexRuntime.install(abi)` has no caller outside tests today.
+The UI surface is `CodexController` (install / sign-in status), `CodexCard`, `CodexSignInViewModel`, and
+`CodexAgentSettingsScreen` reached from Settings > Agents > Codex, plus a Codex option in the setup guide.
+`LocalRuntimeInstaller` treats Codex like the other agents - it is installed into the staging rootfs and
+recorded in the runtime metadata (`components`), so a later install that rebuilds the sandbox keeps it; a
+Codex-only selection provisions the shared environment itself (`CodexController.install`). The sign-in check starts the resident app-server, so it runs when the settings screen
+is opened, not at app launch.
 
-A couple of `LocalAgent.CODEX` branches remain in `WorkspacesScreen.kt` and
-`AndroidSetupScreen.kt` purely because Kotlin requires an exhaustive `when` over every `LocalAgent`
-value regardless of what is actually registered; they are unreachable until Codex is registered and
-are commented as such at each site.
+### Verified on an emulator (API 36, arm64, 2026-09-21, unauthenticated)
 
-Follow-up work: register `codexTarget` in both `RuntimeRegistry` construction sites, an install/status
-card (`CodexCard.kt`, modelled on `ClaudeCodeCard.kt` but much shorter - no OAuth state machine), a
-`CodexAgentSettingsScreen` entry in `AgentSettingsScreen.kt`, and an onboarding toggle in
-`AndroidSetupScreen.kt`.
+- Install from Settings > Agents > Codex on a fresh install with the local runtime already set up:
+  download, SHA-512 check and extraction succeed; `codex-cli 0.155.1` runs inside PRoot.
+- The status card reports "Sign-in required" and the version; the app-server starts and answers
+  `account/read`.
+- Selecting Codex in the drawer, then sending a message creates a thread, and the 401 retry loop
+  surfaces as a red "Reconnecting... 5/5" message (see "Protocol notes" below).
+- Uninstalled Codex is absent from the drawer; reinstalling from the UI works; force-stop leaves no
+  orphaned `codex` process.
 
-None of this was tested on an Android device or emulator - the environment this was written in has
-no Android SDK, no `/dev/kvm`, and no hardware virtualization, so an emulator cannot run there at all.
-Everything below marked "verified" was checked by running the real `codex` binary as a plain Linux
-process and driving its JSON-RPC protocol directly; everything else is derived from the protocol's
-own published JSON Schema and marked as such. Device acceptance (install, sign-in, a real turn,
-approval prompts, abort, session switching) is still required before this is trusted, the same bar
-`ANTIGRAVITY.md` sets for that integration.
+### Verified on a physical device (Xiaomi, Android 16, arm64) - and what it found
+
+Install and the ChatGPT browser sign-in were run on a real phone. The browser did reach Codex's callback
+(`localhost:1455`), which confirms the loopback approach works there, but the token exchange then failed:
+`error sending request for url (https://auth.openai.com/oauth/token)`, with `is_connect=true`.
+
+Cause, isolated by running the same DNS/HTTPS check inside the phone's PRoot sandbox: with the app **in the
+background** (the browser in front) every DNS write failed with `EPERM`; with the app **in the foreground** the
+same commands resolved and connected. Codex is a child process of the app, so Android's per-app network
+rule applies to it, and the ChatGPT sign-in is the one flow that needs the network *while the browser has the
+screen*. OpenCode's sign-in is unaffected because `LocalRuntimeService` keeps the app in the foreground;
+Codex has no such service of its own.
+
+Fix: `CodexKeepAliveService` (a `specialUse` foreground service, one low-importance notification) runs while
+`CodexRuntime.needsForeground` is true - a ChatGPT sign-in waiting on the browser, or a turn in flight - and
+`AndCodeApplication` starts and stops it from that flag. On the emulator it starts when the sign-in begins
+and stops on Cancel (with the callback port released). Re-run on the phone: the token exchange then succeeded (`codex login status`: "Logged in using ChatGPT"),
+which exposed the missing-`params` bug above.
+
+### Setups without OpenCode
+
+Two startup paths only knew about OpenCode, which broke a Codex-only setup (and, for the first, any setup that
+picked only Claude Code or Antigravity):
+
+- `hasUsableRuntimeSetup` judged "is setup done" from OpenCode's status alone, so every restart of a
+  Codex-only install went back to the welcome screen. It now also counts any installed local agent.
+- Nothing selected a default runtime: auto-start only ever selects the OpenCode-local target, so the chat
+  had no backend and a send did nothing. `AndCodeApplication` now fills an empty selection with Codex once
+  its target connects (`selectIfUnset`, so a user's own choice is never overridden).
+- The drawer read each target's `state.value` once instead of observing it, so a Codex target that
+  connected after first composition stayed hidden; it now collects the states.
+
+Verified on the emulator (Codex-only, signed out): launch opens the chat on `codex` with a Codex model
+selected, and a send creates a thread and surfaces the 401 from the API.
+Verified on the physical device (Codex-only, signed in with ChatGPT, 2026-09-23): launch opens the chat on
+`codex` with a Codex model selected, and a real turn returns a reply.
+
+### Not verified
+
+Anything that needs a signed-in account: completing the ChatGPT sign-in end to end after the fix above,
+the API-key sign-in and logout through the UI, a real turn, approval prompts, abort, attachments, and
+whether threads listed after an app restart include chats whose only turn failed. The model picker is empty
+while signed out ("No connected providers yet"), so an unauthenticated chat can only be started with no
+model selected.
 
 ## Why this is more tractable than Antigravity's integration
 
@@ -105,6 +137,11 @@ non-functional, second sandboxing layer.
 
 - Framing is one JSON object per line (NDJSON) on stdin/stdout; there is no `initialize` version
   negotiation.
+- **Every request must carry `params`**, even methods with no arguments: `{"method":"account/read"}` is
+  rejected with `Invalid request: missing field \`params\``, and so are `model/list` and `thread/list`,
+  while `"params":{}` succeeds (verified on a device, 0.155.1). `CodexJsonRpcClient.call` always sends it.
+  Before that fix every no-argument call failed silently, which showed as "not signed in" right after a
+  successful ChatGPT sign-in, an empty model picker, and an empty chat list after a restart.
 - A line with `method` **and** `id` is a server-initiated request expecting a reply (an approval
   prompt); a line with `method` and no `id` is a notification; a bare `id` is a response to a call
   this app made. Getting this dispatch wrong (treating every `id`-bearing line as "our" response) was
@@ -118,11 +155,19 @@ non-functional, second sandboxing layer.
   - `CodexItemParser` treats a `willRetry: true` error as informational only, ending the turn (and
     the retry loop's terminal `willRetry: false` error, if it's ever reached) rather than every
     individual reconnect attempt.
-- `codex login --with-api-key` (reading the key from stdin, confirmed by `codex login --help`) is
-  what `CodexRuntime.loginWithApiKey` uses. Codex also supports a ChatGPT browser sign-in
-  (`account/login/start`), which is **not implemented**: it is a device/browser round trip this
-  session had no way to drive end-to-end, and guessing its flow would be worse than not offering it -
-  `CodexTarget.authorizeProvider` throws explicitly rather than silently no-op'ing.
+- Sign-in goes through the same provider dialog OpenCode's providers use (`ProviderAuthDialog`), with two
+  methods advertised by `CodexTarget.providerAuthMethods`:
+  - **ChatGPT account** (index 0): `account/login/start` with `type: chatgpt` returns `{authUrl, loginId}`;
+    `authorizeProvider` hands that URL to the dialog as an `auto` method, the browser signs in and lands on
+    Codex's own callback (`http://localhost:1455/auth/callback`, served by the app-server), and the result
+    arrives as an `account/login/completed` notification, kept by `CodexLoginTracker` until the dialog's next
+    `completeProviderOAuth` poll. Cancelling calls `account/login/cancel`.
+  - **API key** (index 1): `codex login --with-api-key` (key on stdin, per `codex login --help`), which is what
+    `CodexRuntime.loginWithApiKey` runs. The API key is also the fallback if the loopback callback is ever
+    blocked; the protocol also offers `type: chatgptDeviceCode`, not used here.
+  Verified on an emulator (see Status): starting the ChatGPT sign-in opens `auth.openai.com/oauth/authorize`
+  with `redirect_uri=http://localhost:1455/auth/callback`, Codex is listening on `127.0.0.1:1455` while it
+  waits, and Cancel releases the port. Not verified: completing a real sign-in (it needs an account).
 - Turn/item shapes not covered by a live, authenticated run (an actual `agentMessage`,
   `commandExecution`, `fileChange`, an approval prompt's exact resolution) are mapped from the
   protocol's own JSON Schema instead and marked so in code comments and test names. `CodexItemParser`

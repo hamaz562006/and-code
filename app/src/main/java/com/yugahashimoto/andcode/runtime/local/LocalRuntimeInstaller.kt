@@ -62,6 +62,7 @@ class LocalRuntimeInstaller(
             val onShared: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, null) }
             val onClaude: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.CLAUDE_CODE) }
             val onAntigravity: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.ANTIGRAVITY) }
+            val onCodex: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.CODEX) }
             runtimeDirectory.mkdirs()
             onShared(0.02f, context.getString(R.string.install_step_preparing_command_env))
             val existingMetadata = installedMetadata()
@@ -180,6 +181,12 @@ class LocalRuntimeInstaller(
                     onClaude(0.93f, context.getString(R.string.install_step_installing_claude_code))
                     ClaudeCodeInstaller.installInto(rootfs, commandSuite, runtimeDirectory)
                     provisionClaudePermissionHook(rootfs)
+                }
+                if (LocalAgent.CODEX in requestedAgents) {
+                    onCodex(0.935f, context.getString(R.string.install_step_downloading_codex))
+                    // Into the staging rootfs like every other agent here, so it is swapped in with the
+                    // environment and is not lost when a later install rebuilds the sandbox.
+                    CodexInstaller.install(rootfs, abi, runtimeDirectory, accessCoordinator, httpClient)
                 }
                 if (LocalAgent.ANTIGRAVITY in requestedAgents) {
                     onAntigravity(0.94f, context.getString(R.string.install_step_downloading_antigravity))

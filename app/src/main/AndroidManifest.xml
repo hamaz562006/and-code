@@ -104,6 +104,15 @@
         </service>
 
         <service
+            android:name=".runtime.local.CodexKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps a user-started Codex sign-in or coding turn connected while the app is in the background." />
+        </service>
+
+        <service
             android:name=".feature.schedule.ScheduleExecutionService"
             android:exported="false"
             android:foregroundServiceType="specialUse">

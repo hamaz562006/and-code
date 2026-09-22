@@ -12,6 +12,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -85,6 +88,21 @@ class CodexRuntime(
 
     private val pendingApprovals = ConcurrentHashMap<String, PendingApproval>()
 
+    private val logins = CodexLoginTracker()
+
+    private val mutableNeedsForeground = MutableStateFlow(false)
+
+    /**
+     * True while a ChatGPT sign-in is waiting on the browser or a turn is in flight: the two times
+     * Codex must keep talking to the network with the app out of the foreground. The application
+     * runs [CodexKeepAliveService] for exactly as long as this is true.
+     */
+    val needsForeground: StateFlow<Boolean> = mutableNeedsForeground.asStateFlow()
+
+    private fun refreshForegroundNeed() {
+        mutableNeedsForeground.value = sessionsWithTurnInFlight.isNotEmpty() || logins.pending
+    }
+
     fun events(): Flow<OpenCodeEvent> = events
 
     fun isInstalled(): Boolean {
@@ -132,7 +150,9 @@ class CodexRuntime(
         if (!isInstalled()) return null
         val result = runCommand("${CodexSandboxLauncher.CODEX_BINARY} --version", timeoutSeconds = 30)
         if (result.exitCode != 0) return null
-        return result.output.lineSequence().map(String::trim).firstOrNull(String::isNotEmpty)?.also { cachedVersion = it }
+        return result.output.lineSequence().map(
+            String::trim,
+        ).firstOrNull(String::isNotEmpty)?.let(::parseVersionLine)?.also { cachedVersion = it }
     }
 
     /**
@@ -181,6 +201,40 @@ class CodexRuntime(
             }
         }
         stopServer()
+    }
+
+    /** A ChatGPT browser sign-in that has been started: [authUrl] is what to open, [loginId] what to poll. */
+    data class ChatgptLogin(val loginId: String, val authUrl: String)
+
+    /**
+     * Starts Codex's ChatGPT browser sign-in (`account/login/start`, `type: chatgpt`).
+     *
+     * Codex serves its own OAuth callback on a local port, which the browser reaches through the
+     * device's loopback because PRoot shares the host network - so, unlike the paste-a-code flows,
+     * nothing has to be copied back by the user. Completion is read with [chatgptLoginOutcome].
+     */
+    suspend fun startChatgptLogin(): ChatgptLogin {
+        val result = call("account/login/start", buildJsonObject { put("type", JsonPrimitive("chatgpt")) })
+        val loginId = result.string("loginId") ?: error("Codex did not return a login id")
+        val authUrl = result.string("authUrl") ?: error("Codex did not return a sign-in URL")
+        logins.begin(loginId)
+        refreshForegroundNeed()
+        return ChatgptLogin(loginId, authUrl)
+    }
+
+    /** How [loginId] ended, or null while the browser round trip is still in progress. */
+    fun chatgptLoginOutcome(loginId: String): CodexLoginTracker.Outcome? = logins.outcome(loginId)
+
+    /** Drops the recorded outcome once the UI has consumed it. */
+    fun forgetChatgptLogin(loginId: String) {
+        logins.forget(loginId)
+        refreshForegroundNeed()
+    }
+
+    suspend fun cancelChatgptLogin(loginId: String) {
+        logins.forget(loginId)
+        refreshForegroundNeed()
+        runCatching { call("account/login/cancel", buildJsonObject { put("loginId", JsonPrimitive(loginId)) }) }
     }
 
     suspend fun isSignedIn(): Boolean =
@@ -289,6 +343,7 @@ class CodexRuntime(
                 // before turn/completed ever arrives - without the turn id there is nothing to pass
                 // to itemParser.forgetTurn, and the entry would leak for the rest of the app's life.
                 result["turn"]?.jsonObject?.string("id")?.let { turnId -> sessionsWithTurnInFlight[sessionId] = turnId }
+                refreshForegroundNeed()
             }.onFailure { error ->
                 events.tryEmit(OpenCodeEvent.SessionError(sessionId, error.message))
                 events.tryEmit(OpenCodeEvent.SessionIdle(sessionId))
@@ -425,6 +480,9 @@ class CodexRuntime(
         // `server` is null, but without this the map entry itself would otherwise sit forever, since
         // nothing else ever removes an entry the user never actually answered).
         pendingApprovals.clear()
+        // A sign-in that was waiting on this process can no longer complete.
+        logins.clear()
+        refreshForegroundNeed()
         scope.launch {
             serverLock.withLock {
                 if (server?.process === process) server = null
@@ -437,6 +495,11 @@ class CodexRuntime(
         params: JsonElement?,
     ) {
         val body = params as? JsonObject ?: return
+        if (method == LOGIN_COMPLETED_METHOD) {
+            logins.onCompleted(body)
+            refreshForegroundNeed()
+            return
+        }
         val sessionId = body.string("threadId") ?: return
         val parsed = itemParser.handleNotification(sessionId, method, body)
         if (parsed.events.any { it is OpenCodeEvent.SessionIdle }) {
@@ -445,6 +508,7 @@ class CodexRuntime(
             // schema does not require it) - fall back to the turnId this runtime captured from
             // turn/start's own response so that case cannot leak an assistantMessages entry either.
             sessionsWithTurnInFlight.remove(sessionId)?.let(itemParser::forgetTurn)
+            refreshForegroundNeed()
         }
         parsed.messages.forEach { message -> messageStore.upsert(sessionId, message) }
         parsed.events.forEach(events::tryEmit)
@@ -525,6 +589,7 @@ class CodexRuntime(
 
     private companion object {
         const val DEFAULT_TITLE = "Codex"
+        const val LOGIN_COMPLETED_METHOD = "account/login/completed"
 
         fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
 
@@ -538,3 +603,11 @@ internal val defaultCodexJson =
         isLenient = true
         encodeDefaults = true
     }
+
+/**
+ * The bare version from a `codex --version` line, which prints `codex-cli 0.155.1`.
+ *
+ * The product name is dropped because every place that shows the version already names the agent
+ * (`Codex %1$s`), which otherwise read "Codex codex-cli 0.155.1".
+ */
+internal fun parseVersionLine(line: String): String = line.trim().removePrefix("codex-cli").trim()

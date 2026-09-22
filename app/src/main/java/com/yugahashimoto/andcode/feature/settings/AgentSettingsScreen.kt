@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.yugahashimoto.andcode.R
 import com.yugahashimoto.andcode.feature.workspace.ClaudeCodeCard
+import com.yugahashimoto.andcode.feature.workspace.CodexCard
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import com.yugahashimoto.andcode.runtime.local.AntigravityAuthCoordinator
@@ -54,6 +55,8 @@ import com.yugahashimoto.andcode.runtime.local.ClaudeAuthCoordinator
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeUiState
 import com.yugahashimoto.andcode.runtime.local.ClaudeInstallStatus
 import com.yugahashimoto.andcode.runtime.local.ClaudePermissionMode
+import com.yugahashimoto.andcode.runtime.local.CodexInstallStatus
+import com.yugahashimoto.andcode.runtime.local.CodexUiState
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeUpdateCheck
 import com.yugahashimoto.andcode.ui.components.RuntimeOperationResultCard
 import com.yugahashimoto.andcode.ui.components.RuntimeUpdateProgressCard
@@ -75,6 +78,7 @@ fun AgentSettingsScreen(
     onOpenOpenCode: () -> Unit,
     onOpenClaudeCode: () -> Unit,
     onOpenAntigravity: () -> Unit,
+    onOpenCodex: () -> Unit,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(R.string.settings_agents_row), onBack = onBack) {
@@ -84,9 +88,76 @@ fun AgentSettingsScreen(
             AgentRow(LocalAgent.CLAUDE_CODE, onOpenClaudeCode)
             SettingsDivider()
             AgentRow(LocalAgent.ANTIGRAVITY, onOpenAntigravity)
+            SettingsDivider()
+            AgentRow(LocalAgent.CODEX, onOpenCodex)
         }
     }
 }
+
+/** What the Codex sign-in dialog can do; the same callbacks [ProviderAuthDialog] takes for OpenCode's providers. */
+data class CodexSignInActions(
+    val onOpen: () -> Unit,
+    val onSelectMethod: (Int) -> Unit,
+    val onApiKeyChange: (String) -> Unit,
+    val onSubmit: () -> Unit,
+    val onDismiss: () -> Unit,
+    val onLaunchBrowser: (String) -> Unit,
+)
+
+/** Codex's own settings: install and sign-in, the latter through the same dialog OpenCode's providers use. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CodexAgentSettingsScreen(
+    codex: CodexUiState,
+    signInDialog: ProviderAuthDialogState?,
+    signIn: CodexSignInActions,
+    onInstall: () -> Unit,
+    onSignOut: () -> Unit,
+    onBack: () -> Unit,
+) {
+    AgentSettingsScaffold(title = stringResource(LocalAgent.CODEX.displayNameRes), onBack = onBack) {
+        AgentCardSection {
+            AgentStatusCard(
+                status = codex.statusLabel(),
+                active = codex.ready,
+                metrics =
+                    codex.version?.takeIf(String::isNotBlank)?.let { version ->
+                        listOf(AgentMetric(stringResource(R.string.agent_version_label), version))
+                    }.orEmpty(),
+            ) {
+                CodexCard(
+                    codex = codex,
+                    onInstall = onInstall,
+                    onSignIn = signIn.onOpen,
+                    onSignOut = onSignOut,
+                )
+            }
+        }
+    }
+    if (signInDialog != null) {
+        ProviderAuthDialog(
+            state = signInDialog,
+            onSelectMethod = signIn.onSelectMethod,
+            // Neither Codex method has prompts, and its OAuth method needs no pasted code.
+            onInputChange = { _, _ -> },
+            onApiKeyChange = signIn.onApiKeyChange,
+            onSubmit = signIn.onSubmit,
+            onCompleteCode = {},
+            onLaunchBrowser = signIn.onLaunchBrowser,
+            onDismiss = signIn.onDismiss,
+        )
+    }
+}
+
+@Composable
+private fun CodexUiState.statusLabel(): String =
+    when {
+        install is CodexInstallStatus.Installing -> stringResource(R.string.runtime_status_setting_up)
+        install is CodexInstallStatus.Failed -> stringResource(R.string.agent_status_install_failed)
+        !installed -> stringResource(R.string.runtime_status_not_installed)
+        ready -> stringResource(R.string.agent_status_ready)
+        else -> stringResource(R.string.agent_status_sign_in_required)
+    }
 
 /** Antigravity's own settings: the same install, sign-in and permission controls as the setup guide. */
 @OptIn(ExperimentalMaterial3Api::class)

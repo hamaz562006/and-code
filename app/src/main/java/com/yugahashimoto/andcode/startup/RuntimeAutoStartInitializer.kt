@@ -93,6 +93,10 @@ class RuntimeAutoStartInitializer : Initializer<RuntimeAutoStartInitializer.Resu
                 hasUsableRuntimeSetup(
                     localRuntimeStatus = app.localRuntimeManager.status(),
                     hasRemoteConnection = app.settings.connections().isNotEmpty(),
+                    hasOtherLocalAgent =
+                        runCatching {
+                            app.codexRuntime.isInstalled() || app.claudeCodeRuntime.isInstalled() || app.antigravityRuntime.isInstalled()
+                        }.getOrDefault(false),
                 )
             if (app.settings.onboardingCompleted != setupConfigured) {
                 app.settings.onboardingCompleted = setupConfigured
