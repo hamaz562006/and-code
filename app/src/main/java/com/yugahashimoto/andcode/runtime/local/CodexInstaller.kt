@@ -15,18 +15,25 @@ import java.security.MessageDigest
 import java.util.Base64
 
 /**
- * Downloads and verifies the Codex native binary into the shared Alpine rootfs, the same one
+ * Downloads and verifies the Codex native binaries into the shared Alpine rootfs, the same one
  * OpenCode and Claude Code already run in.
  *
  * Unlike [ClaudeCodeInstaller] (an Alpine package) or the Antigravity installer (a whole-CLI GitHub
- * release archive), Codex ships as one native binary inside an npm tarball that also bundles a
- * voice runtime, a bundled `bwrap`, and `ripgrep` this app does not need - so only
- * `vendor/<target>/bin/codex` is extracted from the tarball, verified in isolation to run without
- * its sibling resources (see docs/CODEX.md).
+ * release archive), Codex ships as native binaries inside an npm tarball that also bundles a
+ * voice runtime, a bundled `bwrap`, and `ripgrep` this app does not need - so only the
+ * `vendor/<target>/bin/` binaries in [INSTALLED_BINARIES] are extracted (see docs/CODEX.md).
  */
 object CodexInstaller {
     const val CODEX_BINARY = "codex"
-    private const val CODEX_BINARY_PATH = "usr/local/bin/$CODEX_BINARY"
+    private const val BIN_DIR = "usr/local/bin"
+
+    /**
+     * What is installed from `vendor/<target>/bin/`: the CLI, and the host it runs model tool calls
+     * in. Codex's "code mode" executes every tool call - image generation, MCP tools - by spawning
+     * `codex-code-mode-host` from the directory `codex` itself lives in; without it each call fails
+     * with "failed to spawn code-mode host" (seen on a device, 0.155.1).
+     */
+    internal val INSTALLED_BINARIES = listOf(CODEX_BINARY, "codex-code-mode-host")
 
     /** `bin/codex.js`'s `PLATFORM_PACKAGE_BY_TARGET`: the Rust target triple per Android ABI. */
     private val TARGET_TRIPLE_BY_ABI =
@@ -35,13 +42,12 @@ object CodexInstaller {
             "x86_64" to "x86_64-unknown-linux-musl",
         )
 
-    fun isInstalledIn(rootfs: File): Boolean = File(rootfs, CODEX_BINARY_PATH).isFile
-
-    fun binaryPathIn(rootfs: File): File = File(rootfs, CODEX_BINARY_PATH)
+    /** Both binaries: an install that predates the code-mode host counts as not installed, so it is redone. */
+    fun isInstalledIn(rootfs: File): Boolean = INSTALLED_BINARIES.all { File(rootfs, "$BIN_DIR/$it").isFile }
 
     /**
      * Downloads the release for [abi], verifies it against the npm registry's own recorded SHA-512
-     * integrity, and installs the extracted binary into [rootfs].
+     * integrity, and installs the extracted [INSTALLED_BINARIES] into [rootfs].
      */
     suspend fun install(
         rootfs: File,
@@ -68,12 +74,14 @@ object CodexInstaller {
                 verifySha512(downloadFile, release.integrity)
 
                 accessCoordinator.write {
-                    val destination = binaryPathIn(rootfs)
-                    destination.parentFile?.mkdirs()
-                    extractBinary(downloadFile, targetTriple, destination)
-                    check(destination.isFile) { "Codex reported a successful download but $CODEX_BINARY_PATH is missing" }
-                    destination.setExecutable(true, false)
-                    destination.setReadable(true, false)
+                    val binDir = File(rootfs, BIN_DIR)
+                    extractBinaries(downloadFile, targetTriple, binDir)
+                    INSTALLED_BINARIES.forEach { name ->
+                        val installed = File(binDir, name)
+                        check(installed.isFile) { "Codex reported a successful download but $BIN_DIR/$name is missing" }
+                        installed.setExecutable(true, false)
+                        installed.setReadable(true, false)
+                    }
                 }
             } finally {
                 downloadFile.delete()
@@ -115,27 +123,32 @@ object CodexInstaller {
     }
 
     /**
-     * Extracts only `vendor/<targetTriple>/bin/codex` from the npm tarball; everything else is
-     * skipped.
+     * Extracts the named files from `vendor/<targetTriple>/bin/` into [binDir]; everything else in the
+     * tarball (voice runtime, bundled `bwrap`, `ripgrep`) is skipped.
      *
-     * Written to a temporary file first and moved into place only once fully copied: [destination]
-     * is the live install path other code checks with [isInstalledIn] (existence only, not
-     * integrity), so a copy interrupted mid-write - cancellation, the app killed, disk full - must
-     * not leave a truncated binary sitting there and reporting itself installed forever.
+     * Each file is written to a temporary name and moved into place only once fully copied: these are
+     * the live install paths [isInstalledIn] checks (existence only, not integrity), so a copy
+     * interrupted mid-write - cancellation, the app killed, disk full - must not leave a truncated
+     * binary reporting itself installed forever. Fails when any of [names] is missing.
      */
-    internal fun extractBinary(
+    internal fun extractBinaries(
         tarball: File,
         targetTriple: String,
-        destination: File,
+        binDir: File,
+        names: List<String> = INSTALLED_BINARIES,
     ) {
-        val entryPath = "package/vendor/$targetTriple/bin/$CODEX_BINARY"
-        val temporary = File(destination.parentFile, "${destination.name}.download")
-        try {
-            GzipCompressorInputStream(BufferedInputStream(tarball.inputStream())).use { gzip ->
-                TarArchiveInputStream(gzip).use { tar ->
-                    var entry = tar.nextEntry
-                    while (entry != null) {
-                        if (entry.name == entryPath && entry.isFile) {
+        val prefix = "package/vendor/$targetTriple/bin/"
+        val pending = names.toMutableSet()
+        binDir.mkdirs()
+        GzipCompressorInputStream(BufferedInputStream(tarball.inputStream())).use { gzip ->
+            TarArchiveInputStream(gzip).use { tar ->
+                var entry = tar.nextEntry
+                while (entry != null && pending.isNotEmpty()) {
+                    val name = entry.name.removePrefix(prefix)
+                    if (entry.isFile && entry.name.startsWith(prefix) && name in pending) {
+                        val destination = File(binDir, name)
+                        val temporary = File(binDir, "$name.download")
+                        try {
                             FileOutputStream(temporary).use { output ->
                                 tar.copyTo(output)
                                 output.fd.sync()
@@ -146,15 +159,15 @@ object CodexInstaller {
                                 StandardCopyOption.ATOMIC_MOVE,
                                 StandardCopyOption.REPLACE_EXISTING,
                             )
-                            return
+                        } finally {
+                            temporary.delete()
                         }
-                        entry = tar.nextEntry
+                        pending -= name
                     }
+                    entry = tar.nextEntry
                 }
             }
-            error("Codex tarball does not contain $entryPath")
-        } finally {
-            temporary.delete()
         }
+        check(pending.isEmpty()) { "Codex tarball does not contain ${pending.joinToString { "$prefix$it" }}" }
     }
 }

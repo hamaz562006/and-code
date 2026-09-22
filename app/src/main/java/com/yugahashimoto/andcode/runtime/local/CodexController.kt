@@ -39,7 +39,7 @@ data class CodexUiState(
  * Single owner of the Codex install state and sign-in status.
  *
  * Much smaller than `ClaudeCodeController` because Codex has no permission-mode setting: it installs
- * one verified binary into the shared rootfs. The sign-in itself (ChatGPT browser login or an API
+ * verified binaries (the CLI and its code-mode host) into the shared rootfs. The sign-in itself (ChatGPT browser login or an API
  * key) runs through the provider dialog - see [com.yugahashimoto.andcode.feature.settings.CodexSignInViewModel]
  * - and calls [refresh] when it finishes.
  */

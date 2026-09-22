@@ -168,7 +168,7 @@ class CodexItemParser {
      * `commandExecution`/`fileChange`/`mcpToolCall` reuse the "tool" part shape
      * [ClaudeStreamJsonParser] already renders (`state.status`/`input`/`output`/`error`), so the
      * existing tool-call UI needs no Codex-specific branch. Item types this app cannot yet render
-     * meaningfully (`webSearch`, `imageGeneration`, `subAgentActivity`, ...) fall through to a plain
+     * meaningfully (`webSearch`, `subAgentActivity`, ...) fall through to a plain
      * "tool" part carrying the raw item JSON, rather than disappearing silently.
      */
     private fun itemToPart(
@@ -246,8 +246,9 @@ class CodexItemParser {
                             "output" to (item["result"] ?: JsonPrimitive("")),
                         ),
                 )
+            "imageGeneration" -> imageGenerationPart(id, sessionId, messageId, item)
             // userMessage is routed to handleUserMessage before this is reached; every other item
-            // type (webSearch, imageGeneration, subAgentActivity, dynamicToolCall,
+            // type (webSearch, subAgentActivity, dynamicToolCall,
             // collabAgentToolCall, sleep, imageView, functionCallOutput, contextCompaction,
             // hookPrompt, enteredReviewMode, exitedReviewMode) has no dedicated rendering yet - carry
             // it as a generic tool part with the raw item JSON rather than dropping it.
@@ -263,6 +264,59 @@ class CodexItemParser {
                 )
         }
     }
+
+    /**
+     * A generated image, shown in the chat the way other agents' generated images are: a `file` part
+     * with an image MIME type, which the chat renders from a data URI or from a guest path it resolves
+     * into the rootfs (so `/root/.codex/generated_images/...` works). The saved file is preferred -
+     * `result` is the whole PNG as base64 (megabytes), which the transcript would otherwise carry.
+     *
+     * Until the image exists (in progress, or failed) it is a tool part carrying only the prompt, under
+     * the same id, so the finished image replaces it in place. Before this mapping the item fell to the
+     * generic branch, which put the raw item - base64 included - in a tool part and showed no image.
+     */
+    private fun imageGenerationPart(
+        id: String,
+        sessionId: String,
+        messageId: String,
+        item: JsonObject,
+    ): OpenCodePart {
+        val savedPath = item.string("savedPath")?.takeIf(String::isNotBlank)
+        val result = item.string("result")?.takeIf(String::isNotBlank)
+        if (item.string("status") == "completed" && (savedPath != null || result != null)) {
+            val mime = savedPath?.let(::imageMimeForPath) ?: "image/png"
+            return OpenCodePart(
+                id = id,
+                sessionId = sessionId,
+                messageId = messageId,
+                type = "file",
+                mime = mime,
+                url = savedPath ?: "data:$mime;base64,$result",
+                filename = savedPath?.substringAfterLast('/') ?: "$id.png",
+            )
+        }
+        return OpenCodePart(
+            id = id,
+            sessionId = sessionId,
+            messageId = messageId,
+            type = "tool",
+            tool = "image_gen",
+            callID = id,
+            state =
+                mapOf(
+                    "status" to JsonPrimitive(mapCommandStatus(item.string("status"))),
+                    "input" to JsonPrimitive(item.string("revisedPrompt").orEmpty()),
+                ),
+        )
+    }
+
+    private fun imageMimeForPath(path: String): String =
+        when (path.substringAfterLast('.').lowercase()) {
+            "jpg", "jpeg" -> "image/jpeg"
+            "webp" -> "image/webp"
+            "gif" -> "image/gif"
+            else -> "image/png"
+        }
 
     private fun reasoningText(item: JsonObject): String {
         val summary = item["summary"] as? JsonArray

@@ -66,6 +66,19 @@ selected, and a send creates a thread and surfaces the 401 from the API.
 Verified on the physical device (Codex-only, signed in with ChatGPT, 2026-09-23): launch opens the chat on
 `codex` with a Codex model selected, and a real turn returns a reply.
 
+### Generated images and chats opened before Codex was usable
+
+- `image_gen` results arrive as an `imageGeneration` item (`result`: the PNG as base64, `savedPath`:
+  `/root/.codex/generated_images/<thread>/<id>.png`, verified on a device). `CodexItemParser` turns a
+  completed one into a `file` part with an image MIME type pointing at `savedPath`, which the chat resolves
+  into the rootfs and renders like other agents' generated images (a data URI only when no file was
+  saved). While it is still generating it is an `image_gen` tool part carrying just the prompt.
+- A chat opened while Codex was unusable (not installed yet, or installed without the code-mode host)
+  checked health a few times, failed, and stayed disconnected: a message sent there sat in the offline
+  queue. `CodexTarget.connect` now emits `ServerConnected` when Codex becomes usable, which the chat
+  already handles by reconnecting and sending the queue, and the application refreshes the agent and
+  model lists so the composer stops showing another runtime's ("build").
+
 ### Not verified
 
 API-key sign-in and sign-out through the UI, approval prompts, abort, attachments, MCP servers on a physical
@@ -118,10 +131,15 @@ $ npm view @openai/codex@0.155.1-linux-x64 dist
 SHA-512 string npm itself records). `CodexInstaller` downloads that tarball, verifies it against the
 SHA-512 (the same "trust the official channel's own recorded digest over HTTPS" principle
 `AntigravityReleaseClient` uses for GitHub's SHA-256, just a different registry and a stronger hash),
-and extracts only `package/vendor/<target-triple>/bin/codex` - confirmed to run correctly fully
-isolated from its sibling `codex-resources`/`codex-path` directories (voice runtime, bundled
-`bwrap`, bundled `ripgrep`), none of which this app uses. The full tarball is 100+ MB and mostly
-those unused resources; only the ~250 MB *uncompressed* binary itself is installed.
+and extracts the two binaries in `package/vendor/<target-triple>/bin/`: `codex` and
+`codex-code-mode-host`. The second is not optional: Codex runs every model tool call - image generation,
+MCP tools - in "code mode", spawning `codex-code-mode-host` from the directory `codex` lives in. Installed
+without it (as the first release of this integration was), each tool call failed with `failed to spawn
+code-mode host /usr/local/bin/codex-code-mode-host` and image generation silently produced nothing.
+`CodexInstaller.isInstalledIn` requires both, so such an install reports "Not installed" and is redone.
+The sibling `codex-resources`/`codex-path` directories (voice runtime, bundled `bwrap`, bundled `ripgrep`)
+are still skipped; the tarball is 100+ MB and mostly those, while the two binaries are ~250 MB and
+~65 MB uncompressed.
 
 ## Sandboxing
 

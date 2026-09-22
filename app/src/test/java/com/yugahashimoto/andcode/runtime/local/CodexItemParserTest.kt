@@ -141,6 +141,65 @@ class CodexItemParserTest {
         assertEquals("completed", part.state?.get("status")?.jsonPrimitive?.content)
     }
 
+    // Shape from a real image_gen run on a device (codex-cli 0.155.1): the v2 `imageGeneration`
+    // item with the PNG base64 in `result` (shortened here) and the file Codex saved in `savedPath`.
+    private fun imageGenerationItem(
+        status: String,
+        savedPath: String?,
+        result: String = "iVBORw0KGgoAAAANSUhEUg",
+    ) = """
+        {"item":{"type":"imageGeneration","id":"exec-8cc1","status":"$status",
+         "revisedPrompt":"A fluffy white rabbit in a meadow","result":"$result",
+         "savedPath":${savedPath?.let { "\"$it\"" } ?: "null"}},
+         "threadId":"t1","turnId":"turn-3","completedAtMs":1}
+        """.trimIndent()
+
+    @Test
+    fun `a completed imageGeneration item becomes an image part pointing at the saved file`() {
+        val path = "/root/.codex/generated_images/t1/exec-8cc1.png"
+        val part = parse("t1", "item/completed", imageGenerationItem("completed", path)).messages.single().parts.single()
+
+        assertEquals("file", part.type)
+        assertEquals("image/png", part.mime)
+        assertEquals(path, part.url)
+        assertEquals("exec-8cc1.png", part.filename)
+    }
+
+    @Test
+    fun `a completed imageGeneration with no saved file falls back to a data uri`() {
+        val part = parse("t1", "item/completed", imageGenerationItem("completed", null)).messages.single().parts.single()
+
+        assertEquals("file", part.type)
+        assertEquals("data:image/png;base64,iVBORw0KGgoAAAANSUhEUg", part.url)
+    }
+
+    @Test
+    fun `an imageGeneration in progress is a running tool part without the image bytes`() {
+        val part =
+            parse("t1", "item/started", imageGenerationItem("inProgress", null, result = "")).messages.single().parts.single()
+
+        assertEquals("tool", part.type)
+        assertEquals("image_gen", part.tool)
+        assertEquals("running", part.state?.get("status")?.jsonPrimitive?.content)
+        assertEquals("A fluffy white rabbit in a meadow", part.state?.get("input")?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `the image part keeps the same id from start to completion so it replaces the running tool`() {
+        val parser = CodexItemParser()
+
+        fun parseWith(
+            method: String,
+            body: String,
+        ) = parser.handleNotification("t1", method, json.parseToJsonElement(body).jsonObject)
+        val started = parseWith("item/started", imageGenerationItem("inProgress", null, result = "")).messages.single().parts.single()
+        val completed =
+            parseWith("item/completed", imageGenerationItem("completed", "/root/.codex/generated_images/t1/exec-8cc1.png"))
+                .messages.single().parts
+
+        assertEquals(started.id, completed.single().id)
+    }
+
     @Test
     fun `an item type with no dedicated mapping still surfaces instead of vanishing`() {
         val parsed =
