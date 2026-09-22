@@ -15,18 +15,17 @@ import java.security.MessageDigest
 import java.util.Base64
 
 /**
- * Downloads and verifies the Codex native binary into the shared Alpine rootfs, the same one
+ * Downloads and verifies the Codex native binaries into the shared Alpine rootfs, the same one
  * OpenCode and Claude Code already run in.
  *
  * Unlike [ClaudeCodeInstaller] (an Alpine package) or the Antigravity installer (a whole-CLI GitHub
- * release archive), Codex ships as one native binary inside an npm tarball that also bundles a
+ * release archive), Codex ships as native binaries inside an npm tarball that also bundles a
  * voice runtime, a bundled `bwrap`, and `ripgrep` this app does not need - so only the
  * `vendor/<target>/bin/` binaries in [INSTALLED_BINARIES] are extracted (see docs/CODEX.md).
  */
 object CodexInstaller {
     const val CODEX_BINARY = "codex"
     private const val BIN_DIR = "usr/local/bin"
-    private const val CODEX_BINARY_PATH = "$BIN_DIR/$CODEX_BINARY"
 
     /**
      * What is installed from `vendor/<target>/bin/`: the CLI, and the host it runs model tool calls
@@ -46,11 +45,9 @@ object CodexInstaller {
     /** Both binaries: an install that predates the code-mode host counts as not installed, so it is redone. */
     fun isInstalledIn(rootfs: File): Boolean = INSTALLED_BINARIES.all { File(rootfs, "$BIN_DIR/$it").isFile }
 
-    fun binaryPathIn(rootfs: File): File = File(rootfs, CODEX_BINARY_PATH)
-
     /**
      * Downloads the release for [abi], verifies it against the npm registry's own recorded SHA-512
-     * integrity, and installs the extracted binary into [rootfs].
+     * integrity, and installs the extracted [INSTALLED_BINARIES] into [rootfs].
      */
     suspend fun install(
         rootfs: File,

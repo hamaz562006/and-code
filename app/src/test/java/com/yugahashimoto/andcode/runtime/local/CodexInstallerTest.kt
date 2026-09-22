@@ -81,6 +81,26 @@ class CodexInstallerTest {
         assertTrue(!java.io.File(binDir, "codex-voice-host").exists())
     }
 
+    /**
+     * A tarball with `codex` but no host fails the install rather than leaving a half install that
+     * reports success. `codex` itself may already have been replaced by then; the install still reads
+     * as not installed, so it is simply redone.
+     */
+    @Test
+    fun `a tarball without the code-mode host fails and names it`() {
+        val tarball = buildTarGz(mapOf("package/vendor/aarch64-unknown-linux-musl/bin/codex" to "codex".toByteArray()))
+        val rootfs = tempFolder.newFolder("rootfs-partial")
+        val binDir = java.io.File(rootfs, "usr/local/bin")
+
+        val error =
+            assertThrows(IllegalStateException::class.java) {
+                CodexInstaller.extractBinaries(tarball, "aarch64-unknown-linux-musl", binDir)
+            }
+
+        assertTrue(error.message.orEmpty().contains("bin/codex-code-mode-host"))
+        assertTrue(!CodexInstaller.isInstalledIn(rootfs))
+    }
+
     @Test
     fun `an install missing the code-mode host is not installed`() {
         val rootfs = tempFolder.newFolder("rootfs")
