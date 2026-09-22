@@ -18,6 +18,9 @@ interface CodexMessages {
     val signInApiKeyLabel: String
     val signInBrowserInstructions: String
 
+    /** Why a turn ended when the app itself stopped Codex (a sign-out, a new sign-in). */
+    val stopped: String
+
     fun processExited(
         exitCode: Int?,
         detail: String?,
@@ -32,6 +35,7 @@ interface CodexMessages {
         override val signInChatgptLabel = "ChatGPT account"
         override val signInApiKeyLabel = "API key"
         override val signInBrowserInstructions = "Sign in with your ChatGPT account in the browser. This closes when you are done."
+        override val stopped = "Codex was stopped before finishing the turn"
 
         override fun processExited(
             exitCode: Int?,
@@ -51,6 +55,7 @@ class AndroidCodexMessages(private val context: Context) : CodexMessages {
     override val signInChatgptLabel get() = context.getString(R.string.codex_sign_in_method_chatgpt)
     override val signInApiKeyLabel get() = context.getString(R.string.codex_sign_in_method_api_key)
     override val signInBrowserInstructions get() = context.getString(R.string.codex_sign_in_browser_instructions)
+    override val stopped get() = context.getString(R.string.codex_error_stopped)
 
     override fun processExited(
         exitCode: Int?,

@@ -1035,6 +1035,7 @@
     <string name="codex_error_install_failed">Codex installation failed</string>
     <string name="codex_error_login_failed">Codex sign-in failed</string>
     <string name="codex_error_process_exited">Codex stopped before finishing the turn (%1$s)</string>
+    <string name="codex_error_stopped">Codex was stopped before finishing the turn</string>
     <string name="codex_installed_version">Codex %1$s</string>
     <string name="setup_agent_codex_desc">Sign in with your ChatGPT account or an OpenAI API key. Downloads about 140 MB.</string>
     <string name="install_step_downloading_codex">Downloading Codex</string>

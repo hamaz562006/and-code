@@ -1004,6 +1004,7 @@
     <string name="codex_error_install_failed">Не удалось установить Codex</string>
     <string name="codex_error_login_failed">Не удалось выполнить вход в Codex</string>
     <string name="codex_error_process_exited">Codex остановился, не завершив ход (%1$s)</string>
+    <string name="codex_error_stopped">Codex был остановлен до завершения хода</string>
     <string name="codex_installed_version">Codex %1$s</string>
     <string name="setup_agent_codex_desc">Войдите в аккаунт ChatGPT или используйте ключ API OpenAI. Загрузка около 140 МБ.</string>
     <string name="install_step_downloading_codex">Загрузка Codex</string>

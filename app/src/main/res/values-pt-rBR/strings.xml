@@ -1002,6 +1002,7 @@
     <string name="codex_error_install_failed">A instalação do Codex falhou</string>
     <string name="codex_error_login_failed">O login do Codex falhou</string>
     <string name="codex_error_process_exited">O Codex parou antes de concluir o turno (%1$s)</string>
+    <string name="codex_error_stopped">O Codex foi interrompido antes de concluir o turno</string>
     <string name="codex_installed_version">Codex %1$s</string>
     <string name="setup_agent_codex_desc">Faça login com sua conta do ChatGPT ou uma chave de API da OpenAI. Baixa cerca de 140 MB.</string>
     <string name="install_step_downloading_codex">Baixando o Codex</string>

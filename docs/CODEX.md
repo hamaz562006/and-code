@@ -68,16 +68,17 @@ Verified on the physical device (Codex-only, signed in with ChatGPT, 2026-09-23)
 
 ### Not verified
 
-API-key sign-in and sign-out through the UI, approval prompts, abort, attachments, MCP servers on a device
-(the `codex mcp` commands and their JSON were verified against the CLI itself, not through the app), and
+API-key sign-in and sign-out through the UI, approval prompts, abort, attachments, MCP servers on a physical
+device (verified on the emulator only), and
 whether threads listed after an app restart include chats whose only turn failed.
 
 ### MCP servers
 
 Settings > Agents > Codex > MCP servers uses the same screen as the other agents. Codex keeps servers in
 `~/.codex/config.toml` next to the rest of its configuration, so the app never edits that file itself:
-`CodexMcp` runs `codex mcp list --json` / `add` / `remove` (verified against codex-cli 0.142.5 with an
-isolated `CODEX_HOME`, fixtures in `CodexMcpTest`), and a running app-server is told to re-read them with
+`CodexMcp` runs `codex mcp list --json` / `add` / `remove` (output shape captured from codex-cli 0.142.5 with an isolated
+`CODEX_HOME`, fixtures in `CodexMcpTest`; adding and removing a server through the app was then checked on
+the emulator against the installed 0.155.1, where `config.toml` gained and lost the entry), and a running app-server is told to re-read them with
 `config/mcpServer/reload` (params `null` per the schema). Like Claude Code and Antigravity, a configured
 server is always used, so the screen offers removal rather than a connect toggle.
 

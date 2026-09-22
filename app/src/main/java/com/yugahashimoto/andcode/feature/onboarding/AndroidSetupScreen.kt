@@ -279,13 +279,11 @@ fun AndroidSetupScreen(
                 ) {
                     SetupPrimaryAction(stringResource(R.string.claude_retry_install_button), true) {
                         onStartSetup(
-                            when {
-                                antigravity.error != null -> setOf(LocalAgent.ANTIGRAVITY)
-                                // Retried on its own: the rest of the selection is already installed,
-                                // and a Codex-only retry goes through CodexController.install.
-                                codex.install is CodexInstallStatus.Failed && !openCodeSelected -> setOf(LocalAgent.CODEX)
-                                else -> selectedAgents
-                            },
+                            // A failed Codex install is retried with the whole selection too: the
+                            // failure may have discarded the other agents with it, and
+                            // CodexController.install already installs Codex alone when the rest are
+                            // there.
+                            if (antigravity.error != null) setOf(LocalAgent.ANTIGRAVITY) else selectedAgents,
                             installFullDevelopmentTools,
                         )
                     }

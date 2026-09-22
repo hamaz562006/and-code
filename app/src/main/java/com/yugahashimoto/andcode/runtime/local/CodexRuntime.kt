@@ -265,12 +265,16 @@ class CodexRuntime(
         reloadMcpServers()
     }
 
-    /** Deletes a server with `codex mcp remove`; false when Codex could not run the command. */
+    /** Deletes a server with `codex mcp remove`. */
     suspend fun removeMcpServer(name: String): Boolean {
-        val removed =
-            withContext(Dispatchers.IO) { runCommand(CodexMcp.removeScript(name), timeoutSeconds = MCP_TIMEOUT_SECONDS).exitCode == 0 }
-        if (removed) reloadMcpServers()
-        return removed
+        // A failure throws with Codex's own output, like addMcpServer, so the screen shows why rather
+        // than just refreshing a list that still has the server in it.
+        withContext(Dispatchers.IO) {
+            val result = runCommand(CodexMcp.removeScript(name), timeoutSeconds = MCP_TIMEOUT_SECONDS)
+            check(result.exitCode == 0) { result.output.trim().ifBlank { "codex mcp remove failed" } }
+        }
+        reloadMcpServers()
+        return true
     }
 
     /**
@@ -436,7 +440,7 @@ class CodexRuntime(
             // was doing just as a crash does, so it has to settle the same state - otherwise a turn
             // or sign-in it cut short kept needsForeground true, and CodexKeepAliveService and its
             // notification stayed up until the process died.
-            settleServerGone(messages.processExited(null, "Codex was stopped"))
+            settleServerGone(messages.stopped)
         }
         server = null
     }
