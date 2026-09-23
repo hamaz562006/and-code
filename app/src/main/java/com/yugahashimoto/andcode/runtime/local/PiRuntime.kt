@@ -465,7 +465,11 @@ class PiRuntime(
             process.process.outputStream.write((request.toString() + "\n").toByteArray())
             process.process.outputStream.flush()
         }
-        return kotlinx.coroutines.withTimeout(60_000L) { deferred.await() }
+        return try {
+            kotlinx.coroutines.withTimeout(60_000L) { deferred.await() }
+        } finally {
+            process.pending.remove(id, deferred)
+        }
     }
 
     private fun stopProcess(process: PiProcess) {
