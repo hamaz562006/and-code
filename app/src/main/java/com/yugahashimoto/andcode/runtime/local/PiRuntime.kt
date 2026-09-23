@@ -274,7 +274,7 @@ class PiRuntime(
         val type = obj["type"]?.jsonPrimitive?.content ?: return null
         return when (type) {
             "message_start", "message_end" ->
-                parseMessage(obj["message"])?.also {
+                parseMessage(obj["message"], sessionId)?.also {
                     messageStore.upsert(sessionId, it)
                     if (type == "message_end") messageStore.flush()
                 }?.let { OpenCodeEvent.MessageUpdated(it.info) }
@@ -315,7 +315,7 @@ class PiRuntime(
                             ),
                     ),
                 )
-            "agent_end", "agent_settled" -> OpenCodeEvent.SessionIdle(sessionId)
+            "agent_settled" -> OpenCodeEvent.SessionIdle(sessionId)
             else -> null
         }
     }
