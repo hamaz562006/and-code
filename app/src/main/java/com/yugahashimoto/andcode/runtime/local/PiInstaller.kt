@@ -8,8 +8,8 @@ import java.util.concurrent.TimeUnit
 object PiInstaller {
     const val PI_VERSION = "0.87.1"
     private const val PI_BINARY = "/usr/local/bin/pi"
-    fun isInstalledIn(rootfs: File): Boolean =
-        File(rootfs, PI_BINARY.removePrefix("/")).isFile
+
+    fun isInstalledIn(rootfs: File): Boolean = File(rootfs, PI_BINARY.removePrefix("/")).isFile
 
     suspend fun install(
         runtime: LocalRuntimeInstaller.InstalledRuntime,
@@ -51,15 +51,15 @@ object PiInstaller {
                             "/sbin/apk --cache-dir /var/cache/apk add nodejs-current npm && " +
                             "npm install -g --ignore-scripts --no-fund --no-audit @earendil-works/pi-coding-agent@\$PI_VERSION && " +
                             "node --version && npm --version && /usr/local/bin/pi --version",
-                )
+                    )
                 val process =
                     ProcessBuilder(command)
                         .redirectErrorStream(true)
                         .redirectOutput(ProcessBuilder.Redirect.to(log))
                         .apply {
-                    environment().putAll(runtime.commandSuite.environment())
-                    environment()["PROOT_TMP_DIR"] = prootTmp.absolutePath
-                }.start()
+                            environment().putAll(runtime.commandSuite.environment())
+                            environment()["PROOT_TMP_DIR"] = prootTmp.absolutePath
+                        }.start()
                 if (!process.waitFor(15, TimeUnit.MINUTES)) {
                     process.destroyForcibly()
                     error("Pi installation timed out")

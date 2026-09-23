@@ -344,13 +344,14 @@ class AndCodeApplication : Application() {
                 githubToken = { settings.githubToken },
             )
         codexTarget = CodexTarget(codexRuntime, codexMessages)
-        piRuntime = PiRuntime(
-            runtimeDirectory = runtimeDirectory,
-            installedRuntimeProvider = installer::installedRuntime,
-            accessCoordinator = accessCoordinator,
-            providerCredentials = { providerCredentials.credentials() },
-            githubToken = { settings.githubToken },
-        )
+        piRuntime =
+            PiRuntime(
+                runtimeDirectory = runtimeDirectory,
+                installedRuntimeProvider = installer::installedRuntime,
+                accessCoordinator = accessCoordinator,
+                providerCredentials = { providerCredentials.credentials() },
+                githubToken = { settings.githubToken },
+            )
         piTarget = PiTarget(piRuntime)
         // Codex is a child of this process, so it is cut off from the network the moment the app has
         // nothing in the foreground on some devices: hold the app there while Codex is signing in or
