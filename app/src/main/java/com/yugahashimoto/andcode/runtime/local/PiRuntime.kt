@@ -430,7 +430,11 @@ class PiRuntime(
             }
         }
         auth.parentFile?.mkdirs()
-        if (existing.isNotEmpty()) auth.writeText(JsonObject(existing).toString())
+        auth.writeText(JsonObject(existing).toString())
+        auth.setReadable(false, false)
+        auth.setWritable(false, false)
+        auth.setReadable(true, true)
+        auth.setWritable(true, true)
     }
 
     private fun requireRuntime() = installedRuntimeProvider() ?: error("Linux environment is not installed")
