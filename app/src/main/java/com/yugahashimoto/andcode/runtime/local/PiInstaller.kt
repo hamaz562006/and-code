@@ -20,7 +20,11 @@ object PiInstaller {
             accessCoordinator.write {
                 val prootTmp = File(runtimeDirectory, "proot-tmp").apply { mkdirs() }
                 val apkCache = File(runtimeDirectory, "cache/apk").apply { mkdirs() }
-                val log = File(runtimeDirectory, "logs/pi-install.log").apply { parentFile?.mkdirs(); delete() }
+                val log =
+                    File(runtimeDirectory, "logs/pi-install.log").apply {
+                        parentFile?.mkdirs()
+                        delete()
+                    }
                 val command =
                     listOf(
                         runtime.commandSuite.proot.absolutePath,
@@ -43,12 +47,16 @@ object PiInstaller {
                         "/root",
                         "/bin/sh",
                         "-lc",
-                    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin " +
-                        "/sbin/apk --cache-dir /var/cache/apk add nodejs-current npm && " +
-                        "npm install -g --ignore-scripts --no-fund --no-audit @earendil-works/pi-coding-agent@\$PI_VERSION && " +
-                        "node --version && npm --version && /usr/local/bin/pi --version",
+                        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin " +
+                            "/sbin/apk --cache-dir /var/cache/apk add nodejs-current npm && " +
+                            "npm install -g --ignore-scripts --no-fund --no-audit @earendil-works/pi-coding-agent@\$PI_VERSION && " +
+                            "node --version && npm --version && /usr/local/bin/pi --version",
                 )
-                val process = ProcessBuilder(command).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.to(log)).apply {
+                val process =
+                    ProcessBuilder(command)
+                        .redirectErrorStream(true)
+                        .redirectOutput(ProcessBuilder.Redirect.to(log))
+                        .apply {
                     environment().putAll(runtime.commandSuite.environment())
                     environment()["PROOT_TMP_DIR"] = prootTmp.absolutePath
                 }.start()
@@ -66,5 +74,10 @@ object PiInstaller {
             }
         }
 
-    private fun logTail(file: File): String = if (!file.isFile) "No Pi installation log was produced." else file.readLines().takeLast(30).joinToString("\n").takeLast(6000)
+    private fun logTail(file: File): String =
+        if (!file.isFile) {
+            "No Pi installation log was produced."
+        } else {
+            file.readLines().takeLast(30).joinToString("\n").takeLast(6000)
+        }
 }
