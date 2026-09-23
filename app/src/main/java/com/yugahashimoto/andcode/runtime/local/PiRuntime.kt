@@ -225,9 +225,7 @@ class PiRuntime(
         val auth = File(rootfs, "root/.pi/agent/auth.json")
         val existing = runCatching { json.parseToJsonElement(auth.readText()).jsonObject.toMutableMap() }.getOrElse { mutableMapOf() }
         providerCredentials().forEach { (provider, key) ->
-            if (key.isBlank()) {
-                existing.remove(provider)
-            } else {
+            if (key.isBlank()) existing.remove(provider) else {
                 existing[provider] = buildJsonObject {
                     put("type", "api_key")
                     put("key", key)
