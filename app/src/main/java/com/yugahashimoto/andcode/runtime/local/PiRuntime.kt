@@ -305,7 +305,7 @@ class PiRuntime(
                     OpenCodePart(
                         id = obj["toolCallId"]?.jsonPrimitive?.content,
                         sessionId = sessionId,
-                        messageId = "pi-" + sessionId + "-assistant",
+                        messageId = streamingAssistantMessages[sessionId] ?: return null,
                         type = "tool",
                         tool = obj["toolName"]?.jsonPrimitive?.content ?: "tool",
                         state =
