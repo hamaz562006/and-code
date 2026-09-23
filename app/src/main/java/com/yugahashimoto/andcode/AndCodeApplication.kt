@@ -58,6 +58,8 @@ import com.yugahashimoto.andcode.runtime.local.CodexController
 import com.yugahashimoto.andcode.runtime.local.CodexKeepAliveService
 import com.yugahashimoto.andcode.runtime.local.CodexRuntime
 import com.yugahashimoto.andcode.runtime.local.CodexTarget
+import com.yugahashimoto.andcode.runtime.local.PiRuntime
+import com.yugahashimoto.andcode.runtime.local.PiTarget
 import com.yugahashimoto.andcode.runtime.local.CustomProviderStore
 import com.yugahashimoto.andcode.runtime.local.DefaultLocalRuntimeUpdateEngine
 import com.yugahashimoto.andcode.runtime.local.GitCloneRepository
@@ -208,6 +210,12 @@ class AndCodeApplication : Application() {
     lateinit var codexTarget: CodexTarget
         private set
 
+    lateinit var piRuntime: PiRuntime
+        private set
+
+    lateinit var piTarget: PiTarget
+        private set
+
     lateinit var antigravityController: AntigravityController
         private set
 
@@ -336,6 +344,14 @@ class AndCodeApplication : Application() {
                 githubToken = { settings.githubToken },
             )
         codexTarget = CodexTarget(codexRuntime, codexMessages)
+        piRuntime = PiRuntime(
+            runtimeDirectory = runtimeDirectory,
+            installedRuntimeProvider = installer::installedRuntime,
+            accessCoordinator = accessCoordinator,
+            providerCredentials = { providerCredentials.credentials() },
+            githubToken = { settings.githubToken },
+        )
+        piTarget = PiTarget(piRuntime)
         // Codex is a child of this process, so it is cut off from the network the moment the app has
         // nothing in the foreground on some devices: hold the app there while Codex is signing in or
         // running a turn (see CodexKeepAliveService).
