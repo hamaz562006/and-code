@@ -31,7 +31,7 @@ class PiTarget(private val runtime: PiRuntime) : RuntimeTarget {
     override val agent = LocalAgent.PI
     override val kind = BackendKind.LOCAL
     override val type = RuntimeType.LOCAL
-    override val capabilities = RuntimeCapabilities(toolEvents = true, providerModelList = true, resume = true)
+    override val capabilities = RuntimeCapabilities(toolEvents = true, providerModelList = true, resume = true, abortsBeforeInterrupt = true)
 
     private val mutableState = MutableStateFlow<RuntimeState>(RuntimeState.Disconnected)
     override val state: StateFlow<RuntimeState> = mutableState.asStateFlow()
