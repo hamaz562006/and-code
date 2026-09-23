@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -27,8 +28,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import java.io.File
-import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -121,8 +122,19 @@ class PiRuntime(
         val pending = ConcurrentHashMap<String, kotlinx.coroutines.CompletableDeferred<JsonObject>>()
         val args = buildList {
             add("--mode"); add("rpc")
-            if (noSession) add("--no-session") else if (sessionFile != null) { add("--session"); add(sessionFile) } else { add("--session-dir"); add("/root/.pi/agent/sessions") }
-            if (!title.isNullOrBlank()) { add("--name"); add(title) }
+            if (noSession) {
+                add("--no-session")
+            } else if (sessionFile != null) {
+                add("--session")
+                add(sessionFile)
+            } else {
+                add("--session-dir")
+                add("/root/.pi/agent/sessions")
+            }
+            if (!title.isNullOrBlank()) {
+                add("--name")
+                add(title)
+            }
         }
         val builder = ProcessBuilder(PiSandboxLauncher.command(runtime, File(runtimeDirectory, "workspace").apply { mkdirs() }.absolutePath, directory, args)).directory(runtimeDirectory)
         builder.environment().clear()
