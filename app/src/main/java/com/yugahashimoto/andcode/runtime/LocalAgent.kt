@@ -4,11 +4,16 @@ import com.yugahashimoto.andcode.R
 
 /**
  * A coding agent that can be installed into the shared Android-local Linux sandbox.
+ *
+ * Both agents run inside the same Alpine/PRoot rootfs; they differ in how they are provisioned
+ * (OpenCode ships as a downloaded binary, Claude Code as an apk package) and in how the app talks
+ * to them (a local HTTP server versus a streaming JSON process).
  */
 enum class LocalAgent(
     val id: String,
     val displayNameRes: Int,
     val targetId: String,
+    /** Marks which agent a row belongs to where the name does not fit - drawer chats, for one. */
     val iconRes: Int,
 ) {
     OPEN_CODE("opencode", R.string.agent_opencode_name, "local-android", R.drawable.ic_agent_opencode),
