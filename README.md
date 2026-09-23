@@ -9,12 +9,12 @@
 
 **Run coding agents locally on Android through a native GUI — no terminal required.**
 
-AndCode is a native Android GUI app that brings AI coding agents to your phone. Chat with [OpenCode](https://github.com/sst/opencode), [Claude Code](https://github.com/anthropics/claude-code), and [Google Antigravity](https://github.com/google-antigravity/antigravity-cli) through a touch-first interface — no terminal, no SSH, no PC required for on-device use. It wraps agent runtimes via PRoot (on-device) or connects remotely to your existing OpenCode server on PC/Mac/Linux.
+AndCode is a native Android GUI app that brings AI coding agents to your phone. Chat with [OpenCode](https://github.com/sst/opencode), [Claude Code](https://github.com/anthropics/claude-code), [Google Antigravity](https://github.com/google-antigravity/antigravity-cli), and [OpenAI Codex](https://github.com/openai/codex) through a touch-first interface — no terminal, no SSH, no PC required for on-device use. It wraps agent runtimes via PRoot (on-device) or connects remotely to your existing OpenCode server on PC/Mac/Linux.
 
 [Releases](https://github.com/yuga-hashimoto/and-code/releases/latest) · [日本語のREADME](README.ja.md)
 
 > [!IMPORTANT]
-> AndCode is an independent, local-first graphical interface that installs or launches supported third-party command-line tools on the user's own Android device. AndCode itself does not provide or resell the underlying AI services, subscriptions, model access, or account entitlements. Authentication, model access, inference, and provider communication are handled by the applicable official CLI or user-configured provider. AndCode is not affiliated with, endorsed by, sponsored by, or officially supported by OpenCode, Anthropic, or Google. See [Legal & Third-Party Software](#legal--third-party-software) below.
+> AndCode is an independent, local-first graphical interface that installs or launches supported third-party command-line tools on the user's own Android device. AndCode itself does not provide or resell the underlying AI services, subscriptions, model access, or account entitlements. Authentication, model access, inference, and provider communication are handled by the applicable official CLI or user-configured provider. AndCode is not affiliated with, endorsed by, sponsored by, or officially supported by OpenCode, Anthropic, Google, or OpenAI. See [Legal & Third-Party Software](#legal--third-party-software) below.
 
 <div align="center">
 
@@ -36,7 +36,7 @@ AndCode is a native Android GUI app that brings AI coding agents to your phone. 
 </div>
 
 > [!IMPORTANT]
-> AndCode is an independent open-source project. It is **not** affiliated with OpenCode, Anthropic, or Google.
+> AndCode is an independent open-source project. It is **not** affiliated with OpenCode, Anthropic, Google, or OpenAI.
 
 ---
 
@@ -45,6 +45,7 @@ AndCode is a native Android GUI app that brings AI coding agents to your phone. 
 - [Supported Agents](#supported-agents)
 - [Features](#features)
 - [Antigravity](#antigravity)
+- [Codex](#codex)
 - [Remote OpenCode](#remote-opencode)
 - [Screens](#screens)
 - [Quick Start](#quick-start)
@@ -65,8 +66,9 @@ AndCode is a native Android GUI app that brings AI coding agents to your phone. 
 | [OpenCode](https://github.com/sst/opencode) | ✓ | ✓ | Stable |
 | [Claude Code](https://github.com/anthropics/claude-code) | ✓ | — | Beta |
 | [Google Antigravity](https://github.com/google-antigravity/antigravity-cli) | ✓ | — | Beta |
+| [OpenAI Codex](https://github.com/openai/codex) | ✓ | — | Beta |
 
-On-device agents run inside a Linux environment via PRoot. OpenCode and Claude Code use Alpine Linux; Google Antigravity additionally installs a Debian Bookworm rootfs alongside Alpine, since the official `agy` binary links against glibc.
+On-device agents run inside a Linux environment via PRoot. OpenCode, Claude Code, and Codex use Alpine Linux; Google Antigravity additionally installs a Debian Bookworm rootfs alongside Alpine, since the official `agy` binary links against glibc.
 
 ## Features
 
@@ -100,6 +102,17 @@ Google Antigravity (`agy`) runs on-device inside the same PRoot environment. Unl
 - **Permission modes** — Three-tier control: Plan, Accept Edits, and Full Access (`--dangerously-skip-permissions`)
 - **MCP servers** — Read/write `~/.gemini/config/mcp_config.json` directly, matching the official CLI's config format
 - **Sandbox launcher** — PTY-based process with explicit terminal geometry; `AGY_CLI_DISABLE_AUTO_UPDATE=1` keeps updates app-controlled
+
+## Codex
+
+OpenAI's Codex CLI runs on-device inside the same Alpine/PRoot sandbox as OpenCode and Claude Code, talking to the app over its `app-server` JSON-RPC protocol.
+
+- **Sign-in** — ChatGPT account (browser flow) or an OpenAI API key, through the same sign-in dialog as other providers
+- **MCP servers** — Managed with the official `codex mcp` subcommand, so the app never edits `~/.codex/config.toml` by hand
+- **Image generation** — Images from the built-in `image_gen` tool are shown inline in the chat
+- **Setup** — Installable from the setup guide or Settings → Agents → Codex; no separate rootfs, since Codex's musl-linked binary runs directly in the shared Alpine environment
+
+See [docs/CODEX.md](docs/CODEX.md) for implementation details.
 
 ## Remote OpenCode
 
@@ -235,6 +248,7 @@ adb install -r app/build/outputs/apk/github/debug/app-github-debug.apk
 - [On-Device Runtime Design](docs/LOCAL_RUNTIME.md)
 - [Antigravity Local Runtime](docs/ANTIGRAVITY.md)
 - [Antigravity Agent Parity Design](docs/superpowers/specs/2026-07-27-antigravity-agent-parity-design.md)
+- [Codex Local Runtime](docs/CODEX.md)
 - [CI Guide](docs/CI.md)
 - [Release Guide](docs/RELEASE.md)
 - [Translation Guide](docs/TRANSLATION.md)
@@ -246,14 +260,14 @@ Contributions are welcome — code, bug reports, and translations! Please see [C
 
 ## Legal & Third-Party Software
 
-- **Official CLIs run on-device.** OpenCode, Claude Code, and Google Antigravity are the official, unmodified binaries from their respective projects, downloaded from their official distribution channels and executed inside the PRoot Linux environment on your device (or, for OpenCode, on your own PC/Mac/Linux machine). AndCode does not fork, patch, or re-implement their agent logic.
-- **You bring your own account or API access.** AndCode does not sell, resell, or otherwise provide Claude, Antigravity, OpenCode-model, or GitHub access. You authenticate with your own account or provider configuration, subject to that provider's current terms of service.
+- **Official CLIs run on-device.** OpenCode, Claude Code, Google Antigravity, and OpenAI Codex are the official, unmodified binaries from their respective projects, downloaded from their official distribution channels and executed inside the PRoot Linux environment on your device (or, for OpenCode, on your own PC/Mac/Linux machine). AndCode does not fork, patch, or re-implement their agent logic.
+- **You bring your own account or API access.** AndCode does not sell, resell, or otherwise provide Claude, Antigravity, Codex, OpenCode-model, or GitHub access. You authenticate with your own account or provider configuration, subject to that provider's current terms of service.
 - **AndCode does not relay prompts or tokens through its own servers.** There is no AndCode backend that prompts, files, or OAuth tokens pass through. Requests go directly from the on-device CLI (or your PC's OpenCode server) to the provider you configured. See [docs/AUTHENTICATION_AND_DATA_FLOW.md](docs/AUTHENTICATION_AND_DATA_FLOW.md).
-- **OAuth tokens are not reused across tools.** Claude Code and Antigravity each keep their own OAuth credentials inside the Linux/Debian rootfs the way their official CLI normally would; AndCode never copies them into Android app settings, another agent's credential store, or an external service.
+- **OAuth tokens are not reused across tools.** Claude Code, Antigravity, and Codex each keep their own OAuth credentials inside the Linux/Debian rootfs the way their official CLI normally would; AndCode never copies them into Android app settings, another agent's credential store, or an external service.
 - **See also:** [PRIVACY.md](PRIVACY.md), [TERMS.md](TERMS.md), [THIRD_PARTY_SERVICES.md](THIRD_PARTY_SERVICES.md), [TRADEMARKS.md](TRADEMARKS.md), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) (OSS licenses for bundled runtime components and dependencies). All of these are also reachable offline from **Settings → Legal & Privacy** in the app.
 
 Runtime generation reuses generic Termux package resolution/extraction logic redesigned for coding agents, inspired by the MIT-licensed Hermes Agent Android implementation. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the full list of bundled third-party components and their licenses.
 
 ## License
 
-The **AndCode source code** in this repository is [MIT licensed](LICENSE). That license covers AndCode's own Kotlin/Android code only — it does **not** extend to the third-party CLIs, runtimes, or packages AndCode installs or launches (Claude Code, Google Antigravity, OpenCode, PRoot, Alpine/Debian packages, and others), each of which is distributed under its own upstream license. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [TRADEMARKS.md](TRADEMARKS.md).
+The **AndCode source code** in this repository is [MIT licensed](LICENSE). That license covers AndCode's own Kotlin/Android code only — it does **not** extend to the third-party CLIs, runtimes, or packages AndCode installs or launches (Claude Code, Google Antigravity, OpenAI Codex, OpenCode, PRoot, Alpine/Debian packages, and others), each of which is distributed under its own upstream license. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [TRADEMARKS.md](TRADEMARKS.md).

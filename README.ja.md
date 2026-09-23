@@ -9,12 +9,12 @@
 
 **AIコーディングエージェントをAndroidのネイティブGUIでローカル実行 — ターミナル不要です。**
 
-AndCodeはAIコーディングエージェントをスマートフォンで使えるようにするネイティブAndroid GUIアプリです。[OpenCode](https://github.com/sst/opencode)、[Claude Code](https://github.com/anthropics/claude-code)、[Google Antigravity](https://github.com/google-antigravity/antigravity-cli)とタッチ操作中心のインターフェースで対話できます — 端末エミュレータもSSHもPCも、オンデバイス実行には一切不要です。PRootによるオンデバイスランタイムか、PC/Mac/Linux上の既存OpenCodeサーバーへのリモート接続で動作します。
+AndCodeはAIコーディングエージェントをスマートフォンで使えるようにするネイティブAndroid GUIアプリです。[OpenCode](https://github.com/sst/opencode)、[Claude Code](https://github.com/anthropics/claude-code)、[Google Antigravity](https://github.com/google-antigravity/antigravity-cli)、[OpenAI Codex](https://github.com/openai/codex)とタッチ操作中心のインターフェースで対話できます — 端末エミュレータもSSHもPCも、オンデバイス実行には一切不要です。PRootによるオンデバイスランタイムか、PC/Mac/Linux上の既存OpenCodeサーバーへのリモート接続で動作します。
 
 [Releases](https://github.com/yuga-hashimoto/and-code/releases/latest) · [English README](README.md)
 
 > [!IMPORTANT]
-> AndCodeは、利用者自身のAndroid端末上で対応する第三者製コマンドラインツールをインストールまたは起動する、独立したローカルファーストGUIです。AndCode自体がClaude、Google Antigravity、OpenCodeなどのAIサービス、サブスクリプション、モデル利用権またはアカウント利用権を提供するものではありません。認証、モデルアクセス、推論およびサービスとの通信は、各公式CLIまたは利用者が設定したプロバイダーによって処理されます。AndCodeはOpenCode、AnthropicまたはGoogleと提携、承認、後援または公式サポート関係にありません。詳細は[法的情報・第三者ソフトウェア](#法的情報第三者ソフトウェア)を参照してください。
+> AndCodeは、利用者自身のAndroid端末上で対応する第三者製コマンドラインツールをインストールまたは起動する、独立したローカルファーストGUIです。AndCode自体がClaude、Google Antigravity、OpenAI Codex、OpenCodeなどのAIサービス、サブスクリプション、モデル利用権またはアカウント利用権を提供するものではありません。認証、モデルアクセス、推論およびサービスとの通信は、各公式CLIまたは利用者が設定したプロバイダーによって処理されます。AndCodeはOpenCode、Anthropic、GoogleまたはOpenAIと提携、承認、後援または公式サポート関係にありません。詳細は[法的情報・第三者ソフトウェア](#法的情報第三者ソフトウェア)を参照してください。
 
 <div align="center">
 
@@ -45,6 +45,7 @@ AndCodeはAIコーディングエージェントをスマートフォンで使�
 - [対応エージェント](#対応エージェント)
 - [主な機能](#主な機能)
 - [Antigravity](#antigravity)
+- [Codex](#codex)
 - [リモートOpenCode](#リモートopencode)
 - [画面構成](#画面構成)
 - [クイックスタート](#クイックスタート)
@@ -65,8 +66,9 @@ AndCodeはAIコーディングエージェントをスマートフォンで使�
 | [OpenCode](https://github.com/sst/opencode) | ✓ | ✓ | 安定版 |
 | [Claude Code](https://github.com/anthropics/claude-code) | ✓ | — | ベータ |
 | [Google Antigravity](https://github.com/google-antigravity/antigravity-cli) | ✓ | — | ベータ |
+| [OpenAI Codex](https://github.com/openai/codex) | ✓ | — | ベータ |
 
-オンデバイスエージェントはPRoot経由でLinux環境内で実行されます。OpenCodeとClaude CodeはAlpine Linuxを使用し、Google Antigravityは公式`agy`バイナリのglibc互換性のためDebian Bookworm rootfsを導入します。
+オンデバイスエージェントはPRoot経由でLinux環境内で実行されます。OpenCode、Claude Code、CodexはAlpine Linuxを使用し、Google Antigravityは公式`agy`バイナリのglibc互換性のためDebian Bookworm rootfsを導入します。
 
 ## 主な機能
 
@@ -100,6 +102,17 @@ Google Antigravity（`agy`）は同じPRoot環境内でオンデバイス実行�
 - **権限モード** — 3段階の制御：Plan、Accept Edits、Full Access（`--dangerously-skip-permissions`）
 - **MCPサーバー** — `~/.gemini/config/mcp_config.json`を直接読み書きし、公式CLIと同じ設定形式に対応
 - **サンドボックス起動** — 明示的な端末サイズを持つPTYベースのプロセス。`AGY_CLI_DISABLE_AUTO_UPDATE=1`によりバージョン更新はアプリ側で制御
+
+## Codex
+
+OpenAIのCodex CLIは、OpenCodeやClaude Codeと同じAlpine/PRootサンドボックス内でオンデバイス実行され、`app-server` JSON-RPCプロトコル経由でアプリと通信します。
+
+- **サインイン** — ChatGPTアカウント（ブラウザ認証）またはOpenAI APIキー。他のプロバイダーと同じサインインダイアログを使用
+- **MCPサーバー** — 公式の`codex mcp`サブコマンドで管理するため、アプリが`~/.codex/config.toml`を直接書き換えることはありません
+- **画像生成** — 組み込みの`image_gen`ツールで生成した画像はチャット上にインライン表示されます
+- **セットアップ** — セットアップガイドまたは設定 → エージェント → Codexからインストール可能。Codexのmuslリンクバイナリは共有Alpine環境内でそのまま動作するため、専用rootfsは不要です
+
+実装の詳細は[docs/CODEX.md](docs/CODEX.md)を参照してください。
 
 ## リモートOpenCode
 
@@ -235,6 +248,7 @@ adb install -r app/build/outputs/apk/github/debug/app-github-debug.apk
 - [オンデバイスランタイム設計](docs/LOCAL_RUNTIME.md)
 - [Antigravityローカルランタイム](docs/ANTIGRAVITY.md)
 - [Antigravityエージェント同等機能設計書](docs/superpowers/specs/2026-07-27-antigravity-agent-parity-design.md)
+- [Codexローカルランタイム](docs/CODEX.md)
 - [CIガイド](docs/CI.md)
 - [リリースガイド](docs/RELEASE.md)
 - [翻訳ガイド](docs/TRANSLATION.md)
@@ -246,14 +260,14 @@ adb install -r app/build/outputs/apk/github/debug/app-github-debug.apk
 
 ## 法的情報・第三者ソフトウェア
 
-- **公式CLIは端末内で実行されます。** OpenCode、Claude Code、Google Antigravityは各プロジェクトの公式配布チャネルから取得した無改変のバイナリであり、この端末のPRoot Linux環境内（OpenCodeについては利用者自身のPC/Mac/Linux上）で実行されます。AndCodeはこれらのエージェントロジックをフォーク・改変・再実装していません。
-- **アカウントやAPI設定は利用者自身が用意します。** AndCodeはClaude、Antigravity、OpenCode用モデル、GitHubへのアクセスを販売・提供しません。利用者自身のアカウントまたはプロバイダー設定で認証し、各サービスの最新の利用規約が適用されます。
+- **公式CLIは端末内で実行されます。** OpenCode、Claude Code、Google Antigravity、OpenAI Codexは各プロジェクトの公式配布チャネルから取得した無改変のバイナリであり、この端末のPRoot Linux環境内（OpenCodeについては利用者自身のPC/Mac/Linux上）で実行されます。AndCodeはこれらのエージェントロジックをフォーク・改変・再実装していません。
+- **アカウントやAPI設定は利用者自身が用意します。** AndCodeはClaude、Antigravity、Codex、OpenCode用モデル、GitHubへのアクセスを販売・提供しません。利用者自身のアカウントまたはプロバイダー設定で認証し、各サービスの最新の利用規約が適用されます。
 - **AndCode独自サーバーへプロンプトやトークンを中継しません。** プロンプト、ファイル、OAuthトークンが経由するAndCode独自バックエンドは存在しません。リクエストは端末上のCLI（またはPC上のOpenCodeサーバー）から、利用者が設定したプロバイダーへ直接送信されます。詳細は[docs/AUTHENTICATION_AND_DATA_FLOW.md](docs/AUTHENTICATION_AND_DATA_FLOW.md)を参照してください。
-- **OAuthトークンを他のツールへ転用しません。** Claude CodeとAntigravityは、それぞれの公式CLIが通常行うのと同様に、OAuth認証情報をLinux/Debian rootfs内に保持します。AndCodeはこれをAndroidアプリの設定領域、他エージェントの認証情報保存領域、外部サービスへコピーすることはありません。
+- **OAuthトークンを他のツールへ転用しません。** Claude Code、Antigravity、Codexは、それぞれの公式CLIが通常行うのと同様に、OAuth認証情報をLinux/Debian rootfs内に保持します。AndCodeはこれをAndroidアプリの設定領域、他エージェントの認証情報保存領域、外部サービスへコピーすることはありません。
 - **関連文書：** [PRIVACY.md](PRIVACY.md)、[TERMS.md](TERMS.md)、[THIRD_PARTY_SERVICES.md](THIRD_PARTY_SERVICES.md)、[TRADEMARKS.md](TRADEMARKS.md)、[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)（同梱ランタイムコンポーネントおよび依存ライブラリのOSSライセンス一覧）。これらはアプリ内の**設定 → 法的情報・プライバシー**からオフラインでも確認できます。
 
 ランタイム生成処理の一部は、MITライセンスのHermes Agent Android実装に含まれる汎用Termuxパッケージ解決・展開処理をコーディングエージェント向けに再設計しています。同梱する第三者コンポーネントとライセンスの一覧は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)を参照してください。
 
 ## ライセンス
 
-このリポジトリの**AndCodeソースコード**は[MITライセンス](LICENSE)です。このライセンスが適用されるのはAndCode自身のKotlin/Androidコードのみであり、AndCodeが導入・起動する第三者CLIやランタイム（Claude Code、Google Antigravity、OpenCode、PRoot、Alpine/Debianパッケージなど）には適用されません。それぞれ独自の配布元ライセンスが適用されます。詳細は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)および[TRADEMARKS.md](TRADEMARKS.md)を参照してください。
+このリポジトリの**AndCodeソースコード**は[MITライセンス](LICENSE)です。このライセンスが適用されるのはAndCode自身のKotlin/Androidコードのみであり、AndCodeが導入・起動する第三者CLIやランタイム（Claude Code、Google Antigravity、OpenAI Codex、OpenCode、PRoot、Alpine/Debianパッケージなど）には適用されません。それぞれ独自の配布元ライセンスが適用されます。詳細は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)および[TRADEMARKS.md](TRADEMARKS.md)を参照してください。
