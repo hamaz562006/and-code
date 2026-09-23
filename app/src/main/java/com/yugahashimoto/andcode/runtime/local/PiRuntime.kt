@@ -47,6 +47,7 @@ class PiRuntime(
         }
     private val events = MutableSharedFlow<OpenCodeEvent>(extraBufferCapacity = 256)
     private val processes = ConcurrentHashMap<String, PiProcess>()
+    private val streamingAssistantMessages = ConcurrentHashMap<String, String>()
     private val messageStore = ClaudeMessageStore(File(runtimeDirectory, "pi-messages.json"), json)
 
     private data class PiProcess(val sessionId: String, val process: Process, val pending: ConcurrentHashMap<String, kotlinx.coroutines.CompletableDeferred<JsonObject>>, val directory: String)
@@ -275,6 +276,13 @@ class PiRuntime(
         return when (type) {
             "message_start", "message_end" ->
                 parseMessage(obj["message"], sessionId)?.also {
+                    val messageType = obj["message"]?.jsonObject?.get("role")?.jsonPrimitive?.content
+                    if (type == "message_start" && messageType == "assistant") {
+                        streamingAssistantMessages[sessionId] = it.info.id
+                    }
+                    if (type == "message_end" && messageType == "assistant") {
+                        streamingAssistantMessages.remove(sessionId)
+                    }
                     messageStore.upsert(sessionId, it)
                     if (type == "message_end") messageStore.flush()
                 }?.let { OpenCodeEvent.MessageUpdated(it.info) }
@@ -282,10 +290,12 @@ class PiRuntime(
                 val update = obj["assistantMessageEvent"]?.jsonObject ?: return null
                 if (update["type"]?.jsonPrimitive?.content != "text_delta") return null
                 val delta = update["delta"]?.jsonPrimitive?.contentOrNull ?: return null
+                val contentIndex = update["contentIndex"]?.jsonPrimitive?.content ?: return null
+                val messageId = streamingAssistantMessages[sessionId] ?: return null
                 OpenCodeEvent.MessagePartDelta(
                     sessionId,
-                    "pi-" + sessionId + "-assistant",
-                    "pi-text-" + sessionId,
+                    messageId,
+                    "$messageId-text-$contentIndex",
                     "text",
                     delta,
                 )
