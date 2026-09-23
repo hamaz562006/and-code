@@ -193,7 +193,14 @@ class LocalRuntimeInstaller(
                     onPi(0.94f, context.getString(R.string.install_step_downloading_pi))
                     PiInstaller.install(
                         runtime = InstalledRuntime(
-                            metadata = LocalRuntimeMetadata(manifest.openCodeVersion, manifest.port, System.currentTimeMillis(), manifest.runtimeVersion, abi, requestedAgents),
+                            metadata = LocalRuntimeMetadata(
+                                manifest.openCodeVersion,
+                                manifest.port,
+                                System.currentTimeMillis(),
+                                manifest.runtimeVersion,
+                                abi,
+                                requestedAgents.map(LocalAgent::id).toSet(),
+                            ),
                             commandSuite = commandSuite,
                             rootfs = rootfs,
                             openCode = openCodeBinary,
