@@ -230,14 +230,15 @@ class PiRuntime(
             PiSandboxLauncher.environment(runtime, File(runtimeDirectory, "proot-tmp").apply { mkdirs() }, githubToken()),
         )
         val process = builder.start()
+        var currentSessionId = "pending-" + UUID.randomUUID()
         val reader =
             kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
                 process.inputStream.bufferedReader().useLines {
                         lines ->
-                    lines.forEach { handleLine(it, pending) }
+                    lines.forEach { handleLine(it, pending) { currentSessionId } }
                 }
             }
-        val provisional = PiProcess("pending-${UUID.randomUUID()}", process, pending, directory)
+        val provisional = PiProcess(currentSessionId, process, pending, directory)
         val stateResponse =
             runCatching { send(provisional, buildJsonObject { put("type", "get_state") }) }.getOrElse {
                 process.destroyForcibly()
