@@ -22,6 +22,8 @@ import com.yugahashimoto.andcode.runtime.WorkspaceRef
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -34,7 +36,7 @@ class PiTarget(private val runtime: PiRuntime) : RuntimeTarget {
     override val capabilities = RuntimeCapabilities(toolEvents = true, providerModelList = true, resume = true)
 
     private val mutableState = MutableStateFlow<RuntimeState>(RuntimeState.Disconnected)
-    override val state = mutableState
+    override val state: StateFlow<RuntimeState> = mutableState.asStateFlow()
 
     override suspend fun connect(): Result<OpenCodeHealth> = withContext(Dispatchers.IO) {
         runCatching {
