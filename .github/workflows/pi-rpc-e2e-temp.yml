@@ -107,7 +107,10 @@ jobs:
               def log_message(self, *_):
                   pass
 
-          from socketserver import ThreadingMixIn\n          class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):\n              daemon_threads = True\n          ThreadingHTTPServer(("127.0.0.1", 18765), Handler).serve_forever()
+          from socketserver import ThreadingMixIn
+          class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+              daemon_threads = True
+          ThreadingHTTPServer(("127.0.0.1", 18765), Handler).serve_forever()
           PY
 
           python3 "$ROOT/mock_server.py" >"$ROOT/server.log" 2>&1 &
