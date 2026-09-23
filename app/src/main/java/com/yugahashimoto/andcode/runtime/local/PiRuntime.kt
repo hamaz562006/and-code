@@ -29,7 +29,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import kotlinx.serialization.json.put
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -192,7 +191,7 @@ class PiRuntime(
                 else -> null
             }
         }.orEmpty()
-        val sessionId = processes.values.firstOrNull { it.directory == it.directory }?.sessionId ?: "unknown"
+        val sessionId = obj["sessionId"]?.jsonPrimitive?.contentOrNull ?: processes.values.firstOrNull()?.sessionId ?: "unknown"
         return OpenCodeMessage(OpenCodeMessageInfo(id, sessionId, role, OpenCodeTime(System.currentTimeMillis(), System.currentTimeMillis()), model = model), parts)
     }
 
