@@ -896,6 +896,7 @@
     <string name="agent_claude_code_name">Claude Code</string>
     <string name="agent_antigravity_name">Antigravity</string>
     <string name="agent_codex_name">Codex</string>
+    <string name="agent_pi_name">Pi</string>
     <string name="runtime_error_install_failed">Could not install the local runtime</string>
     <string name="runtime_error_reinstall_failed">Could not reinstall the local runtime</string>
     <string name="runtime_error_start_failed">Could not start local runtime</string>
@@ -1038,7 +1039,9 @@
     <string name="codex_error_stopped">Codex was stopped before finishing the turn</string>
     <string name="codex_installed_version">Codex %1$s</string>
     <string name="setup_agent_codex_desc">Sign in with your ChatGPT account or an OpenAI API key. Downloads about 140 MB.</string>
+    <string name="setup_agent_pi_desc">Run Pi locally through its JSON-RPC interface. Requires a model provider API key.</string>
     <string name="install_step_downloading_codex">Downloading Codex</string>
+    <string name="install_step_downloading_pi">Installing Pi</string>
     <string name="codex_install_button">Install Codex</string>
     <string name="codex_retry_install_button">Retry installation</string>
     <string name="codex_installing">Downloading and installing Codex…</string>
