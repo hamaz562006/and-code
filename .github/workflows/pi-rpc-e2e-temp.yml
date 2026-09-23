@@ -168,7 +168,7 @@ jobs:
                   if e.get("type") == "message_update"
                   and e.get("assistantMessageEvent", {}).get("type") == "text_delta"
               ]
-              assert "".join(deltas) == "Hello from Pi.", deltas
+              print("RPC EVENTS:\\n" + json.dumps(events, indent=2))\n              print("SERVER LOG:\\n" + open(os.path.join(os.path.dirname(session_dir), "server.log")).read())\n              assert "".join(deltas) == "Hello from Pi.", deltas
               assert any(e.get("type") == "agent_end" for e in events), events
               assert any(e.get("type") == "agent_settled" for e in events), events
 
