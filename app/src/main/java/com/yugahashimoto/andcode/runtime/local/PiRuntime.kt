@@ -224,16 +224,46 @@ class PiRuntime(
     private fun syncProviderCredentials(rootfs: File) {
         val auth = File(rootfs, "root/.pi/agent/auth.json")
         val existing = runCatching { json.parseToJsonElement(auth.readText()).jsonObject.toMutableMap() }.getOrElse { mutableMapOf() }
-        providerCredentials().forEach { (provider, key) -> if (key.isBlank()) existing.remove(provider) else existing[provider] = buildJsonObject { put("type", "api_key"); put("key", key) } }
-        if (existing.isNotEmpty()) { auth.parentFile?.mkdirs(); auth.writeText(JsonObject(existing).toString()) }
+        providerCredentials().forEach { (provider, key) ->
+            if (key.isBlank()) {
+                existing.remove(provider)
+            } else {
+                existing[provider] = buildJsonObject {
+                    put("type", "api_key")
+                    put("key", key)
+                }
+            }
+        }
+        if (existing.isNotEmpty()) {
+            auth.parentFile?.mkdirs()
+            auth.writeText(JsonObject(existing).toString())
+        }
     }
-    private fun requireRuntime() = installedRuntimeProvider() ?: error("Linux environment is not installed")
+
+    private fun requireRuntime(): LocalRuntimeInstaller.InstalledRuntime =
+        installedRuntimeProvider() ?: error("Linux environment is not installed")
+
     private suspend fun send(process: PiProcess, command: JsonObject): JsonObject {
         val id = UUID.randomUUID().toString()
-        val request = buildJsonObject { command.forEach { (k, v) -> put(k, v) }; put("id", id) }
-        val deferred = kotlinx.coroutines.CompletableDeferred<JsonObject>(); process.pending[id] = deferred
-        synchronized(process.process.outputStream) { process.process.outputStream.write((request.toString() + "\n").toByteArray()); process.process.outputStream.flush() }
+        val request = buildJsonObject {
+            command.forEach { (key, value) -> put(key, value) }
+            put("id", id)
+        }
+        val deferred = kotlinx.coroutines.CompletableDeferred<JsonObject>()
+        process.pending[id] = deferred
+        synchronized(process.process.outputStream) {
+            process.process.outputStream.write((request.toString() + "\n").toByteArray())
+            process.process.outputStream.flush()
+        }
         return kotlinx.coroutines.withTimeout(60_000L) { deferred.await() }
     }
-    private fun stopProcess(process: PiProcess) { runCatching { process.process.destroy() }; runCatching { process.process.waitFor(5, TimeUnit.SECONDS) }; if (process.process.isAlive) process.process.destroyForcibly(); processes.remove(process.sessionId) }
+
+    private fun stopProcess(process: PiProcess) {
+        runCatching { process.process.destroy() }
+        runCatching { process.process.waitFor(5, TimeUnit.SECONDS) }
+        if (process.process.isAlive) {
+            process.process.destroyForcibly()
+        }
+        processes.remove(process.sessionId)
+    }
 }
