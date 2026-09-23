@@ -105,7 +105,17 @@ class PiRuntime(
             it.id == sessionId
         } ?: error("Pi session not found: $sessionId")
 
-    suspend fun listMessages(sessionId: String): List<OpenCodeMessage> = messageStore.list(sessionId)
+    suspend fun listMessages(sessionId: String): List<OpenCodeMessage> {
+        val process = ensureProcess(sessionId)
+        val data = send(process, buildJsonObject { put("type", "get_messages") })["data"]?.jsonObject
+        val messages =
+            (data?.get("messages") as? JsonArray)
+                ?.mapNotNull { parseMessage(it, process.sessionId) }
+                .orEmpty()
+        messages.forEach { messageStore.upsert(sessionId, it) }
+        messageStore.flush()
+        return messages
+    }
 
     suspend fun sendMessage(
         sessionId: String,
@@ -237,6 +247,7 @@ class PiRuntime(
         val data = stateResponse["data"]?.jsonObject ?: error("Pi get_state returned no data")
         val id = data["sessionId"]?.jsonPrimitive?.content ?: error("Pi get_state returned no sessionId")
         val actualCwd = directory
+        currentSessionId = id
         val piProcess = PiProcess(id, process, pending, actualCwd)
         processes[id] = piProcess
         events.tryEmit(OpenCodeEvent.ServerConnected)
@@ -246,21 +257,21 @@ class PiRuntime(
     private fun handleLine(
         line: String,
         pending: ConcurrentHashMap<String, kotlinx.coroutines.CompletableDeferred<JsonObject>>,
+        sessionId: () -> String,
     ) {
         val obj = runCatching { json.parseToJsonElement(line).jsonObject }.getOrNull() ?: return
         when (obj["type"]?.jsonPrimitive?.content) {
             "response" -> obj["id"]?.jsonPrimitive?.content?.let { pending.remove(it)?.complete(obj) }
-            else -> mapEvent(obj)?.let { events.tryEmit(it) }
+            else -> mapEvent(obj, sessionId())?.let { events.tryEmit(it) }
         }
     }
 
-    private fun mapEvent(obj: JsonObject): OpenCodeEvent? {
+    private fun mapEvent(obj: JsonObject, sessionId: String): OpenCodeEvent? {
         val type = obj["type"]?.jsonPrimitive?.content ?: return null
-        val process = processes.values.firstOrNull() ?: return null
         return when (type) {
             "message_start", "message_end" ->
                 parseMessage(obj["message"])?.also {
-                    messageStore.upsert(process.sessionId, it)
+                    messageStore.upsert(sessionId, it)
                     if (type == "message_end") messageStore.flush()
                 }?.let { OpenCodeEvent.MessageUpdated(it.info) }
             "message_update" -> {
@@ -268,9 +279,9 @@ class PiRuntime(
                 if (update["type"]?.jsonPrimitive?.content != "text_delta") return null
                 val delta = update["delta"]?.jsonPrimitive?.contentOrNull ?: return null
                 OpenCodeEvent.MessagePartDelta(
-                    process.sessionId,
-                    "pi-${process.sessionId}-assistant",
-                    "pi-text-${process.sessionId}",
+                    sessionId,
+                    "pi-" + sessionId + "-assistant",
+                    "pi-text-" + sessionId,
                     "text",
                     delta,
                 )
@@ -279,8 +290,8 @@ class PiRuntime(
                 OpenCodeEvent.MessagePartUpdated(
                     OpenCodePart(
                         id = obj["toolCallId"]?.jsonPrimitive?.content,
-                        sessionId = process.sessionId,
-                        messageId = "pi-${process.sessionId}-assistant",
+                        sessionId = sessionId,
+                        messageId = "pi-" + sessionId + "-assistant",
                         type = "tool",
                         tool = obj["toolName"]?.jsonPrimitive?.content ?: "tool",
                         state =
@@ -300,12 +311,12 @@ class PiRuntime(
                             ),
                     ),
                 )
-            "agent_end", "agent_settled" -> OpenCodeEvent.SessionIdle(process.sessionId)
+            "agent_end", "agent_settled" -> OpenCodeEvent.SessionIdle(sessionId)
             else -> null
         }
     }
 
-    private fun parseMessage(element: JsonElement?): OpenCodeMessage? {
+    private fun parseMessage(element: JsonElement?, fallbackSessionId: String? = null): OpenCodeMessage? {
         val obj = element as? JsonObject ?: return null
         val role = obj["role"]?.jsonPrimitive?.content ?: return null
         val id = obj["id"]?.jsonPrimitive?.content ?: "pi-${UUID.randomUUID()}"
@@ -329,7 +340,7 @@ class PiRuntime(
                     else -> null
                 }
             }.orEmpty()
-        val sessionId = obj["sessionId"]?.jsonPrimitive?.contentOrNull ?: processes.values.firstOrNull()?.sessionId ?: "unknown"
+        val sessionId = obj["sessionId"]?.jsonPrimitive?.contentOrNull ?: fallbackSessionId ?: "unknown"
         return OpenCodeMessage(
             OpenCodeMessageInfo(id, sessionId, role, OpenCodeTime(System.currentTimeMillis(), System.currentTimeMillis()), model = model),
             parts,
