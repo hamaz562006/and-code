@@ -21,9 +21,9 @@ object PiInstaller {
                     "-b", "/dev", "-b", "/proc", "-b", "/sys", "-b", "/system",
                     "-b", "\${apkCache.absolutePath}:/var/cache/apk", "-w", "/root", "/bin/sh", "-lc",
                     "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin " +
-                        "/sbin/apk --cache-dir /var/cache/apk add nodejs npm && " +
+                        "/sbin/apk --cache-dir /var/cache/apk add nodejs-current npm && " +
                         "npm install -g --ignore-scripts --no-fund --no-audit @earendil-works/pi-coding-agent@\$PI_VERSION && " +
-                        "/usr/local/bin/pi --version",
+                        "node --version && npm --version && /usr/local/bin/pi --version",
                 )
                 val process = ProcessBuilder(command).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.to(log)).apply {
                     environment().putAll(runtime.commandSuite.environment())
