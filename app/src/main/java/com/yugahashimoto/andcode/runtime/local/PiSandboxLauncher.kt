@@ -30,8 +30,10 @@ object PiSandboxLauncher {
             add("-b")
             add("$workspaceHostDir:/workspace")
             addAll(DeviceStorage.bindArguments())
-            add("-w"); add(workingDirectory)
-            add(PI_BINARY); addAll(arguments)
+            add("-w")
+            add(workingDirectory)
+            add(PI_BINARY)
+            addAll(arguments)
         }
 
     fun environment(
@@ -41,13 +43,13 @@ object PiSandboxLauncher {
     ): Map<String, String> =
         localRuntimeEnvironment(runtime.commandSuite.environment(), tmp) +
             mapOf(
-            "HOME" to "/root",
-            "PI_CODING_AGENT_DIR" to "/root/.pi/agent",
-            "PI_OFFLINE" to "1",
-            "PI_SKIP_VERSION_CHECK" to "1",
-            "PI_TELEMETRY" to "0",
-            "TERM" to "xterm-256color",
-            "SSL_CERT_FILE" to "/etc/ssl/certs/ca-certificates.crt",
-            "SSL_CERT_DIR" to "/etc/ssl/certs",
-        ) + githubToken.orEmpty().takeIf { it.isNotBlank() }?.let { mapOf("GH_TOKEN" to it) }.orEmpty()
+                "HOME" to "/root",
+                "PI_CODING_AGENT_DIR" to "/root/.pi/agent",
+                "PI_OFFLINE" to "1",
+                "PI_SKIP_VERSION_CHECK" to "1",
+                "PI_TELEMETRY" to "0",
+                "TERM" to "xterm-256color",
+                "SSL_CERT_FILE" to "/etc/ssl/certs/ca-certificates.crt",
+                "SSL_CERT_DIR" to "/etc/ssl/certs",
+            ) + githubToken.orEmpty().takeIf { it.isNotBlank() }?.let { mapOf("GH_TOKEN" to it) }.orEmpty()
 }
