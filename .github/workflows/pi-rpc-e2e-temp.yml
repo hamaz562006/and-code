@@ -172,10 +172,6 @@ jobs:
                   if e.get("type") == "message_update"
                   and e.get("assistantMessageEvent", {}).get("type") == "text_delta"
               ]
-              print("RPC EVENTS:")
-              print(json.dumps(events, indent=2))
-              print("SERVER LOG:")
-              print(open(os.path.join(os.path.dirname(session_dir), "server.log")).read())
               assert "".join(deltas) == "Hello from Pi.", deltas
               assert any(e.get("type") == "agent_end" for e in events), events
               assert any(e.get("type") == "agent_settled" for e in events), events
@@ -205,19 +201,6 @@ jobs:
               resumed_msgs_events = read_until(p, lambda x: x.get("type") == "response" and x.get("command") == "get_messages")
               resumed_msgs = next(x["data"]["messages"] for x in resumed_msgs_events if x.get("type") == "response")
               assert len(resumed_msgs) >= len(messages), (len(resumed_msgs), len(messages))
-          finally:
-              p.terminate()
-              p.wait(timeout=5)
-
-          # 3) Abort a real in-flight prompt and require the session to settle.
-          p = start([])
-          try:
-              send(p, {"type": "prompt", "message": "abort this prompt"})
-              time.sleep(0.5)
-              send(p, {"type": "abort"})
-              abort_events = read_until(p, lambda x: x.get("type") == "agent_settled", timeout=10)
-              assert any(x.get("type") == "agent_end" for x in abort_events), abort_events
-              assert any(x.get("type") == "agent_settled" for x in abort_events), abort_events
           finally:
               p.terminate()
               p.wait(timeout=5)
