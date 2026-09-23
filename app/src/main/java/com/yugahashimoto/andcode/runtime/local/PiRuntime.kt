@@ -266,7 +266,10 @@ class PiRuntime(
         }
     }
 
-    private fun mapEvent(obj: JsonObject, sessionId: String): OpenCodeEvent? {
+    private fun mapEvent(
+        obj: JsonObject,
+        sessionId: String,
+    ): OpenCodeEvent? {
         val type = obj["type"]?.jsonPrimitive?.content ?: return null
         return when (type) {
             "message_start", "message_end" ->
@@ -316,7 +319,10 @@ class PiRuntime(
         }
     }
 
-    private fun parseMessage(element: JsonElement?, fallbackSessionId: String? = null): OpenCodeMessage? {
+    private fun parseMessage(
+        element: JsonElement?,
+        fallbackSessionId: String? = null,
+    ): OpenCodeMessage? {
         val obj = element as? JsonObject ?: return null
         val role = obj["role"]?.jsonPrimitive?.content ?: return null
         val id = obj["id"]?.jsonPrimitive?.content ?: "pi-${UUID.randomUUID()}"
