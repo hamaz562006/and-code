@@ -29,9 +29,16 @@ object PiInstaller {
                     environment().putAll(runtime.commandSuite.environment())
                     environment()["PROOT_TMP_DIR"] = prootTmp.absolutePath
                 }.start()
-                if (!process.waitFor(15, TimeUnit.MINUTES)) { process.destroyForcibly(); error("Pi installation timed out") }
-                require(process.exitValue() == 0) { "Pi installation failed: \${logTail(log)}" }
-                require(isInstalledIn(runtime.rootfs)) { "Pi installation completed without installing /usr/local/bin/pi" }
+                if (!process.waitFor(15, TimeUnit.MINUTES)) {
+                    process.destroyForcibly()
+                    error("Pi installation timed out")
+                }
+                require(process.exitValue() == 0) {
+                    "Pi installation failed: ${logTail(log)}"
+                }
+                require(isInstalledIn(runtime.rootfs)) {
+                    "Pi installation completed without installing /usr/local/bin/pi"
+                }
                 logTail(log).lineSequence().lastOrNull { it.isNotBlank() }?.trim() ?: PI_VERSION
             }
         }
