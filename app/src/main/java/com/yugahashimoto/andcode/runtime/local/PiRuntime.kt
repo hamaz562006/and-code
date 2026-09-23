@@ -128,18 +128,21 @@ class PiRuntime(
         builder.environment().clear()
         builder.environment().putAll(PiSandboxLauncher.environment(runtime, File(runtimeDirectory, "proot-tmp").apply { mkdirs() }, githubToken()))
         val process = builder.start()
-        val first = kotlinx.coroutines.CompletableDeferred<JsonObject>()
-        val reader = kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch { process.inputStream.bufferedReader().useLines { lines -> lines.forEach { handleLine(it, pending, first) } } }
-        val header = runCatching { kotlinx.coroutines.withTimeout(30_000L) { first.await() } }.getOrElse { process.destroyForcibly(); reader.cancel(); error("Pi did not emit a session header: ${it.message}") }
-        val id = header["id"]?.jsonPrimitive?.content ?: error("Pi session header did not contain an id")
-        val actualCwd = header["cwd"]?.jsonPrimitive?.content ?: directory
-        return PiProcess(id, process, pending, actualCwd).also { processes[id] = it; events.tryEmit(OpenCodeEvent.ServerConnected) }
+        val reader = kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch { process.inputStream.bufferedReader().useLines { lines -> lines.forEach { handleLine(it, pending) } } }
+        val provisional = PiProcess("pending-${UUID.randomUUID()}", process, pending, directory)
+        val stateResponse = runCatching { send(provisional, buildJsonObject { put("type", "get_state") }) }.getOrElse { process.destroyForcibly(); reader.cancel(); error("Pi RPC handshake failed: ${it.message}") }
+        val data = stateResponse["data"]?.jsonObject ?: error("Pi get_state returned no data")
+        val id = data["sessionId"]?.jsonPrimitive?.content ?: error("Pi get_state returned no sessionId")
+        val actualCwd = directory
+        val piProcess = PiProcess(id, process, pending, actualCwd)
+        processes[id] = piProcess
+        events.tryEmit(OpenCodeEvent.ServerConnected)
+        return piProcess
     }
 
-    private fun handleLine(line: String, pending: ConcurrentHashMap<String, kotlinx.coroutines.CompletableDeferred<JsonObject>>, first: kotlinx.coroutines.CompletableDeferred<JsonObject>) {
+    private fun handleLine(line: String, pending: ConcurrentHashMap<String, kotlinx.coroutines.CompletableDeferred<JsonObject>>) {
         val obj = runCatching { json.parseToJsonElement(line).jsonObject }.getOrNull() ?: return
         when (obj["type"]?.jsonPrimitive?.content) {
-            "session" -> if (!first.isCompleted) first.complete(obj)
             "response" -> obj["id"]?.jsonPrimitive?.content?.let { pending.remove(it)?.complete(obj) }
             else -> mapEvent(obj)?.let { events.tryEmit(it) }
         }
@@ -176,7 +179,8 @@ class PiRuntime(
                 else -> null
             }
         }.orEmpty()
-        return OpenCodeMessage(OpenCodeMessageInfo(id, "", role, OpenCodeTime(System.currentTimeMillis(), System.currentTimeMillis()), model = model), parts)
+        val sessionId = processes.values.firstOrNull { it.directory == it.directory }?.sessionId ?: "unknown"
+        return OpenCodeMessage(OpenCodeMessageInfo(id, sessionId, role, OpenCodeTime(System.currentTimeMillis(), System.currentTimeMillis()), model = model), parts)
     }
 
     private fun parseModels(element: JsonElement?): List<OpenCodeModel> = (element as? JsonArray)?.mapNotNull { item ->
