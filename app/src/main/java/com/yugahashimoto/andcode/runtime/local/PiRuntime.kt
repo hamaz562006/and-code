@@ -225,7 +225,8 @@ class PiRuntime(
         val auth = File(rootfs, "root/.pi/agent/auth.json")
         val existing = runCatching { json.parseToJsonElement(auth.readText()).jsonObject.toMutableMap() }.getOrElse { mutableMapOf() }
         providerCredentials().forEach { (provider, key) -> if (key.isBlank()) existing.remove(provider) else existing[provider] = buildJsonObject { put("type", "api_key"); put("key", key) } }
-        if (existing.isNotEmpty()) { auth.parentFile?.mkdirs(); auth.writeText(JsonObject(existing).toString()) }
+        auth.parentFile?.mkdirs()
+        if (existing.isNotEmpty()) auth.writeText(JsonObject(existing).toString())
     }
     private fun requireRuntime() = installedRuntimeProvider() ?: error("Linux environment is not installed")
     private suspend fun send(process: PiProcess, command: JsonObject): JsonObject {
