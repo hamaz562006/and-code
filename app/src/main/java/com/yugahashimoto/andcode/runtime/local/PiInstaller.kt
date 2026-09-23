@@ -8,18 +8,41 @@ import java.util.concurrent.TimeUnit
 object PiInstaller {
     const val PI_VERSION = "0.87.1"
     private const val PI_BINARY = "/usr/local/bin/pi"
-    fun isInstalledIn(rootfs: File): Boolean = File(rootfs, PI_BINARY.removePrefix("/")).isFile
+    fun isInstalledIn(rootfs: File): Boolean =
+        File(rootfs, PI_BINARY.removePrefix("/")).isFile
 
-    suspend fun install(runtime: LocalRuntimeInstaller.InstalledRuntime, runtimeDirectory: File, accessCoordinator: LocalRuntimeAccessCoordinator): String =
+    suspend fun install(
+        runtime: LocalRuntimeInstaller.InstalledRuntime,
+        runtimeDirectory: File,
+        accessCoordinator: LocalRuntimeAccessCoordinator,
+    ): String =
         withContext(Dispatchers.IO) {
             accessCoordinator.write {
                 val prootTmp = File(runtimeDirectory, "proot-tmp").apply { mkdirs() }
                 val apkCache = File(runtimeDirectory, "cache/apk").apply { mkdirs() }
                 val log = File(runtimeDirectory, "logs/pi-install.log").apply { parentFile?.mkdirs(); delete() }
-                val command = listOf(
-                    runtime.commandSuite.proot.absolutePath, "--kill-on-exit", "--link2symlink", "-0", "-r", runtime.rootfs.absolutePath,
-                    "-b", "/dev", "-b", "/proc", "-b", "/sys", "-b", "/system",
-                    "-b", "\${apkCache.absolutePath}:/var/cache/apk", "-w", "/root", "/bin/sh", "-lc",
+                val command =
+                    listOf(
+                        runtime.commandSuite.proot.absolutePath,
+                        "--kill-on-exit",
+                        "--link2symlink",
+                        "-0",
+                        "-r",
+                        runtime.rootfs.absolutePath,
+                        "-b",
+                        "/dev",
+                        "-b",
+                        "/proc",
+                        "-b",
+                        "/sys",
+                        "-b",
+                        "/system",
+                        "-b",
+                        "${apkCache.absolutePath}:/var/cache/apk",
+                        "-w",
+                        "/root",
+                        "/bin/sh",
+                        "-lc",
                     "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin " +
                         "/sbin/apk --cache-dir /var/cache/apk add nodejs-current npm && " +
                         "npm install -g --ignore-scripts --no-fund --no-audit @earendil-works/pi-coding-agent@\$PI_VERSION && " +
