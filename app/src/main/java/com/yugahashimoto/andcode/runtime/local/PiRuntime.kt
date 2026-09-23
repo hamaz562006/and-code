@@ -263,7 +263,6 @@ class PiRuntime(
         val obj = runCatching { json.parseToJsonElement(line).jsonObject }.getOrNull() ?: return
         when (obj["type"]?.jsonPrimitive?.content) {
             "response" -> obj["id"]?.jsonPrimitive?.content?.let { pending.remove(it)?.complete(obj) }
-            "extension_ui_request" -> mapPermissionRequest(obj, sessionId())?.let { events.tryEmit(it) }
             else -> mapEvent(obj, sessionId())?.let { events.tryEmit(it) }
         }
     }
