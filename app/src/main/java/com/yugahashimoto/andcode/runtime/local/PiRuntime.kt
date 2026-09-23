@@ -473,8 +473,12 @@ class PiRuntime(
     }
 
     private fun stopProcess(process: PiProcess) {
-        runCatching { process.process.destroy() }
+        runCatching { process.process.outputStream.close() }
         runCatching { process.process.waitFor(5, TimeUnit.SECONDS) }
+        if (process.process.isAlive) {
+            runCatching { process.process.destroy() }
+            runCatching { process.process.waitFor(5, TimeUnit.SECONDS) }
+        }
         if (process.process.isAlive) process.process.destroyForcibly()
         processes.remove(process.sessionId)
     }
