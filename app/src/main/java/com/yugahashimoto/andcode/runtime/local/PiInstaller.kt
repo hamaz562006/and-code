@@ -49,7 +49,7 @@ object PiInstaller {
                         "-lc",
                         "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin " +
                             "/sbin/apk --cache-dir /var/cache/apk add nodejs-current npm && " +
-                            "npm install -g --ignore-scripts --no-fund --no-audit @earendil-works/pi-coding-agent@\$PI_VERSION && " +
+                            "npm install -g --ignore-scripts --no-fund --no-audit @earendil-works/pi-coding-agent@${PI_VERSION} && " +
                             "node --version && npm --version && /usr/local/bin/pi --version",
                     )
                 val process =
@@ -59,6 +59,7 @@ object PiInstaller {
                         .apply {
                             environment().putAll(runtime.commandSuite.environment())
                             environment()["PROOT_TMP_DIR"] = prootTmp.absolutePath
+                            environment()["PI_VERSION"] = PI_VERSION
                         }.start()
                 if (!process.waitFor(15, TimeUnit.MINUTES)) {
                     process.destroyForcibly()
