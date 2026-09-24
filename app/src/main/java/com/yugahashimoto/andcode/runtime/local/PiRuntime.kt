@@ -481,7 +481,6 @@ class PiRuntime(
                 buildJsonObject {
                     put("baseUrl", provider.baseUrl)
                     put("api", "openai-completions")
-                    put("apiKey", apiKey)
                     put(
                         "models",
                         kotlinx.serialization.json.buildJsonArray {
