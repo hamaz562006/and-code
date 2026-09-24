@@ -48,7 +48,6 @@ object PiInstaller {
                         "/bin/sh",
                         "-lc",
                         "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin " +
-                            "/sbin/apk --cache-dir /var/cache/apk add nodejs-current npm && " +
                             "node --version && npm --version && " +
                             "npm config set registry https://registry.npmjs.org/ && " +
                             "npm install -g --ignore-scripts --no-fund --no-audit --progress=false " +
