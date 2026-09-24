@@ -30,7 +30,6 @@ import kotlinx.serialization.json.put
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
 
 class PiRuntime(
     internal val runtimeDirectory: File,
@@ -245,22 +244,16 @@ class PiRuntime(
                     add(title)
                 }
             }
-        val builder =
-            ProcessBuilder(
-                PiSandboxLauncher.command(
-                    runtime,
-                    File(runtimeDirectory, "workspace").apply {
-                        mkdirs()
-                    }.absolutePath,
-                    directory,
-                    args,
-                ),
-            ).directory(runtimeDirectory)
-        builder.environment().clear()
-        builder.environment().putAll(
-            PiSandboxLauncher.environment(runtime, File(runtimeDirectory, "proot-tmp").apply { mkdirs() }, githubToken()),
-        )
-        val process = builder.start()
+        val workspace = File(runtimeDirectory, "workspace").apply { mkdirs() }
+        val process =
+            PiSandboxLauncher.start(
+                runtime = runtime,
+                workspaceHostDir = workspace.absolutePath,
+                workingDirectory = directory,
+                arguments = args,
+                tmp = File(runtimeDirectory, "proot-tmp").apply { mkdirs() },
+                githubToken = githubToken(),
+            )
         var currentSessionId = "pending-" + UUID.randomUUID()
         val reader =
             kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
@@ -581,9 +574,7 @@ class PiRuntime(
     }
 
     private fun stopProcess(process: PiProcess) {
-        runCatching { process.process.destroy() }
-        runCatching { process.process.waitFor(5, TimeUnit.SECONDS) }
-        if (process.process.isAlive) process.process.destroyForcibly()
+        PiSandboxLauncher.stop(process.process, runtimeDirectory)
         processes.remove(process.sessionId)
     }
 }
