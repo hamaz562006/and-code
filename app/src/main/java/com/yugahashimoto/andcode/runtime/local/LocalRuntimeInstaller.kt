@@ -178,6 +178,14 @@ class LocalRuntimeInstaller(
                             REQUIRED_RUNTIME_PACKAGES
                         },
                 )
+                if (LocalAgent.PI in requestedAgents) {
+                    onPi(0.925f, context.getString(R.string.install_step_installing_pi_requirements))
+                    installPackages(
+                        rootfs = rootfs,
+                        suite = commandSuite,
+                        packages = listOf("nodejs", "npm"),
+                    )
+                }
                 if (LocalAgent.CLAUDE_CODE in requestedAgents) {
                     onClaude(0.93f, context.getString(R.string.install_step_installing_claude_code))
                     ClaudeCodeInstaller.installInto(rootfs, commandSuite, runtimeDirectory)
