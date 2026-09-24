@@ -326,44 +326,44 @@ class PiRuntime(
                 }?.let { OpenCodeEvent.MessageUpdated(it.info) }
             "message_update" -> {
                 val update = obj["assistantMessageEvent"]?.jsonObject ?: return null
-                if (update["type"]?.jsonPrimitive?.content != "text_delta") return null
-                val delta = update["delta"]?.jsonPrimitive?.contentOrNull ?: return null
-                val contentIndex = update["contentIndex"]?.jsonPrimitive?.content ?: return null
                 val messageId = streamingAssistantMessages[sessionId] ?: return null
-                OpenCodeEvent.MessagePartDelta(
-                    sessionId,
-                    messageId,
-                    "$messageId-text-$contentIndex",
-                    "text",
-                    delta,
-                )
-            }
-            "tool_execution_start", "tool_execution_end" ->
-                OpenCodeEvent.MessagePartUpdated(
-                    OpenCodePart(
-                        id = obj["toolCallId"]?.jsonPrimitive?.content,
-                        sessionId = sessionId,
-                        messageId = streamingAssistantMessages[sessionId] ?: return null,
-                        type = "tool",
-                        tool = obj["toolName"]?.jsonPrimitive?.content ?: "tool",
-                        state =
-                            mapOf(
-                                "status" to
-                                    JsonPrimitive(
-                                        if (type.endsWith("end")) {
-                                            if ((obj["isError"] as? JsonPrimitive)?.booleanOrNull == true) {
-                                                "error"
-                                            } else {
-                                                "completed"
-                                            }
-                                        } else {
-                                            "running"
-                                        },
+                val contentIndex = update["contentIndex"]?.jsonPrimitive?.content ?: return null
+                when (update["type"]?.jsonPrimitive?.content) {
+                    "text_delta" -> {
+                        val delta = update["delta"]?.jsonPrimitive?.contentOrNull ?: return null
+                        OpenCodeEvent.MessagePartDelta(
+                            sessionId,
+                            messageId,
+                            "$messageId-text-$contentIndex",
+                            "text",
+                            delta,
+                        )
+                    }
+                    "toolcall_start", "toolcall_end" -> {
+                        val toolCallId = update["id"]?.jsonPrimitive?.content ?: return null
+                        val toolName = update["toolName"]?.jsonPrimitive?.content ?: "tool"
+                        OpenCodeEvent.MessagePartUpdated(
+                            OpenCodePart(
+                                id = toolCallId,
+                                sessionId = sessionId,
+                                messageId = messageId,
+                                type = "tool",
+                                tool = toolName,
+                                callID = toolCallId,
+                                state =
+                                    mapOf(
+                                        "status" to
+                                            JsonPrimitive(
+                                                if (update["type"] == JsonPrimitive("toolcall_end")) "completed" else "running",
+                                            ),
                                     ),
                             ),
-                    ),
-                )
-            "agent_settled" -> OpenCodeEvent.SessionIdle(sessionId)
+                        )
+                    }
+                    else -> null
+                }
+            }
+            "agent_end" -> OpenCodeEvent.SessionIdle(sessionId)
             else -> null
         }
     }
