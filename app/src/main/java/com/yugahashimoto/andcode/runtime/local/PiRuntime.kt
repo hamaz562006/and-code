@@ -93,7 +93,7 @@ class PiRuntime(
                 },
             )
         }
-        return session(process.sessionId)
+        return session(process.sessionId).also { events.tryEmit(OpenCodeEvent.SessionCreated(it)) }
     }
 
     suspend fun session(sessionId: String): OpenCodeSession =
@@ -180,7 +180,7 @@ class PiRuntime(
                 put("name", title)
             },
         )
-        return session(sessionId)
+        return session(sessionId).also { events.tryEmit(OpenCodeEvent.SessionUpdated(it)) }
     }
 
     suspend fun deleteSession(sessionId: String): Boolean {
@@ -328,6 +328,16 @@ class PiRuntime(
                             delta,
                         )
                     }
+                    "thinking_delta" -> {
+                        val delta = update["delta"]?.jsonPrimitive?.contentOrNull ?: return null
+                        OpenCodeEvent.MessagePartDelta(
+                            sessionId,
+                            messageId,
+                            "$messageId-reasoning-$contentIndex",
+                            "text",
+                            delta,
+                        )
+                    }
                     "toolcall_start", "toolcall_end" -> {
                         val toolCallId =
                             update["id"]?.jsonPrimitive?.content
@@ -349,16 +359,29 @@ class PiRuntime(
                                     mapOf(
                                         "status" to
                                             JsonPrimitive(
-                                                if (update["type"] == JsonPrimitive("toolcall_end")) "completed" else "running",
+                                                when (update["type"]?.jsonPrimitive?.content) {
+                                                    "toolcall_end" -> "completed"
+                                                    else -> "running"
+                                                },
                                             ),
                                     ),
                             ),
                         )
                     }
+                    "toolcall_delta" -> {
+                        val delta = update["delta"]?.jsonPrimitive?.contentOrNull ?: return null
+                        OpenCodeEvent.MessagePartDelta(
+                            sessionId,
+                            messageId,
+                            "$messageId-tool-$contentIndex",
+                            "arguments",
+                            delta,
+                        )
+                    }
                     else -> null
                 }
             }
-            "tool_execution_start", "tool_execution_end" -> {
+            "tool_execution_start", "tool_execution_update", "tool_execution_end" -> {
                 val toolCallId = obj["toolCallId"]?.jsonPrimitive?.content ?: return null
                 val toolName = obj["toolName"]?.jsonPrimitive?.content ?: "tool"
                 val messageId = streamingAssistantMessages[sessionId] ?: "pi-tool-$toolCallId"
