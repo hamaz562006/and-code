@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 
 internal enum class LocalRuntimeServiceCommand {
     InstallAndStart,
+    InstallAgents,
     InstallFullDevelopmentTools,
     Start,
     Reinstall,
@@ -47,6 +48,7 @@ internal enum class LocalRuntimeServiceCommand {
 internal fun localRuntimeServiceCommand(action: String?): LocalRuntimeServiceCommand =
     when (action) {
         LocalRuntimeService.ACTION_INSTALL_AND_START -> LocalRuntimeServiceCommand.InstallAndStart
+        LocalRuntimeService.ACTION_INSTALL_AGENTS -> LocalRuntimeServiceCommand.InstallAgents
         LocalRuntimeService.ACTION_INSTALL_FULL_DEVELOPMENT_TOOLS -> LocalRuntimeServiceCommand.InstallFullDevelopmentTools
         LocalRuntimeService.ACTION_START -> LocalRuntimeServiceCommand.Start
         LocalRuntimeService.ACTION_REINSTALL -> LocalRuntimeServiceCommand.Reinstall
@@ -75,6 +77,7 @@ internal fun clearsUserStoppedFlag(command: LocalRuntimeServiceCommand): Boolean
     when (command) {
         LocalRuntimeServiceCommand.Start,
         LocalRuntimeServiceCommand.InstallAndStart,
+        LocalRuntimeServiceCommand.InstallAgents,
         LocalRuntimeServiceCommand.Restart,
         LocalRuntimeServiceCommand.Reinstall,
         LocalRuntimeServiceCommand.Update,
@@ -374,6 +377,12 @@ class LocalRuntimeService : Service() {
             return START_NOT_STICKY
         }
         when (command) {
+        LocalRuntimeServiceCommand.InstallAgents -> {
+                autoRestartEnabled = true
+                val agents = localRuntimeInstallAgents(intent?.getStringArrayExtra(EXTRA_AGENTS))
+                val installFullDevelopmentTools = intent?.getBooleanExtra(EXTRA_FULL_DEVELOPMENT_TOOLS, false) == true
+                launchOperation { manager.installAgents(agents, installFullDevelopmentTools) }
+            }
             LocalRuntimeServiceCommand.InstallAndStart -> {
                 autoRestartEnabled = true
                 val agents = localRuntimeInstallAgents(intent?.getStringArrayExtra(EXTRA_AGENTS))
@@ -707,6 +716,7 @@ class LocalRuntimeService : Service() {
         private const val WAKELOCK_TIMEOUT_MILLIS = 10 * 60 * 1000L
         private const val RUNTIME_OPERATION_LEASE_TAG = "runtime-op"
         const val ACTION_INSTALL_AND_START = "com.yugahashimoto.andcode.local.INSTALL_AND_START"
+        const val ACTION_INSTALL_AGENTS = "com.yugahashimoto.andcode.local.INSTALL_AGENTS"
         const val ACTION_INSTALL_FULL_DEVELOPMENT_TOOLS = "com.yugahashimoto.andcode.local.INSTALL_FULL_DEVELOPMENT_TOOLS"
         const val ACTION_START = "com.yugahashimoto.andcode.local.START"
         const val ACTION_STOP = "com.yugahashimoto.andcode.local.STOP"
@@ -750,6 +760,16 @@ class LocalRuntimeServiceController(private val context: Context) {
      * makes ticking Claude Code or Antigravity alongside OpenCode actually install them: their own
      * installers would otherwise have to race this one for the same staging directory.
      */
+    fun installAgents(
+        agents: Set<LocalAgent>,
+        installFullDevelopmentTools: Boolean = false,
+    ) = LocalRuntimeService.send(
+        context,
+        LocalRuntimeService.ACTION_INSTALL_AGENTS,
+        agents,
+        installFullDevelopmentTools,
+    )
+
     fun installAndStart(
         agents: Set<LocalAgent> = setOf(LocalAgent.OPEN_CODE),
         installFullDevelopmentTools: Boolean = false,
