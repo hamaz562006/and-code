@@ -159,6 +159,7 @@ fun AndroidSetupScreen(
     val claudeSelected = LocalAgent.CLAUDE_CODE in selectedAgents
     val antigravitySelected = LocalAgent.ANTIGRAVITY in selectedAgents
     val codexSelected = LocalAgent.CODEX in selectedAgents
+    val piSelected = LocalAgent.PI in selectedAgents
     val openCodeReady = runtimeStatus is LocalRuntimeStatus.Ready || runtimeStatus is LocalRuntimeStatus.Stopped
     val antigravityReady = antigravitySelected && antigravity.installed && !antigravity.busy
     val codexReady = codex.installed && codex.install !is CodexInstallStatus.Installing && codex.install !is CodexInstallStatus.Failed
@@ -173,6 +174,7 @@ fun AndroidSetupScreen(
             LocalAgent.CLAUDE_CODE.takeIf { claudeSelected && claude.installed },
             LocalAgent.ANTIGRAVITY.takeIf { antigravitySelected && antigravity.installed },
             LocalAgent.CODEX.takeIf { codexSelected && codex.installed },
+            LocalAgent.PI.takeIf { piSelected && openCodeReady },
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
@@ -609,6 +611,12 @@ private fun AgentSelectionStep(
             description = stringResource(R.string.setup_agent_codex_desc),
             selected = LocalAgent.CODEX in selectedAgents,
             onToggle = { onToggle(LocalAgent.CODEX) },
+        )
+        AgentOption(
+            title = stringResource(R.string.agent_pi_name),
+            description = stringResource(R.string.setup_agent_pi_desc),
+            selected = LocalAgent.PI in selectedAgents,
+            onToggle = { onToggle(LocalAgent.PI) },
         )
         if (selectedAgents.size >= 2) {
             Text(
