@@ -350,7 +350,7 @@ class PiRuntime(
                             delta,
                         )
                     }
-                    "toolcall_start", "toolcall_delta", "toolcall_end" -> {
+                    "toolcall_start", "toolcall_end" -> {
                         val toolCallId =
                             update["id"]?.jsonPrimitive?.content
                                 ?: update["toolCall"]?.jsonObject?.get("id")?.jsonPrimitive?.content
