@@ -340,8 +340,14 @@ class PiRuntime(
                         )
                     }
                     "toolcall_start", "toolcall_end" -> {
-                        val toolCallId = update["id"]?.jsonPrimitive?.content ?: return null
-                        val toolName = update["toolName"]?.jsonPrimitive?.content ?: "tool"
+                        val toolCallId =
+                            update["id"]?.jsonPrimitive?.content
+                                ?: update["toolCall"]?.jsonObject?.get("id")?.jsonPrimitive?.content
+                                ?: return null
+                        val toolName =
+                            update["toolName"]?.jsonPrimitive?.content
+                                ?: update["toolCall"]?.jsonObject?.get("name")?.jsonPrimitive?.content
+                                ?: "tool"
                         OpenCodeEvent.MessagePartUpdated(
                             OpenCodePart(
                                 id = toolCallId,
@@ -363,7 +369,29 @@ class PiRuntime(
                     else -> null
                 }
             }
-            "agent_end" -> OpenCodeEvent.SessionIdle(sessionId)
+            "tool_execution_start", "tool_execution_end" -> {
+                val toolCallId = obj["toolCallId"]?.jsonPrimitive?.content ?: return null
+                val toolName = obj["toolName"]?.jsonPrimitive?.content ?: "tool"
+                val messageId = streamingAssistantMessages[sessionId] ?: "pi-tool-${toolCallId}"
+                OpenCodeEvent.MessagePartUpdated(
+                    OpenCodePart(
+                        id = toolCallId,
+                        sessionId = sessionId,
+                        messageId = messageId,
+                        type = "tool",
+                        tool = toolName,
+                        callID = toolCallId,
+                        state =
+                            mapOf(
+                                "status" to
+                                    JsonPrimitive(
+                                        if (type == "tool_execution_end") "completed" else "running",
+                                    ),
+                            ),
+                    ),
+                )
+            }
+            "agent_settled" -> OpenCodeEvent.SessionIdle(sessionId)
             else -> null
         }
     }
