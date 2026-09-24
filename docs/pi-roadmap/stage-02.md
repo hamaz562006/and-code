@@ -1,5 +1,13 @@
 # stage-02
 
-refactor: move Pi provisioning into shared runtime pipeline
+## Shared provisioning pipeline
 
-This PR is a staged checkpoint in the Pi integration rebuild. Implementation for this stage will be added to this PR and must be completed and validated before merge.
+Pi installation is provisioned only by `LocalRuntimeInstaller.install()`.
+
+`PiRuntime` no longer exposes an independent `install()` entry point that could invoke `PiInstaller` outside the shared staging/activation pipeline.
+
+The resulting boundary is:
+
+Shared runtime provisioning → Pi prerequisites → `PiInstaller` → Pi verification → shared metadata → atomic activation.
+
+This stage deliberately does not change Pi runtime/session execution.
