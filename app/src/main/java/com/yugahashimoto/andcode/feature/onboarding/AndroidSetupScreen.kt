@@ -1405,6 +1405,7 @@ private fun AndroidSetupProviderStepPreview() {
                             "openai" to
                                 listOf(
                                     ProviderAuthMethod(type = "oauth", label = "ChatGPT Plus/Pro"),
+                                    ProviderAuthMethod(type = "api", label = "API key"),
                                 ),
                             "anthropic" to
                                 listOf(
