@@ -339,6 +339,11 @@ class WorkspaceViewModel(
         installFullDevelopmentTools: Boolean = false,
     ) = localRuntimeController.installAndStart(agents, installFullDevelopmentTools)
 
+    fun installAgents(
+        agents: Set<LocalAgent>,
+        installFullDevelopmentTools: Boolean = false,
+    ) = localRuntimeController.installAgents(agents, installFullDevelopmentTools)
+
     fun startLocalRuntime() = localRuntimeController.start()
 
     fun stopLocalRuntime() = localRuntimeController.stop()
