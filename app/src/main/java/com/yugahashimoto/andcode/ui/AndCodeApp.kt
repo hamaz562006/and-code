@@ -951,6 +951,8 @@ fun AndCodeApp(
                                 // second one would race it for the same staging directory.
                                 if (com.yugahashimoto.andcode.runtime.LocalAgent.OPEN_CODE in agents) {
                                     workspaceViewModel.setupLocalRuntime(agents, installFullDevelopmentTools)
+                                } else if (com.yugahashimoto.andcode.runtime.LocalAgent.PI in agents) {
+                                    workspaceViewModel.installAgents(agents, installFullDevelopmentTools)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY in agents) {
                                     app.antigravityController.install(agents, installFullDevelopmentTools)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CODEX in agents) {
