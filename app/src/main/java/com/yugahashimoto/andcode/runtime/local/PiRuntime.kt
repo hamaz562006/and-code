@@ -123,6 +123,22 @@ class PiRuntime(
         request: PromptRequest,
     ) {
         val process = ensureProcess(sessionId)
+        if (!request.providerId.isNullOrBlank() && !request.modelId.isNullOrBlank()) {
+            val modelResponse =
+                send(
+                    process,
+                    buildJsonObject {
+                        put("type", "set_model")
+                        put("provider", request.providerId)
+                        put("modelId", request.modelId)
+                    },
+                )
+            if ((modelResponse["success"] as? JsonPrimitive)?.booleanOrNull == false) {
+                error(
+                    (modelResponse["error"] as? JsonPrimitive)?.content ?: "Pi rejected the selected model",
+                )
+            }
+        }
         val response =
             send(
                 process,
