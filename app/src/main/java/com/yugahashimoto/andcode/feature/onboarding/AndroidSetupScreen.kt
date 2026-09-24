@@ -1405,4 +1405,32 @@ private fun AndroidSetupProviderStepPreview() {
                             "openai" to
                                 listOf(
                                     ProviderAuthMethod(type = "oauth", label = "ChatGPT Plus/Pro"),
+                                ),
+                            "anthropic" to
+                                listOf(
                                     ProviderAuthMethod(type = "api", label = "API key"),
+                                ),
+                            "ollama" to
+                                listOf(
+                                    ProviderAuthMethod(type = "api", label = "No key needed"),
+                                ),
+                        ),
+                    connectedProviderIds = setOf("ollama"),
+                ),
+            onOpenProviderAuth = {},
+            onSelectProviderAuthMethod = {},
+            onProviderAuthInput = { _, _ -> },
+            onProviderApiKey = {},
+            onSubmitProviderAuth = {},
+            onCompleteProviderOAuth = {},
+            onDisconnectProvider = {},
+            onDismissProviderAuth = {},
+            onRefreshProviderAuth = {},
+            onRefreshCatalog = {},
+            onRefreshClaudeState = {},
+            onRefreshAntigravityState = {},
+            onBack = {},
+            onFinish = {},
+        )
+    }
+}
