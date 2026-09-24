@@ -1108,6 +1108,8 @@ private fun SignInStep(
                         onSignIn = onSignInCodex,
                         onSignOut = onSignOutCodex,
                     )
+                LocalAgent.PI ->
+                    Text(stringResource(R.string.setup_agent_pi_desc))
             }
         }
     }

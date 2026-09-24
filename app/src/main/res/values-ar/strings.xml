@@ -905,6 +905,9 @@
     <string name="agent_claude_code_name">Claude Code</string>
     <string name="agent_antigravity_name">Antigravity</string>
     <string name="agent_codex_name">Codex</string>
+    <string name="agent_pi_name">Pi</string>
+    <string name="install_step_downloading_pi">Installing Pi</string>
+    <string name="setup_agent_pi_desc">Run Pi locally through its JSON-RPC interface. Requires a model provider API key.</string>
     <string name="runtime_error_install_failed">تعذّر تثبيت بيئة التشغيل المحلية</string>
     <string name="runtime_error_reinstall_failed">تعذّرت إعادة تثبيت بيئة التشغيل المحلية</string>
     <string name="runtime_error_start_failed">تعذّر تشغيل OpenCode المحلي</string>

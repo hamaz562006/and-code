@@ -34,5 +34,6 @@ fun runtimeAgentIcon(agent: LocalAgent?): Int =
         LocalAgent.OPEN_CODE -> R.drawable.ic_agent_opencode
         LocalAgent.ANTIGRAVITY -> R.drawable.ic_agent_antigravity
         LocalAgent.CODEX -> R.drawable.ic_agent_codex
+        LocalAgent.PI -> R.drawable.ic_agent_pi
         null -> R.drawable.ic_runtime_remote
     }

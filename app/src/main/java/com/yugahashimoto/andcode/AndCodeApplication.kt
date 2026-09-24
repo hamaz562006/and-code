@@ -74,6 +74,8 @@ import com.yugahashimoto.andcode.runtime.local.LocalRuntimeReleaseClient
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeServiceController
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeTarget
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeUpdater
+import com.yugahashimoto.andcode.runtime.local.PiRuntime
+import com.yugahashimoto.andcode.runtime.local.PiTarget
 import com.yugahashimoto.andcode.runtime.local.SystemPromptStore
 import com.yugahashimoto.andcode.runtime.local.VerifiedRuntimeDownloader
 import com.yugahashimoto.andcode.runtime.local.applyOpenCodeSystemPrompt
@@ -208,6 +210,12 @@ class AndCodeApplication : Application() {
     lateinit var codexTarget: CodexTarget
         private set
 
+    lateinit var piRuntime: PiRuntime
+        private set
+
+    lateinit var piTarget: PiTarget
+        private set
+
     lateinit var antigravityController: AntigravityController
         private set
 
@@ -336,6 +344,16 @@ class AndCodeApplication : Application() {
                 githubToken = { settings.githubToken },
             )
         codexTarget = CodexTarget(codexRuntime, codexMessages)
+        piRuntime =
+            PiRuntime(
+                runtimeDirectory = runtimeDirectory,
+                installedRuntimeProvider = installer::installedRuntime,
+                accessCoordinator = accessCoordinator,
+                providerCredentials = { providerCredentials.credentials() },
+                customProviders = { customProviders.definitions() },
+                githubToken = { settings.githubToken },
+            )
+        piTarget = PiTarget(piRuntime)
         // Codex is a child of this process, so it is cut off from the network the moment the app has
         // nothing in the foreground on some devices: hold the app there while Codex is signing in or
         // running a turn (see CodexKeepAliveService).
