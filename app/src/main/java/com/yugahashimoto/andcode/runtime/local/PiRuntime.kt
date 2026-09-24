@@ -230,6 +230,7 @@ class PiRuntime(
             buildList {
                 add("--mode")
                 add("rpc")
+                add("--approve")
                 if (noSession) {
                     add("--no-session")
                 } else if (sessionFile != null) {
