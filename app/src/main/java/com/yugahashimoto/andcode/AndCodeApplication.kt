@@ -350,6 +350,7 @@ class AndCodeApplication : Application() {
                 installedRuntimeProvider = installer::installedRuntime,
                 accessCoordinator = accessCoordinator,
                 providerCredentials = { providerCredentials.credentials() },
+                customProviders = { customProviders.definitions() },
                 githubToken = { settings.githubToken },
             )
         piTarget = PiTarget(piRuntime)
