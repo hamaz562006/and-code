@@ -134,6 +134,7 @@ class LocalRuntimeManager(
                 } else {
                     mutableState.value = LocalRuntimeStatus.NotInstalled
                 }
+                Unit
             }.onFailure { error ->
                 mutableState.value = LocalRuntimeStatus.Broken(error.message ?: messages.installFailed)
             }
