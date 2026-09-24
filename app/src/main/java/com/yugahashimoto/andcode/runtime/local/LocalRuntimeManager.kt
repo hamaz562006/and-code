@@ -38,6 +38,9 @@ data class LocalRuntimeMetadata(
 ) {
     fun has(agent: LocalAgent): Boolean = agent.id in components
 
+    /** Returns the installed agent set recorded in metadata, ignoring unknown future IDs. */
+    fun installedAgents(): Set<LocalAgent> = components.mapNotNull(LocalAgent::fromId).toSet()
+
     fun hasFullDevelopmentTools(): Boolean =
         fullDevelopmentToolsInstalled && (!has(LocalAgent.ANTIGRAVITY) || fullDebianDevelopmentToolsInstalled)
 
@@ -245,9 +248,8 @@ class LocalRuntimeManager(
                 val installed =
                     configuredInstaller.install(
                         agents =
-                            previousMetadata?.components
-                                ?.mapNotNull(LocalAgent::fromId)
-                                ?.toSet()
+                            previousMetadata
+                                ?.installedAgents()
                                 ?.takeIf(Set<LocalAgent>::isNotEmpty)
                                 ?: setOf(LocalAgent.OPEN_CODE),
                         installFullDevelopmentTools = previousMetadata?.fullDevelopmentToolsInstalled == true,
