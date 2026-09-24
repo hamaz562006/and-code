@@ -216,27 +216,6 @@ fun AndroidSetupScreen(
         }
     }
 
-    // One install provisions every selected agent, so the guide no longer chains a second and third
-    // install off this screen once the first finishes. It used to, and that made the outcome depend
-    // on the screen staying in composition: leave the guide during the several-minute OpenCode
-    // download and the agents queued behind it were simply never installed, which is how a setup
-    // that reported success could still leave Claude Code missing. What is left is a re-read of the
-    // install state, because the runtime service - not these controllers - ran the install.
-    //
-    // OpenCode reaching Ready is one trigger, but a selection without OpenCode never reaches it: the
-    // shared runtime status stays NotInstalled for a sandbox OpenCode was not asked into. There the
-    // controller that ran the install (Antigravity's or Codex's) knows only its own agent, so the
-    // others it provisioned alongside were never re-read and the step never completed. Re-reading
-    // every selected agent when any install stops running covers both.
-    var piInstallStarted by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(currentStep, piSelected, piInstalled, packageInstallRunning) {
-        if (currentStep == 3 && piSelected && !piInstalled && !packageInstallRunning && !piInstallStarted) {
-            piInstallStarted = true
-            onStartSetup(selectedAgents, installFullDevelopmentTools)
-        }
-        if (piInstalled) piInstallStarted = false
-    }
-
     var installWasRunning by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(openCodeReady, packageInstallRunning) {
         val installJustFinished = installWasRunning && !packageInstallRunning
