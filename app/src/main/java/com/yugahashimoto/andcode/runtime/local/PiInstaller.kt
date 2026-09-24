@@ -8,6 +8,8 @@ import java.util.concurrent.TimeUnit
 object PiInstaller {
     const val PI_VERSION = "0.87.1"
     private const val PI_BINARY = "/usr/local/bin/pi"
+    private const val MIN_NODE_MAJOR = 22
+    private const val MIN_NODE_MINOR = 19
 
     fun isInstalledIn(rootfs: File): Boolean = File(rootfs, PI_BINARY.removePrefix("/")).isFile
 
@@ -48,11 +50,14 @@ object PiInstaller {
                         "/bin/sh",
                         "-lc",
                         "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin " +
+                            "node -e 'const v=process.versions.node.split(".").map(Number); " +
+                            "if (v[0] < $MIN_NODE_MAJOR || (v[0] === $MIN_NODE_MAJOR && v[1] < $MIN_NODE_MINOR)) " +
+                            "throw new Error("Pi requires Node.js >= $MIN_NODE_MAJOR.$MIN_NODE_MINOR; found " + process.versions.node)' && " +
                             "node --version && npm --version && " +
                             "npm config set registry https://registry.npmjs.org/ && " +
                             "npm install -g --ignore-scripts --no-fund --no-audit --progress=false " +
                             "--fetch-retries=2 --fetch-timeout=120000 --fetch-retry-mintimeout=1000 " +
-                            "--fetch-retry-maxtimeout=5000 @earendil-works/pi-coding-agent@${PI_VERSION} && " +
+                            "--fetch-retry-maxtimeout=5000 @earendil-works/pi-coding-agent@$PI_VERSION && " +
                             "/usr/local/bin/pi --version",
                     )
                 val process =
