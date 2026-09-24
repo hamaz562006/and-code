@@ -69,11 +69,6 @@ class PiRuntime(
         return result.output.lineSequence().map(String::trim).firstOrNull(String::isNotBlank)
     }
 
-    suspend fun install(): String {
-        val runtime = installedRuntimeProvider() ?: error("Linux environment is not installed")
-        return PiInstaller.install(runtime, runtimeDirectory, accessCoordinator)
-    }
-
     suspend fun connect(): OpenCodeHealth =
         if (!isInstalled()) OpenCodeHealth(false, "") else OpenCodeHealth(true, version() ?: PiInstaller.PI_VERSION)
 
