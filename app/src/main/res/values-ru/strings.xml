@@ -1188,4 +1188,5 @@
     <string name="full_development_tools_installed">Полный набор инструментов установлен</string>
     <string name="install_full_development_tools_button">Установить полный набор</string>
     <string name="runtime_full_development_tools_start_failed">Не удалось начать установку инструментов разработки</string>
+    <string name="install_step_installing_pi_requirements">Installing Pi requirements</string>
 </resources>
