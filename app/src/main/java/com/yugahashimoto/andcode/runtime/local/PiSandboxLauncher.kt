@@ -45,7 +45,6 @@ object PiSandboxLauncher {
             mapOf(
                 "HOME" to "/root",
                 "PI_CODING_AGENT_DIR" to "/root/.pi/agent",
-                "PI_OFFLINE" to "1",
                 "PI_SKIP_VERSION_CHECK" to "1",
                 "PI_TELEMETRY" to "0",
                 "TERM" to "xterm-256color",
