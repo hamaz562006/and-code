@@ -254,7 +254,7 @@ class PiRuntime(
             kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
                 runCatching {
                     process.inputStream.bufferedReader().useLines {
-                        lines ->
+                            lines ->
                         lines.forEach { handleLine(it, pending) { currentSessionId } }
                     }
                 }.also {
