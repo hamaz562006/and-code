@@ -252,9 +252,18 @@ class PiRuntime(
         var currentSessionId = "pending-" + UUID.randomUUID()
         val reader =
             kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
-                process.inputStream.bufferedReader().useLines {
+                runCatching {
+                    process.inputStream.bufferedReader().useLines {
                         lines ->
-                    lines.forEach { handleLine(it, pending) { currentSessionId } }
+                        lines.forEach { handleLine(it, pending) { currentSessionId } }
+                    }
+                }.also {
+                    val error =
+                        it.exceptionOrNull()
+                            ?: IllegalStateException("Pi RPC process exited before completing a pending request")
+                    pending.values.forEach { deferred -> deferred.completeExceptionally(error) }
+                    pending.clear()
+                    processes.remove(currentSessionId)
                 }
             }
         val provisional = PiProcess(currentSessionId, process, pending, directory)
