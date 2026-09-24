@@ -240,7 +240,6 @@ class LocalRuntimeManager(
         operationMutex.withLock {
             withContext(Dispatchers.IO) { processLauncher?.stop() }
             val previousMetadata = readMetadata()
-            File(runtimeDirectory, METADATA_FILE).delete()
             val configuredInstaller =
                 installer
                     ?: return@withLock Result.failure(IllegalStateException("Local runtime installer is not configured"))
