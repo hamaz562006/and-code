@@ -376,6 +376,7 @@ fun AndroidSetupScreen(
                         claudeSelected = claudeSelected,
                         antigravitySelected = antigravitySelected,
                         codexSelected = codexSelected,
+                        piSelected = piSelected,
                     )
                 4 ->
                     SignInStep(
@@ -749,6 +750,7 @@ private fun RuntimeDownloadStep(
     claudeSelected: Boolean,
     antigravitySelected: Boolean,
     codexSelected: Boolean,
+    piSelected: Boolean,
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
     // each step is shown under the agent it names. Without this the OpenCode panel displayed
@@ -794,7 +796,21 @@ private fun RuntimeDownloadStep(
                 if (step != null) SharedInstallProgress(step) else CodexInstallProgress(codex)
             }
         }
+        if (piSelected) {
+            SetupPanel {
+                Text(stringResource(R.string.agent_pi_name), fontWeight = FontWeight.SemiBold)
+                val step = stepFor(LocalAgent.PI)
+                if (step != null) SharedInstallProgress(step) else PiInstallProgress()
+            }
+        }
     }
+}
+
+
+@Composable
+private fun PiInstallProgress() {
+    Text(stringResource(R.string.setup_runtime_not_installed), color = MaterialTheme.colorScheme.onSurfaceVariant)
+    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
 }
 
 @Composable
