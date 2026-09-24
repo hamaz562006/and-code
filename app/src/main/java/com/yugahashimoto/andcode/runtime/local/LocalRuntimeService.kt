@@ -377,7 +377,7 @@ class LocalRuntimeService : Service() {
             return START_NOT_STICKY
         }
         when (command) {
-        LocalRuntimeServiceCommand.InstallAgents -> {
+            LocalRuntimeServiceCommand.InstallAgents -> {
                 autoRestartEnabled = true
                 val agents = localRuntimeInstallAgents(intent?.getStringArrayExtra(EXTRA_AGENTS))
                 val installFullDevelopmentTools = intent?.getBooleanExtra(EXTRA_FULL_DEVELOPMENT_TOOLS, false) == true
