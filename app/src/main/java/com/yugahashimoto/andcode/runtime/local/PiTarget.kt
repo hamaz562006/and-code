@@ -130,10 +130,9 @@ class PiTarget(private val runtime: PiRuntime) : RuntimeTarget {
     override fun events(): Flow<OpenCodeEvent> = runtime.events()
 
     override suspend fun listWorkspaces(): List<WorkspaceRef> =
-        listSessions().mapNotNull {
-            it.directory?.let {
-                    path ->
-                WorkspaceRef(path, path.substringAfterLast('/').ifBlank { path }, path)
-            }
-        }.distinctBy { it.id }
+        mergeWorkspaceRefs(
+            currentDirectory = null,
+            sessions = listSessions(),
+            projects = emptyList(),
+        )
 }
