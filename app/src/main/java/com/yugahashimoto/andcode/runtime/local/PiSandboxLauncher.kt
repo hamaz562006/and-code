@@ -52,13 +52,17 @@ object PiSandboxLauncher {
             }
             .start()
 
-    fun stop(process: Process, runtimeDirectory: File) {
+    fun stop(
+        process: Process,
+        runtimeDirectory: File,
+    ) {
         runCatching { process.destroy() }
         runCatching { process.waitFor(750, java.util.concurrent.TimeUnit.MILLISECONDS) }
-        val roots = linkedSetOf<Long>().apply {
-            processId(process)?.let(::add)
-            addAll(findManagedRuntimeRootPids(runtimeDirectory))
-        }
+        val roots =
+            linkedSetOf<Long>().apply {
+                processId(process)?.let(::add)
+                addAll(findManagedRuntimeRootPids(runtimeDirectory))
+            }
         roots
             .flatMap { rootPid -> processTreePostOrder(rootPid) { pid -> readDirectChildPids(pid) } }
             .distinct()
