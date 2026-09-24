@@ -118,7 +118,7 @@ class LocalRuntimeManager(
         installFullDevelopmentTools: Boolean = false,
     ): Result<Unit> =
         operationMutex.withLock {
-            val configuredInstaller =
+            val configuredInstaller: LocalRuntimeInstaller =
                 installer ?: return@withLock Result.failure(IllegalStateException("Local runtime installer is not configured"))
             runCatching {
                 require(agents.isNotEmpty()) { "At least one agent must be selected" }
