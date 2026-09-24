@@ -228,6 +228,15 @@ fun AndroidSetupScreen(
     // controller that ran the install (Antigravity's or Codex's) knows only its own agent, so the
     // others it provisioned alongside were never re-read and the step never completed. Re-reading
     // every selected agent when any install stops running covers both.
+    var piInstallStarted by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(currentStep, piSelected, piInstalled, packageInstallRunning) {
+        if (currentStep == 3 && piSelected && !piInstalled && !packageInstallRunning && !piInstallStarted) {
+            piInstallStarted = true
+            onStartSetup(selectedAgents, installFullDevelopmentTools)
+        }
+        if (piInstalled) piInstallStarted = false
+    }
+
     var installWasRunning by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(openCodeReady, packageInstallRunning) {
         val installJustFinished = installWasRunning && !packageInstallRunning
