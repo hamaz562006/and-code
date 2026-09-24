@@ -146,15 +146,16 @@ class PiRuntime(
                 buildJsonObject {
                     put("type", "prompt")
                     put("message", request.text)
-                    val images = request.attachments.mapNotNull { attachment ->
-                        val prefix = "data:${attachment.mime};base64,"
-                        if (!attachment.mime.startsWith("image/") || !attachment.url.startsWith(prefix)) return@mapNotNull null
-                        buildJsonObject {
-                            put("type", "image")
-                            put("data", attachment.url.removePrefix(prefix))
-                            put("mimeType", attachment.mime)
+                    val images =
+                        request.attachments.mapNotNull { attachment ->
+                            val prefix = "data:${attachment.mime};base64,"
+                            if (!attachment.mime.startsWith("image/") || !attachment.url.startsWith(prefix)) return@mapNotNull null
+                            buildJsonObject {
+                                put("type", "image")
+                                put("data", attachment.url.removePrefix(prefix))
+                                put("mimeType", attachment.mime)
+                            }
                         }
-                    }
                     if (images.isNotEmpty()) put("images", JsonArray(images))
                 },
             )
