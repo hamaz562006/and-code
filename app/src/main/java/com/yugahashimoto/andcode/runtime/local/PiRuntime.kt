@@ -372,7 +372,7 @@ class PiRuntime(
             "tool_execution_start", "tool_execution_end" -> {
                 val toolCallId = obj["toolCallId"]?.jsonPrimitive?.content ?: return null
                 val toolName = obj["toolName"]?.jsonPrimitive?.content ?: "tool"
-                val messageId = streamingAssistantMessages[sessionId] ?: "pi-tool-${toolCallId}"
+                val messageId = streamingAssistantMessages[sessionId] ?: "pi-tool-$toolCallId"
                 OpenCodeEvent.MessagePartUpdated(
                     OpenCodePart(
                         id = toolCallId,
