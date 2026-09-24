@@ -50,9 +50,9 @@ object PiInstaller {
                         "/bin/sh",
                         "-lc",
                         "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin " +
-                            "node -e 'const v=process.versions.node.split('.').map(Number); " +
+                            "node -e 'const v=process.versions.node.split(".").map(Number); " +
                             "if (v[0] < $MIN_NODE_MAJOR || (v[0] === $MIN_NODE_MAJOR && v[1] < $MIN_NODE_MINOR)) " +
-                            "throw new Error('Pi requires Node.js >= $MIN_NODE_MAJOR.$MIN_NODE_MINOR; found ' + process.versions.node)' && " +
+                            "throw new Error("Pi requires Node.js >= $MIN_NODE_MAJOR.$MIN_NODE_MINOR; found " + process.versions.node)' && " +
                             "node --version && npm --version && " +
                             "npm config set registry https://registry.npmjs.org/ && " +
                             "npm install -g --ignore-scripts --no-fund --no-audit --progress=false " +
