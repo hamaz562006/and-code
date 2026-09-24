@@ -1,13 +1,13 @@
 package com.yugahashimoto.andcode.runtime.local
 
 import com.yugahashimoto.andcode.runtime.LocalAgent
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import kotlinx.serialization.json.Json
 
 class PiRegressionTest {
     @get:Rule
