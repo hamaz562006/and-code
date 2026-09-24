@@ -198,6 +198,7 @@ fun AndCodeApp(
     val preferences by app.preferences.state.collectAsState()
     val antigravityState by app.antigravityController.state.collectAsState()
     val codexState by app.codexController.state.collectAsState()
+    val piState by app.piTarget.state.collectAsState()
     val codexSignInViewModel: CodexSignInViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel(
             key = "setup-codex-sign-in",
@@ -975,6 +976,7 @@ fun AndCodeApp(
                             onCancelAntigravitySignIn = app.antigravityController::cancelAuth,
                             onSignOutAntigravity = app.antigravityController::logout,
                             codex = codexState,
+                            piInstalled = piState is com.yugahashimoto.andcode.runtime.RuntimeState.Connected,
                             codexSignInDialog = codexSignInDialog,
                             codexSignIn =
                                 CodexSignInActions(
@@ -987,6 +989,7 @@ fun AndCodeApp(
                                 ),
                             onSignOutCodex = app.codexController::signOut,
                             onRefreshCodexState = app.codexController::refresh,
+                            onRefreshPiState = { voiceScope.launch { app.piTarget.connect() } },
                             onSelectAntigravityPermissionMode = { mode ->
                                 app.antigravityController.setPermissionMode(mode, chatState.sessionId)
                             },
