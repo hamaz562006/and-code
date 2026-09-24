@@ -1202,4 +1202,5 @@
     <string name="full_development_tools_installed">完全な開発ツールをインストール済み</string>
     <string name="install_full_development_tools_button">完全なツールチェーンをインストール</string>
     <string name="runtime_full_development_tools_start_failed">開発ツールのインストールを開始できません</string>
+    <string name="install_step_installing_pi_requirements">Installing Pi requirements</string>
 </resources>

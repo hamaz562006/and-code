@@ -1186,4 +1186,5 @@
     <string name="full_development_tools_installed">Tous les outils de développement sont installés</string>
     <string name="install_full_development_tools_button">Installer la chaîne complète</string>
     <string name="runtime_full_development_tools_start_failed">Impossible de démarrer l’installation des outils</string>
+    <string name="install_step_installing_pi_requirements">Installing Pi requirements</string>
 </resources>
