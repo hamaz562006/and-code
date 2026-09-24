@@ -804,7 +804,11 @@ private fun RuntimeDownloadStep(
             SetupPanel {
                 Text(stringResource(R.string.agent_pi_name), fontWeight = FontWeight.SemiBold)
                 val step = stepFor(LocalAgent.PI)
-                if (step != null) SharedInstallProgress(step) else PiInstallProgress()
+                when {
+                    step != null -> SharedInstallProgress(step)
+                    sharedStep != null && !openCodeSelected -> SharedInstallProgress(sharedStep)
+                    else -> PiInstallProgress()
+                }
             }
         }
     }
