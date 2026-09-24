@@ -810,7 +810,6 @@ private fun RuntimeDownloadStep(
     }
 }
 
-
 @Composable
 private fun PiInstallProgress() {
     Text(stringResource(R.string.setup_runtime_not_installed), color = MaterialTheme.colorScheme.onSurfaceVariant)
