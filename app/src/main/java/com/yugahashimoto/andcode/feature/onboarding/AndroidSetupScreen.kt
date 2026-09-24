@@ -159,6 +159,7 @@ fun AndroidSetupScreen(
     val claudeSelected = LocalAgent.CLAUDE_CODE in selectedAgents
     val antigravitySelected = LocalAgent.ANTIGRAVITY in selectedAgents
     val codexSelected = LocalAgent.CODEX in selectedAgents
+    val piSelected = LocalAgent.PI in selectedAgents
     val openCodeReady = runtimeStatus is LocalRuntimeStatus.Ready || runtimeStatus is LocalRuntimeStatus.Stopped
     val antigravityReady = antigravitySelected && antigravity.installed && !antigravity.busy
     val codexReady = codex.installed && codex.install !is CodexInstallStatus.Installing && codex.install !is CodexInstallStatus.Failed
@@ -173,6 +174,7 @@ fun AndroidSetupScreen(
             LocalAgent.CLAUDE_CODE.takeIf { claudeSelected && claude.installed },
             LocalAgent.ANTIGRAVITY.takeIf { antigravitySelected && antigravity.installed },
             LocalAgent.CODEX.takeIf { codexSelected && codex.installed },
+            LocalAgent.PI.takeIf { piSelected && openCodeReady },
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
@@ -609,6 +611,12 @@ private fun AgentSelectionStep(
             description = stringResource(R.string.setup_agent_codex_desc),
             selected = LocalAgent.CODEX in selectedAgents,
             onToggle = { onToggle(LocalAgent.CODEX) },
+        )
+        AgentOption(
+            title = stringResource(R.string.agent_pi_name),
+            description = stringResource(R.string.setup_agent_pi_desc),
+            selected = LocalAgent.PI in selectedAgents,
+            onToggle = { onToggle(LocalAgent.PI) },
         )
         if (selectedAgents.size >= 2) {
             Text(
@@ -1198,232 +1206,3 @@ private fun ProviderConnectionStep(
                             },
                         connected = connected,
                         onConnect = { onOpenProviderAuth(provider.id) },
-                        onDisconnect = { onDisconnectProvider(provider.id) },
-                    )
-                }
-            }
-        }
-
-        settingsState.providerAuthNotice?.let {
-            Text(
-                text = stringResource(R.string.provider_connected_success),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-        settingsState.oauthMessage?.let { message ->
-            Text(
-                message,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ProviderConnectionRow(
-    providerName: String,
-    methodSummary: String,
-    connected: Boolean,
-    onConnect: () -> Unit,
-    onDisconnect: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = providerName,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f),
-                )
-                if (connected) {
-                    Surface(
-                        shape = RoundedCornerShape(100.dp),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                        contentColor = MaterialTheme.colorScheme.primary,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.provider_connected),
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    }
-                }
-            }
-            Text(
-                text = methodSummary,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (connected) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onConnect, modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.provider_change_connection))
-                    }
-                    TextButton(onClick = onDisconnect) {
-                        Text(stringResource(R.string.provider_disconnect))
-                    }
-                }
-            } else {
-                OutlinedButton(onClick = onConnect, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.provider_connect))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SetupBottomBar(
-    currentStep: Int,
-    primaryAction: SetupPrimaryAction?,
-    onSkip: (() -> Unit)?,
-    onBackStep: () -> Unit,
-) {
-    Surface(
-        color = MaterialTheme.colorScheme.background,
-        border =
-            BorderStroke(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
-            ),
-    ) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            if (currentStep > 1) {
-                OutlinedButton(
-                    onClick = onBackStep,
-                    modifier = Modifier.width(96.dp),
-                ) {
-                    Text(stringResource(R.string.setup_back_action))
-                }
-            }
-            if (onSkip != null) {
-                TextButton(onClick = onSkip) {
-                    Text(stringResource(R.string.setup_skip_action))
-                }
-            }
-            if (primaryAction != null) {
-                Button(
-                    onClick = primaryAction.onClick,
-                    enabled = primaryAction.enabled,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(primaryAction.label, textAlign = TextAlign.Center)
-                }
-            } else {
-                Spacer(Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun AndroidSetupScreenPreview() {
-    AndCodeTheme {
-        AndroidSetupScreen(
-            runtimeStatus = LocalRuntimeStatus.Installing(0.68f, "Downloading runtime"),
-            claude = ClaudeCodeUiState(),
-            onStartSetup = { _, _ -> },
-            onBeginClaudeSignIn = {},
-            onSubmitClaudeSignInCode = {},
-            onCancelClaudeSignIn = {},
-            onSignOutClaude = {},
-            onOpenUrl = {},
-            onSelectClaudePermissionMode = {},
-            settingsState = SettingsUiState(),
-            onOpenProviderAuth = {},
-            onSelectProviderAuthMethod = {},
-            onProviderAuthInput = { _, _ -> },
-            onProviderApiKey = {},
-            onSubmitProviderAuth = {},
-            onCompleteProviderOAuth = {},
-            onDisconnectProvider = {},
-            onDismissProviderAuth = {},
-            onRefreshProviderAuth = {},
-            onRefreshCatalog = {},
-            onRefreshClaudeState = {},
-            onRefreshAntigravityState = {},
-            onBack = {},
-            onFinish = {},
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun AndroidSetupProviderStepPreview() {
-    AndCodeTheme {
-        AndroidSetupScreen(
-            runtimeStatus = LocalRuntimeStatus.Ready("1.0.0", 4097),
-            claude = ClaudeCodeUiState(installed = true, version = "2.1.212"),
-            onStartSetup = { _, _ -> },
-            onBeginClaudeSignIn = {},
-            onSubmitClaudeSignInCode = {},
-            onCancelClaudeSignIn = {},
-            onSignOutClaude = {},
-            onOpenUrl = {},
-            onSelectClaudePermissionMode = {},
-            settingsState =
-                SettingsUiState(
-                    availableProviders =
-                        listOf(
-                            OpenCodeProvider(id = "openai", name = "OpenAI"),
-                            OpenCodeProvider(id = "anthropic", name = "Anthropic"),
-                            OpenCodeProvider(id = "ollama", name = "Ollama"),
-                        ),
-                    providerAuthMethods =
-                        mapOf(
-                            "openai" to
-                                listOf(
-                                    ProviderAuthMethod(type = "oauth", label = "ChatGPT Plus/Pro"),
-                                    ProviderAuthMethod(type = "api", label = "API key"),
-                                ),
-                            "anthropic" to
-                                listOf(
-                                    ProviderAuthMethod(type = "api", label = "API key"),
-                                ),
-                            "ollama" to
-                                listOf(
-                                    ProviderAuthMethod(type = "api", label = "No key needed"),
-                                ),
-                        ),
-                    connectedProviderIds = setOf("ollama"),
-                ),
-            onOpenProviderAuth = {},
-            onSelectProviderAuthMethod = {},
-            onProviderAuthInput = { _, _ -> },
-            onProviderApiKey = {},
-            onSubmitProviderAuth = {},
-            onCompleteProviderOAuth = {},
-            onDisconnectProvider = {},
-            onDismissProviderAuth = {},
-            onRefreshProviderAuth = {},
-            onRefreshCatalog = {},
-            onRefreshClaudeState = {},
-            onRefreshAntigravityState = {},
-            onBack = {},
-            onFinish = {},
-        )
-    }
-}
