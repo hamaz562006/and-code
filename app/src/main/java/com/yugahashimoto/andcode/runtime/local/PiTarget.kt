@@ -17,6 +17,7 @@ import com.yugahashimoto.andcode.runtime.RuntimeState
 import com.yugahashimoto.andcode.runtime.RuntimeTarget
 import com.yugahashimoto.andcode.runtime.RuntimeType
 import com.yugahashimoto.andcode.runtime.WorkspaceRef
+import com.yugahashimoto.andcode.runtime.mergeWorkspaceRefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -130,10 +131,9 @@ class PiTarget(private val runtime: PiRuntime) : RuntimeTarget {
     override fun events(): Flow<OpenCodeEvent> = runtime.events()
 
     override suspend fun listWorkspaces(): List<WorkspaceRef> =
-        listSessions().mapNotNull {
-            it.directory?.let {
-                    path ->
-                WorkspaceRef(path, path.substringAfterLast('/').ifBlank { path }, path)
-            }
-        }.distinctBy { it.id }
+        mergeWorkspaceRefs(
+            currentDirectory = null,
+            sessions = listSessions(),
+            projects = emptyList(),
+        )
 }
