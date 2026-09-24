@@ -37,6 +37,7 @@ class PiRuntime(
     private val installedRuntimeProvider: () -> LocalRuntimeInstaller.InstalledRuntime?,
     private val accessCoordinator: LocalRuntimeAccessCoordinator = LocalRuntimeAccessCoordinator(),
     private val providerCredentials: () -> Map<String, String> = { emptyMap() },
+    private val customProviders: () -> List<CustomProviderDefinition> = { emptyList() },
     private val githubToken: () -> String? = { null },
 ) {
     private val json =
@@ -212,6 +213,7 @@ class PiRuntime(
     ): PiProcess {
         val runtime = requireRuntime()
         syncProviderCredentials(runtime.rootfs)
+        syncCustomProviders(runtime.rootfs)
         val pending = ConcurrentHashMap<String, kotlinx.coroutines.CompletableDeferred<JsonObject>>()
         val args =
             buildList {
@@ -461,6 +463,43 @@ class PiRuntime(
         auth.setWritable(false, false)
         auth.setReadable(true, true)
         auth.setWritable(true, true)
+    }
+
+    private fun syncCustomProviders(rootfs: File) {
+        val modelsFile = File(rootfs, "root/.pi/agent/models.json")
+        val existing =
+            runCatching {
+                json.parseToJsonElement(modelsFile.readText()).jsonObject
+            }.getOrElse { mutableMapOf<String, JsonElement>() }.toMutableMap()
+        val providers =
+            (existing["providers"] as? JsonObject)?.toMutableMap()
+                ?: mutableMapOf()
+        customProviders().map { it.normalized() }.forEach { provider ->
+            val apiKey = providerCredentials()[provider.id]?.trim().orEmpty()
+            if (apiKey.isEmpty()) return@forEach
+            providers[provider.id] =
+                buildJsonObject {
+                    put("baseUrl", provider.baseUrl)
+                    put("api", "openai-completions")
+                    put("apiKey", apiKey)
+                    put(
+                        "models",
+                        kotlinx.serialization.json.buildJsonArray {
+                            provider.models.forEach { modelId ->
+                                add(
+                                    buildJsonObject {
+                                        put("id", modelId)
+                                    },
+                                )
+                            }
+                        },
+                    )
+                }
+        }
+        if (providers.isEmpty() && existing["providers"] == null) return
+        existing["providers"] = JsonObject(providers)
+        modelsFile.parentFile?.mkdirs()
+        modelsFile.writeText(JsonObject(existing).toString())
     }
 
     private fun requireRuntime() = installedRuntimeProvider() ?: error("Linux environment is not installed")
