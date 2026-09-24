@@ -515,9 +515,14 @@ class PiRuntime(
             }
         val deferred = kotlinx.coroutines.CompletableDeferred<JsonObject>()
         process.pending[id] = deferred
-        synchronized(process.process.outputStream) {
-            process.process.outputStream.write((request.toString() + "\n").toByteArray())
-            process.process.outputStream.flush()
+        try {
+            synchronized(process.process.outputStream) {
+                process.process.outputStream.write((request.toString() + "\n").toByteArray())
+                process.process.outputStream.flush()
+            }
+        } catch (error: Throwable) {
+            process.pending.remove(id, deferred)
+            throw error
         }
         return try {
             kotlinx.coroutines.withTimeout(60_000L) { deferred.await() }
