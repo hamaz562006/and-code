@@ -1192,4 +1192,5 @@
     <string name="full_development_tools_installed">تم تثبيت أدوات التطوير الكاملة</string>
     <string name="install_full_development_tools_button">تثبيت مجموعة الأدوات الكاملة</string>
     <string name="runtime_full_development_tools_start_failed">تعذر بدء تثبيت أدوات التطوير</string>
+    <string name="install_step_installing_pi_requirements">Installing Pi requirements</string>
 </resources>
