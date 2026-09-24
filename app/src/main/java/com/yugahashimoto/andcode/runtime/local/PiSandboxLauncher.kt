@@ -36,6 +36,43 @@ object PiSandboxLauncher {
             addAll(arguments)
         }
 
+    fun start(
+        runtime: LocalRuntimeInstaller.InstalledRuntime,
+        workspaceHostDir: String,
+        workingDirectory: String,
+        arguments: List<String>,
+        tmp: File,
+        githubToken: String? = null,
+    ): Process =
+        ProcessBuilder(command(runtime, workspaceHostDir, workingDirectory, arguments))
+            .directory(File(workspaceHostDir).parentFile ?: runtime.rootfs)
+            .apply {
+                environment().clear()
+                environment().putAll(environment(runtime, tmp, githubToken))
+            }
+            .start()
+
+    fun stop(
+        process: Process,
+        runtimeDirectory: File,
+    ) {
+        runCatching { process.destroy() }
+        runCatching { process.waitFor(750, java.util.concurrent.TimeUnit.MILLISECONDS) }
+        val roots =
+            linkedSetOf<Long>().apply {
+                processId(process)?.let(::add)
+                addAll(findManagedRuntimeRootPids(runtimeDirectory))
+            }
+        roots
+            .flatMap { rootPid -> processTreePostOrder(rootPid) { pid -> readDirectChildPids(pid) } }
+            .distinct()
+            .forEach { pid -> runCatching { android.os.Process.killProcess(pid.toInt()) } }
+        if (process.isAlive) {
+            runCatching { process.destroyForcibly() }
+            runCatching { process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS) }
+        }
+    }
+
     fun environment(
         runtime: LocalRuntimeInstaller.InstalledRuntime,
         tmp: File,
