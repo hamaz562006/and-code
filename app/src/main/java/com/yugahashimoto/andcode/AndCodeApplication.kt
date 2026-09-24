@@ -476,11 +476,12 @@ class AndCodeApplication : Application() {
             RuntimeRegistry(
                 store = settings,
                 localTarget = LocalRuntimeTarget(localRuntimeManager, messages = runtimeMessages),
-                additionalTargets = listOf(claudeCodeTarget, antigravityTarget, codexTarget),
+                additionalTargets = listOf(claudeCodeTarget, antigravityTarget, codexTarget, piTarget),
             )
         // Surface the installed/version state to the workspace picker without waiting for the
         // first chat to touch Antigravity.
         applicationScope.launch { antigravityTarget.connect() }
+        applicationScope.launch { piTarget.connect() }
         // A setup without OpenCode has nothing else to establish a default runtime: the auto-start
         // path only ever selects the OpenCode-local target, so a Codex-only install used to open on
         // no runtime at all and send nowhere. Fill an empty selection with Codex once it connects;

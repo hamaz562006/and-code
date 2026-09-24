@@ -114,12 +114,14 @@ fun AndroidSetupScreen(
     onSignOutAntigravity: () -> Unit = {},
     onSelectAntigravityPermissionMode: (com.yugahashimoto.andcode.runtime.local.AntigravityPermissionMode) -> Unit = {},
     codex: CodexUiState = CodexUiState(),
+    piInstalled: Boolean = false,
     /** Codex signs in through its own dialog state, not [settingsState]'s, which is OpenCode's. */
     codexSignInDialog: ProviderAuthDialogState? = null,
     codexSignIn: CodexSignInActions =
         CodexSignInActions({}, {}, {}, {}, {}, {}),
     onSignOutCodex: () -> Unit = {},
     onRefreshCodexState: () -> Unit = {},
+    onRefreshPiState: () -> Unit = {},
     onOpenUrl: (String) -> Unit,
     settingsState: SettingsUiState,
     onOpenProviderAuth: (String) -> Unit,
@@ -174,7 +176,7 @@ fun AndroidSetupScreen(
             LocalAgent.CLAUDE_CODE.takeIf { claudeSelected && claude.installed },
             LocalAgent.ANTIGRAVITY.takeIf { antigravitySelected && antigravity.installed },
             LocalAgent.CODEX.takeIf { codexSelected && codex.installed },
-            LocalAgent.PI.takeIf { piSelected && openCodeReady },
+            LocalAgent.PI.takeIf { piSelected && piInstalled },
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
@@ -191,6 +193,7 @@ fun AndroidSetupScreen(
     val fullToolsReady = !installFullDevelopmentTools || fullDevelopmentToolsInstalled
     val agentsInstallComplete =
         (!openCodeSelected || openCodeReady) &&
+            (!piSelected || piInstalled) &&
             (!claudeSelected || claudeReady) &&
             (!antigravitySelected || antigravityReady) &&
             (!codexSelected || codexReady) &&
@@ -233,6 +236,7 @@ fun AndroidSetupScreen(
         if (claudeSelected) onRefreshClaudeState()
         if (antigravitySelected) onRefreshAntigravityState()
         if (codexSelected) onRefreshCodexState()
+        if (piSelected) onRefreshPiState()
     }
 
     LaunchedEffect(openCodeReady, openCodeSelected, settingsState.availableProviders, settingsState.providerAuthMethods) {
@@ -376,6 +380,7 @@ fun AndroidSetupScreen(
                         claudeSelected = claudeSelected,
                         antigravitySelected = antigravitySelected,
                         codexSelected = codexSelected,
+                        piSelected = piSelected,
                     )
                 4 ->
                     SignInStep(
@@ -749,6 +754,7 @@ private fun RuntimeDownloadStep(
     claudeSelected: Boolean,
     antigravitySelected: Boolean,
     codexSelected: Boolean,
+    piSelected: Boolean,
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
     // each step is shown under the agent it names. Without this the OpenCode panel displayed
@@ -794,7 +800,20 @@ private fun RuntimeDownloadStep(
                 if (step != null) SharedInstallProgress(step) else CodexInstallProgress(codex)
             }
         }
+        if (piSelected) {
+            SetupPanel {
+                Text(stringResource(R.string.agent_pi_name), fontWeight = FontWeight.SemiBold)
+                val step = stepFor(LocalAgent.PI)
+                if (step != null) SharedInstallProgress(step) else PiInstallProgress()
+            }
+        }
     }
+}
+
+@Composable
+private fun PiInstallProgress() {
+    Text(stringResource(R.string.setup_runtime_not_installed), color = MaterialTheme.colorScheme.onSurfaceVariant)
+    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
 }
 
 @Composable
@@ -1117,7 +1136,12 @@ private fun SignInStep(
                         onSignOut = onSignOutCodex,
                     )
                 LocalAgent.PI ->
-                    Text(stringResource(R.string.setup_agent_pi_desc))
+                    ProviderConnectionStep(
+                        settingsState = settingsState,
+                        onOpenProviderAuth = onOpenProviderAuth,
+                        onDisconnectProvider = onDisconnectProvider,
+                        header = false,
+                    )
             }
         }
     }

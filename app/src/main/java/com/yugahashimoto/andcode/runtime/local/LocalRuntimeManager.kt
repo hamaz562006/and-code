@@ -106,6 +106,40 @@ class LocalRuntimeManager(
 
     fun restartCount(): Int = processLauncher?.restartCount() ?: 0
 
+    /**
+     * Provisions selected agents without starting the OpenCode server.
+     *
+     * This is used for agents such as Pi that run their own process protocol and do not need the
+     * OpenCode HTTP server. If OpenCode was already installed/running, the environment is restarted
+     * after the atomic agent install so its process never points at a stale rootfs.
+     */
+    suspend fun installAgents(
+        agents: Set<LocalAgent>,
+        installFullDevelopmentTools: Boolean = false,
+    ): Result<Unit> =
+        operationMutex.withLock {
+            val configuredInstaller: LocalRuntimeInstaller =
+                installer ?: return@withLock Result.failure(IllegalStateException("Local runtime installer is not configured"))
+            runCatching {
+                require(agents.isNotEmpty()) { "At least one agent must be selected" }
+                val hadOpenCode = configuredInstaller.installedMetadata()?.has(LocalAgent.OPEN_CODE) == true
+                val wasRunning = status() is LocalRuntimeStatus.Ready
+                if (wasRunning) withContext(Dispatchers.IO) { processLauncher?.stop() }
+                val installed =
+                    configuredInstaller.install(agents, installFullDevelopmentTools) { progress, step, agent ->
+                        mutableState.value = LocalRuntimeStatus.Installing(progress, step, agent)
+                    }
+                if (hadOpenCode || installed.metadata.has(LocalAgent.OPEN_CODE)) {
+                    startInstalled(installed)
+                } else {
+                    mutableState.value = LocalRuntimeStatus.NotInstalled
+                }
+                Unit
+            }.onFailure { error ->
+                mutableState.value = LocalRuntimeStatus.Broken(error.message ?: messages.installFailed)
+            }
+        }
+
     suspend fun installAndStart(
         agents: Set<LocalAgent> = setOf(LocalAgent.OPEN_CODE),
         installFullDevelopmentTools: Boolean = false,
