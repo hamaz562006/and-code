@@ -134,12 +134,6 @@ class LocalRuntimeManager(
                     }
                 if (hadOpenCode || installed.metadata.has(LocalAgent.OPEN_CODE)) {
                     startInstalled(installed)
-                } else if (installed.metadata.has(LocalAgent.PI)) {
-                    // Pi is a local target inside the shared runtime but does not expose the
-                    // OpenCode server. The environment is nevertheless installed, so keep the
-                    // shared runtime state as Stopped instead of reporting NotInstalled.
-                    // This also lets the setup screen refresh Pi immediately after provisioning.
-                    mutableState.value = LocalRuntimeStatus.Stopped(installed.metadata.version, installed.metadata.port)
                 } else {
                     mutableState.value = LocalRuntimeStatus.NotInstalled
                 }
