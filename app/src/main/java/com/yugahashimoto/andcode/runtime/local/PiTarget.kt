@@ -38,19 +38,6 @@ class PiTarget(private val runtime: PiRuntime) : RuntimeTarget {
     private val mutableState = MutableStateFlow<RuntimeState>(RuntimeState.Disconnected)
     override val state: StateFlow<RuntimeState> = mutableState.asStateFlow()
 
-    /** Returns the persisted installation state without acquiring the runtime access lock. */
-    fun isInstalled(): Boolean = File(runtime.runtimeDirectory, "environment/rootfs/usr/local/bin/pi").isFile
-
-    /** Refreshes installation state without acquiring the runtime access lock. */
-    suspend fun refreshInstallationState() =
-        withContext(Dispatchers.IO) {
-            if (isInstalled()) {
-                mutableState.value = RuntimeState.Connected(PiInstaller.PI_VERSION)
-            } else {
-                mutableState.value = RuntimeState.Unavailable("Pi is not installed")
-            }
-        }
-
     override suspend fun connect(): Result<OpenCodeHealth> =
         withContext(Dispatchers.IO) {
             runCatching {
