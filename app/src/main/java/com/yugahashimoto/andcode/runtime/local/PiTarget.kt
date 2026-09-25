@@ -38,8 +38,9 @@ class PiTarget(private val runtime: PiRuntime) : RuntimeTarget {
     private val mutableState = MutableStateFlow<RuntimeState>(RuntimeState.Disconnected)
     override val state: StateFlow<RuntimeState> = mutableState.asStateFlow()
 
-    /** Returns the persisted installation state without requiring a Pi RPC connection. */
-    fun isInstalled(): Boolean = runtime.isInstalled()
+    /** Returns the persisted installation state without acquiring the runtime access lock. */
+    fun isInstalled(): Boolean =
+        File(runtime.runtimeDirectory, "environment/rootfs/usr/local/bin/pi").isFile
 
     override suspend fun connect(): Result<OpenCodeHealth> =
         withContext(Dispatchers.IO) {
