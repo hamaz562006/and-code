@@ -976,7 +976,7 @@ fun AndCodeApp(
                             onCancelAntigravitySignIn = app.antigravityController::cancelAuth,
                             onSignOutAntigravity = app.antigravityController::logout,
                             codex = codexState,
-                            piInstalled = piState is com.yugahashimoto.andcode.runtime.RuntimeState.Connected,
+                            piInstalled = app.piTarget.isInstalled() || piState is com.yugahashimoto.andcode.runtime.RuntimeState.Connected,
                             codexSignInDialog = codexSignInDialog,
                             codexSignIn =
                                 CodexSignInActions(
