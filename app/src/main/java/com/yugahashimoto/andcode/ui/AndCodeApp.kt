@@ -989,7 +989,7 @@ fun AndCodeApp(
                                 ),
                             onSignOutCodex = app.codexController::signOut,
                             onRefreshCodexState = app.codexController::refresh,
-                            onRefreshPiState = { voiceScope.launch { app.piTarget.refreshInstallationState() } },
+                            onRefreshPiState = { voiceScope.launch { app.piTarget.connect() } },
                             onSelectAntigravityPermissionMode = { mode ->
                                 app.antigravityController.setPermissionMode(mode, chatState.sessionId)
                             },
