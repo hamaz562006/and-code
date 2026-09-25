@@ -39,8 +39,7 @@ class PiTarget(private val runtime: PiRuntime) : RuntimeTarget {
     override val state: StateFlow<RuntimeState> = mutableState.asStateFlow()
 
     /** Returns the persisted installation state without acquiring the runtime access lock. */
-    fun isInstalled(): Boolean =
-        File(runtime.runtimeDirectory, "environment/rootfs/usr/local/bin/pi").isFile
+    fun isInstalled(): Boolean = File(runtime.runtimeDirectory, "environment/rootfs/usr/local/bin/pi").isFile
 
     override suspend fun connect(): Result<OpenCodeHealth> =
         withContext(Dispatchers.IO) {
