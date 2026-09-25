@@ -74,6 +74,7 @@ import com.yugahashimoto.andcode.runtime.local.LocalRuntimeReleaseClient
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeServiceController
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeTarget
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeUpdater
+import com.yugahashimoto.andcode.runtime.local.PiController
 import com.yugahashimoto.andcode.runtime.local.PiRuntime
 import com.yugahashimoto.andcode.runtime.local.PiTarget
 import com.yugahashimoto.andcode.runtime.local.SystemPromptStore
@@ -220,6 +221,9 @@ class AndCodeApplication : Application() {
         private set
 
     lateinit var codexController: CodexController
+        private set
+
+    lateinit var piController: PiController
         private set
 
     /** Which agents the shared sandbox holds, for callers that must not pay for a full runtime check. */
@@ -372,6 +376,7 @@ class AndCodeApplication : Application() {
             }
         }
         codexController = CodexController(codexRuntime, codexTarget, installer, abi, runtimeWork, applicationScope)
+        piController = PiController(piRuntime, piTarget, installer, runtimeWork, applicationScope)
         runtimeMessages = AndroidLocalRuntimeMessages(this)
         gitCloneRepository =
             GitCloneRepository(

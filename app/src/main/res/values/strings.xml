@@ -1043,6 +1043,10 @@
     <string name="install_step_downloading_codex">Downloading Codex</string>
     <string name="install_step_downloading_pi">Installing Pi</string>
     <string name="install_step_installing_pi_requirements">Installing Pi requirements</string>
+    <string name="pi_install_button">Install Pi</string>
+    <string name="pi_retry_install_button">Retry installation</string>
+    <string name="pi_installing">Installing Pi…</string>
+    <string name="pi_needs_runtime_hint">Pi runs in the shared Linux environment, which is set up first if it is not there yet.</string>
     <string name="codex_install_button">Install Codex</string>
     <string name="codex_retry_install_button">Retry installation</string>
     <string name="codex_installing">Downloading and installing Codex…</string>

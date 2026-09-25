@@ -58,6 +58,8 @@ import com.yugahashimoto.andcode.runtime.local.ClaudePermissionMode
 import com.yugahashimoto.andcode.runtime.local.CodexInstallStatus
 import com.yugahashimoto.andcode.runtime.local.CodexUiState
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeUpdateCheck
+import com.yugahashimoto.andcode.runtime.local.PiInstallStatus
+import com.yugahashimoto.andcode.runtime.local.PiUiState
 import com.yugahashimoto.andcode.ui.components.RuntimeOperationResultCard
 import com.yugahashimoto.andcode.ui.components.RuntimeUpdateProgressCard
 import com.yugahashimoto.andcode.ui.components.SectionCard
@@ -79,6 +81,7 @@ fun AgentSettingsScreen(
     onOpenClaudeCode: () -> Unit,
     onOpenAntigravity: () -> Unit,
     onOpenCodex: () -> Unit,
+    onOpenPi: () -> Unit,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(R.string.settings_agents_row), onBack = onBack) {
@@ -90,6 +93,8 @@ fun AgentSettingsScreen(
             AgentRow(LocalAgent.ANTIGRAVITY, onOpenAntigravity)
             SettingsDivider()
             AgentRow(LocalAgent.CODEX, onOpenCodex)
+            SettingsDivider()
+            AgentRow(LocalAgent.PI, onOpenPi)
         }
     }
 }
@@ -168,6 +173,92 @@ private fun CodexUiState.statusLabel(): String =
         ready -> stringResource(R.string.agent_status_ready)
         else -> stringResource(R.string.agent_status_sign_in_required)
     }
+
+/** Pi's own settings: install only — provider API keys live under Settings → Providers. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PiAgentSettingsScreen(
+    pi: PiUiState,
+    onInstall: () -> Unit,
+    onBack: () -> Unit,
+) {
+    AgentSettingsScaffold(title = stringResource(LocalAgent.PI.displayNameRes), onBack = onBack) {
+        AgentCardSection {
+            AgentStatusCard(
+                status = pi.statusLabel(),
+                active = pi.ready,
+                metrics =
+                    pi.version?.takeIf(String::isNotBlank)?.let { version ->
+                        listOf(AgentMetric(stringResource(R.string.agent_version_label), version))
+                    }.orEmpty(),
+            ) {
+                PiCard(pi = pi, onInstall = onInstall)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PiUiState.statusLabel(): String =
+    when {
+        install is PiInstallStatus.Installing -> stringResource(R.string.runtime_status_setting_up)
+        install is PiInstallStatus.Failed -> stringResource(R.string.agent_status_install_failed)
+        !installed -> stringResource(R.string.runtime_status_not_installed)
+        ready -> stringResource(R.string.agent_status_ready)
+        else -> stringResource(R.string.runtime_status_not_installed)
+    }
+
+@Composable
+private fun PiCard(
+    pi: PiUiState,
+    onInstall: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        when (val install = pi.install) {
+            is PiInstallStatus.Installing -> {
+                Text(
+                    install.step ?: stringResource(R.string.pi_installing),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                val progress = install.progress
+                if (progress != null) {
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                }
+            }
+            is PiInstallStatus.Failed -> {
+                Text(
+                    install.message ?: stringResource(R.string.agent_status_install_failed),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.pi_retry_install_button))
+                }
+            }
+            PiInstallStatus.Idle -> {
+                if (pi.installed) {
+                    Text(
+                        stringResource(R.string.setup_agent_pi_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    Text(
+                        stringResource(R.string.pi_needs_runtime_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.pi_install_button))
+                    }
+                }
+            }
+        }
+    }
+}
 
 /** Antigravity's own settings: the same install, sign-in and permission controls as the setup guide. */
 @OptIn(ExperimentalMaterial3Api::class)
