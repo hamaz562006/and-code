@@ -976,7 +976,7 @@ fun AndCodeApp(
                             onCancelAntigravitySignIn = app.antigravityController::cancelAuth,
                             onSignOutAntigravity = app.antigravityController::logout,
                             codex = codexState,
-                            piInstalled = app.piTarget.isInstalled() || piState is com.yugahashimoto.andcode.runtime.RuntimeState.Connected,
+                            piInstalled = piState is com.yugahashimoto.andcode.runtime.RuntimeState.Connected,
                             codexSignInDialog = codexSignInDialog,
                             codexSignIn =
                                 CodexSignInActions(
@@ -989,7 +989,7 @@ fun AndCodeApp(
                                 ),
                             onSignOutCodex = app.codexController::signOut,
                             onRefreshCodexState = app.codexController::refresh,
-                            onRefreshPiState = { voiceScope.launch { app.piTarget.connect() } },
+                            onRefreshPiState = { voiceScope.launch { app.piTarget.refreshInstallationState() } },
                             onSelectAntigravityPermissionMode = { mode ->
                                 app.antigravityController.setPermissionMode(mode, chatState.sessionId)
                             },
