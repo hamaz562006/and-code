@@ -38,6 +38,9 @@ class PiTarget(private val runtime: PiRuntime) : RuntimeTarget {
     private val mutableState = MutableStateFlow<RuntimeState>(RuntimeState.Disconnected)
     override val state: StateFlow<RuntimeState> = mutableState.asStateFlow()
 
+    /** Returns the persisted installation state without requiring a Pi RPC connection. */
+    fun isInstalled(): Boolean = runtime.isInstalled()
+
     override suspend fun connect(): Result<OpenCodeHealth> =
         withContext(Dispatchers.IO) {
             runCatching {
