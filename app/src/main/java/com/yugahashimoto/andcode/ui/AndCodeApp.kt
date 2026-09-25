@@ -198,6 +198,7 @@ fun AndCodeApp(
     val preferences by app.preferences.state.collectAsState()
     val antigravityState by app.antigravityController.state.collectAsState()
     val codexState by app.codexController.state.collectAsState()
+    val piUiState by app.piController.state.collectAsState()
     val piState by app.piTarget.state.collectAsState()
     val codexSignInViewModel: CodexSignInViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel(
@@ -953,7 +954,9 @@ fun AndCodeApp(
                                 if (com.yugahashimoto.andcode.runtime.LocalAgent.OPEN_CODE in agents) {
                                     workspaceViewModel.setupLocalRuntime(agents, installFullDevelopmentTools)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.PI in agents) {
-                                    workspaceViewModel.installAgents(agents, installFullDevelopmentTools)
+                                    // PiController owns install UI state and still provisions through
+                                    // LocalRuntimeInstaller (shared Alpine + npm Pi package).
+                                    app.piController.install(agents, installFullDevelopmentTools)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY in agents) {
                                     app.antigravityController.install(agents, installFullDevelopmentTools)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CODEX in agents) {
@@ -976,7 +979,8 @@ fun AndCodeApp(
                             onCancelAntigravitySignIn = app.antigravityController::cancelAuth,
                             onSignOutAntigravity = app.antigravityController::logout,
                             codex = codexState,
-                            piInstalled = piState is com.yugahashimoto.andcode.runtime.RuntimeState.Connected,
+                            pi = piUiState,
+                            piInstalled = piUiState.installed || piState is com.yugahashimoto.andcode.runtime.RuntimeState.Connected,
                             codexSignInDialog = codexSignInDialog,
                             codexSignIn =
                                 CodexSignInActions(
@@ -989,7 +993,10 @@ fun AndCodeApp(
                                 ),
                             onSignOutCodex = app.codexController::signOut,
                             onRefreshCodexState = app.codexController::refresh,
-                            onRefreshPiState = { voiceScope.launch { app.piTarget.connect() } },
+                            onRefreshPiState = {
+                                app.piController.refresh()
+                                voiceScope.launch { app.piTarget.connect() }
+                            },
                             onSelectAntigravityPermissionMode = { mode ->
                                 app.antigravityController.setPermissionMode(mode, chatState.sessionId)
                             },

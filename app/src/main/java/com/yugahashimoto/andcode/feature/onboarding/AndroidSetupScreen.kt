@@ -77,6 +77,8 @@ import com.yugahashimoto.andcode.runtime.local.ClaudeInstallStatus
 import com.yugahashimoto.andcode.runtime.local.ClaudePermissionMode
 import com.yugahashimoto.andcode.runtime.local.CodexInstallStatus
 import com.yugahashimoto.andcode.runtime.local.CodexUiState
+import com.yugahashimoto.andcode.runtime.local.PiInstallStatus
+import com.yugahashimoto.andcode.runtime.local.PiUiState
 import com.yugahashimoto.andcode.ui.theme.AndCodeTheme
 import kotlinx.coroutines.delay
 
@@ -114,6 +116,7 @@ fun AndroidSetupScreen(
     onSignOutAntigravity: () -> Unit = {},
     onSelectAntigravityPermissionMode: (com.yugahashimoto.andcode.runtime.local.AntigravityPermissionMode) -> Unit = {},
     codex: CodexUiState = CodexUiState(),
+    pi: PiUiState = PiUiState(),
     piInstalled: Boolean = false,
     /** Codex signs in through its own dialog state, not [settingsState]'s, which is OpenCode's. */
     codexSignInDialog: ProviderAuthDialogState? = null,
@@ -176,7 +179,7 @@ fun AndroidSetupScreen(
             LocalAgent.CLAUDE_CODE.takeIf { claudeSelected && claude.installed },
             LocalAgent.ANTIGRAVITY.takeIf { antigravitySelected && antigravity.installed },
             LocalAgent.CODEX.takeIf { codexSelected && codex.installed },
-            LocalAgent.PI.takeIf { piSelected && piInstalled },
+            LocalAgent.PI.takeIf { piSelected && (pi.installed || piInstalled) },
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
@@ -189,11 +192,13 @@ fun AndroidSetupScreen(
         runtimeStatus is LocalRuntimeStatus.Installing ||
             claude.install is ClaudeInstallStatus.Installing ||
             codex.install is CodexInstallStatus.Installing ||
+            pi.install is PiInstallStatus.Installing ||
             antigravity.busy
     val fullToolsReady = !installFullDevelopmentTools || fullDevelopmentToolsInstalled
+    val piReady = pi.installed || piInstalled
     val agentsInstallComplete =
         (!openCodeSelected || openCodeReady) &&
-            (!piSelected || piInstalled) &&
+            (!piSelected || piReady) &&
             (!claudeSelected || claudeReady) &&
             (!antigravitySelected || antigravityReady) &&
             (!codexSelected || codexReady) &&
@@ -269,6 +274,7 @@ fun AndroidSetupScreen(
                     claude.install is ClaudeInstallStatus.Failed ||
                     antigravity.error != null ||
                     codex.install is CodexInstallStatus.Failed ||
+                    pi.install is PiInstallStatus.Failed ||
                     fullDevelopmentToolsInstallFailed
                 ) {
                     SetupPrimaryAction(stringResource(R.string.claude_retry_install_button), true) {
@@ -364,6 +370,7 @@ fun AndroidSetupScreen(
                         claude = claude,
                         antigravity = antigravity,
                         codex = codex,
+                        pi = pi,
                         openCodeSelected = openCodeSelected,
                         claudeSelected = claudeSelected,
                         antigravitySelected = antigravitySelected,
@@ -738,6 +745,7 @@ private fun RuntimeDownloadStep(
     claude: ClaudeCodeUiState,
     antigravity: AntigravityControllerState,
     codex: CodexUiState,
+    pi: PiUiState,
     openCodeSelected: Boolean,
     claudeSelected: Boolean,
     antigravitySelected: Boolean,
@@ -794,8 +802,10 @@ private fun RuntimeDownloadStep(
                 val step = stepFor(LocalAgent.PI)
                 when {
                     step != null -> SharedInstallProgress(step)
-                    sharedStep != null && !openCodeSelected -> SharedInstallProgress(sharedStep)
-                    else -> PiInstallProgress()
+                    // Shared Alpine/Node steps report agent=null; still show progress under Pi.
+                    sharedStep != null -> SharedInstallProgress(sharedStep)
+                    installing != null -> SharedInstallProgress(installing)
+                    else -> PiInstallProgress(pi)
                 }
             }
         }
@@ -803,9 +813,37 @@ private fun RuntimeDownloadStep(
 }
 
 @Composable
-private fun PiInstallProgress() {
-    Text(stringResource(R.string.setup_runtime_not_installed), color = MaterialTheme.colorScheme.onSurfaceVariant)
-    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+private fun PiInstallProgress(pi: PiUiState) {
+    when (val install = pi.install) {
+        is PiInstallStatus.Installing -> {
+            Text(
+                install.step?.takeIf(String::isNotBlank) ?: stringResource(R.string.pi_installing),
+                fontWeight = FontWeight.Medium,
+            )
+            val progress = install.progress
+            if (progress != null) {
+                LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                Text(
+                    text = "${(progress * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+        }
+        is PiInstallStatus.Failed ->
+            Text(
+                install.message ?: stringResource(R.string.agent_status_install_failed),
+                color = MaterialTheme.colorScheme.error,
+            )
+        PiInstallStatus.Idle ->
+            if (pi.installed) {
+                ReadyAgentRow(stringResource(R.string.agent_version_label) + " " + (pi.version ?: ""))
+            } else {
+                Text(stringResource(R.string.runtime_status_not_installed), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+    }
 }
 
 @Composable
