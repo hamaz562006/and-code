@@ -1053,6 +1053,10 @@
     <string name="codex_installed_version">Codex %1$s</string>
     <string name="setup_agent_codex_desc">ChatGPTアカウントまたはOpenAI APIキーでサインインします。約140MBをダウンロードします。</string>
     <string name="install_step_downloading_codex">Codexをダウンロードしています</string>
+    <string name="pi_install_button">Piをインストール</string>
+    <string name="pi_retry_install_button">インストールを再試行</string>
+    <string name="pi_installing">Piをインストールしています…</string>
+    <string name="pi_needs_runtime_hint">Piは共有Linux環境で動作します。まだない場合は先に環境がセットアップされます。</string>
     <string name="codex_install_button">Codexをインストール</string>
     <string name="codex_retry_install_button">インストールを再試行</string>
     <string name="codex_installing">Codexをダウンロードしてインストールしています…</string>

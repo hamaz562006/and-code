@@ -1005,6 +1005,10 @@
     <string name="codex_installed_version">Codex %1$s</string>
     <string name="setup_agent_codex_desc">使用 ChatGPT 账号或 OpenAI API 密钥登录。下载约 140 MB。</string>
     <string name="install_step_downloading_codex">正在下载 Codex</string>
+    <string name="pi_install_button">安装 Pi</string>
+    <string name="pi_retry_install_button">重试安装</string>
+    <string name="pi_installing">正在安装 Pi…</string>
+    <string name="pi_needs_runtime_hint">Pi 在共享的 Linux 环境中运行；如果该环境尚不存在，会先进行设置。</string>
     <string name="codex_install_button">安装 Codex</string>
     <string name="codex_retry_install_button">重试安装</string>
     <string name="codex_installing">正在下载并安装 Codex…</string>
