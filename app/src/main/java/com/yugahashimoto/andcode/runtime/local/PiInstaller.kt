@@ -70,11 +70,8 @@ object PiInstaller {
                 val bin = File(runtime.rootfs, PI_BINARY.removePrefix("/"))
                 bin.parentFile?.mkdirs()
                 bin.writeText(
-                    """
-                    #!/usr/bin/env node
-                    import("file:///$MODULES_DIR/$PI_MODULE/$CLI_RELATIVE");
-                    """.trimIndent() +
-                        "\n",
+                    "#!/usr/bin/env node\n" +
+                        "import(\"file:///$MODULES_DIR/$PI_MODULE/$CLI_RELATIVE\");\n",
                 )
                 bin.setExecutable(true, false)
                 bin.setReadable(true, false)
