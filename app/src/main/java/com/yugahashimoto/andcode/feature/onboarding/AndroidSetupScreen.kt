@@ -1166,13 +1166,59 @@ private fun SignInStep(
                         onSignOut = onSignOutCodex,
                     )
                 LocalAgent.PI ->
-                    ProviderConnectionStep(
-                        settingsState = settingsState,
+                    // Pi writes API keys into ~/.pi/agent/auth.json via the shared credential store.
+                    // Do NOT use ProviderConnectionStep here: that loads OpenCode's catalogue and
+                    // fails with "Android local OpenCode runtime is not installed" when only Pi
+                    // was selected.
+                    PiProviderConnectionStep(
+                        connectedProviderIds = settingsState.connectedProviderIds,
                         onOpenProviderAuth = onOpenProviderAuth,
                         onDisconnectProvider = onDisconnectProvider,
-                        header = false,
                     )
             }
+        }
+    }
+}
+
+/**
+ * API-key providers for Pi without touching the OpenCode HTTP runtime.
+ *
+ * Pi's engine accepts the same common provider ids; credentials are stored in the shared
+ * [com.yugahashimoto.andcode.runtime.local.LocalProviderCredentialStore] and synced by [PiRuntime].
+ */
+private val PI_SETUP_PROVIDERS =
+    listOf(
+        "anthropic" to "Anthropic",
+        "openai" to "OpenAI",
+        "google" to "Google",
+        "openrouter" to "OpenRouter",
+        "groq" to "Groq",
+        "deepseek" to "DeepSeek",
+        "mistral" to "Mistral",
+        "xai" to "xAI",
+    )
+
+@Composable
+private fun PiProviderConnectionStep(
+    connectedProviderIds: Set<String>,
+    onOpenProviderAuth: (String) -> Unit,
+    onDisconnectProvider: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = stringResource(R.string.setup_agent_pi_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        PI_SETUP_PROVIDERS.forEach { (id, name) ->
+            val connected = id in connectedProviderIds
+            ProviderConnectionRow(
+                providerName = name,
+                methodSummary = stringResource(R.string.setup_provider_api_key_only),
+                connected = connected,
+                onConnect = { onOpenProviderAuth(id) },
+                onDisconnect = { onDisconnectProvider(id) },
+            )
         }
     }
 }

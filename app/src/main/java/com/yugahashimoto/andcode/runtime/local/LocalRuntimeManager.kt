@@ -135,7 +135,14 @@ class LocalRuntimeManager(
                 if (hadOpenCode || installed.metadata.has(LocalAgent.OPEN_CODE)) {
                     startInstalled(installed)
                 } else {
-                    mutableState.value = LocalRuntimeStatus.NotInstalled
+                    // Pi / Codex / Claude-only: shared rootfs is provisioned, but there is no
+                    // OpenCode HTTP server to start. Do not report NotInstalled — that made the
+                    // setup guide look like the install never ran after a successful Pi-only setup.
+                    mutableState.value =
+                        LocalRuntimeStatus.Stopped(
+                            installed.metadata.version,
+                            installed.metadata.port.coerceIn(0, 65535),
+                        )
                 }
                 Unit
             }.onFailure { error ->
