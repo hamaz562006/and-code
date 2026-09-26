@@ -102,7 +102,12 @@ class RuntimeAutoStartInitializer : Initializer<RuntimeAutoStartInitializer.Resu
                         hasOtherLocalAgent =
                             runCatching {
                                 app.localRuntimeInstaller.installedMetadata()?.let { metadata ->
-                                    listOf(LocalAgent.CLAUDE_CODE, LocalAgent.ANTIGRAVITY, LocalAgent.CODEX).any(metadata::has)
+                                    listOf(
+                                        LocalAgent.CLAUDE_CODE,
+                                        LocalAgent.ANTIGRAVITY,
+                                        LocalAgent.CODEX,
+                                        LocalAgent.PI,
+                                    ).any(metadata::has)
                                 } == true
                             }.getOrDefault(false),
                     )

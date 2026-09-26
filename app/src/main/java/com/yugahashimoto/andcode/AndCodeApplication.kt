@@ -509,6 +509,23 @@ class AndCodeApplication : Application() {
                 previous = state
             }
         }
+        // Same defaulting for Pi-only setups: without OpenCode, nothing else selects a runtime.
+        applicationScope.launch {
+            var previous: RuntimeState? = null
+            piTarget.state.collect { state ->
+                val openCodeInstalled = installer.installedMetadata()?.has(LocalAgent.OPEN_CODE) == true
+                val codexInstalled = installer.installedMetadata()?.has(LocalAgent.CODEX) == true
+                if (state is RuntimeState.Connected && !openCodeInstalled && !codexInstalled) {
+                    runtimeRegistry.selectIfUnset(piTarget.id)
+                }
+                val recovered =
+                    state is RuntimeState.Connected &&
+                        (previous is RuntimeState.Unavailable || previous is RuntimeState.Failed)
+                val piSelected = runtimeRegistry.selected.value?.id == piTarget.id
+                if (recovered && piSelected && ::catalogRepository.isInitialized) catalogRepository.refresh()
+                previous = state
+            }
+        }
         claudeCodeController =
             ClaudeCodeController(
                 target = claudeCodeTarget,
