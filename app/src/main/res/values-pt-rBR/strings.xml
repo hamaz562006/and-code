@@ -900,8 +900,8 @@
     <string name="agent_antigravity_name">Antigravity</string>
     <string name="agent_codex_name">Codex</string>
     <string name="agent_pi_name">Pi</string>
-    <string name="install_step_downloading_pi">Installing Pi</string>
-    <string name="setup_agent_pi_desc">Run Pi locally through its JSON-RPC interface. Requires a model provider API key.</string>
+    <string name="install_step_downloading_pi">Downloading Pi</string>
+    <string name="setup_agent_pi_desc">Sign in with your own model provider API key. Downloads about 40 MB.</string>
     <string name="runtime_error_install_failed">Não foi possível instalar o ambiente local</string>
     <string name="runtime_error_reinstall_failed">Não foi possível reinstalar o ambiente local</string>
     <string name="runtime_error_start_failed">Não foi possível iniciar o OpenCode local</string>
@@ -1009,6 +1009,10 @@
     <string name="codex_installed_version">Codex %1$s</string>
     <string name="setup_agent_codex_desc">Faça login com sua conta do ChatGPT ou uma chave de API da OpenAI. Baixa cerca de 140 MB.</string>
     <string name="install_step_downloading_codex">Baixando o Codex</string>
+    <string name="pi_install_button">Instalar o Pi</string>
+    <string name="pi_retry_install_button">Tentar instalação novamente</string>
+    <string name="pi_installing">Instalando o Pi…</string>
+    <string name="pi_needs_runtime_hint">O Pi roda no ambiente Linux compartilhado, que é configurado primeiro se ainda não estiver presente.</string>
     <string name="codex_install_button">Instalar o Codex</string>
     <string name="codex_retry_install_button">Tentar instalar novamente</string>
     <string name="codex_installing">Baixando e instalando o Codex…</string>

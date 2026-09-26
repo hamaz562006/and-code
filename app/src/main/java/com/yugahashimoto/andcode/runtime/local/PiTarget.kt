@@ -8,6 +8,7 @@ import com.yugahashimoto.andcode.core.api.OpenCodeHealth
 import com.yugahashimoto.andcode.core.api.OpenCodeProvider
 import com.yugahashimoto.andcode.core.api.OpenCodeSearchMatch
 import com.yugahashimoto.andcode.core.api.PromptRequest
+import com.yugahashimoto.andcode.core.api.ProviderAuthMethod
 import com.yugahashimoto.andcode.core.api.ProviderCatalog
 import com.yugahashimoto.andcode.runtime.BackendKind
 import com.yugahashimoto.andcode.runtime.LocalAgent
@@ -64,13 +65,27 @@ class PiTarget(private val runtime: PiRuntime) : RuntimeTarget {
 
     override suspend fun listMessages(sessionId: String) = runtime.listMessages(sessionId)
 
-    override suspend fun listProviders() =
-        ProviderCatalog(
-            all =
-                runtime.availableModels().groupBy {
-                    it.providerId.orEmpty()
-                }.filterKeys(String::isNotBlank).map { (id, models) -> OpenCodeProvider(id, id, models.associateBy { it.id }) },
-        )
+    /**
+     * Pi's model catalogue is independent of OpenCode. Until API keys exist, [availableModels] is
+     * often empty — still return seed providers so the picker/settings are not a blank page.
+     */
+    override suspend fun listProviders(): ProviderCatalog =
+        withContext(Dispatchers.IO) {
+            val discovered =
+                runCatching { runtime.availableModels() }
+                    .getOrDefault(emptyList())
+                    .groupBy { it.providerId.orEmpty() }
+                    .filterKeys(String::isNotBlank)
+                    .map { (id, models) -> OpenCodeProvider(id, id, models.associateBy { it.id }) }
+            val seed =
+                SEED_PROVIDERS.filter { seed -> discovered.none { it.id == seed.id } }
+            ProviderCatalog(all = discovered + seed)
+        }
+
+    override suspend fun providerAuthMethods(): Map<String, List<ProviderAuthMethod>> =
+        SEED_PROVIDERS.associate { provider ->
+            provider.id to listOf(ProviderAuthMethod(type = "api", label = "API key"))
+        }
 
     override suspend fun listAgents() = listOf(OpenCodeAgent("pi", "Pi", "primary", true))
 
@@ -136,4 +151,18 @@ class PiTarget(private val runtime: PiRuntime) : RuntimeTarget {
             sessions = listSessions(),
             projects = emptyList(),
         )
+
+    private companion object {
+        val SEED_PROVIDERS =
+            listOf(
+                OpenCodeProvider("anthropic", "Anthropic"),
+                OpenCodeProvider("openai", "OpenAI"),
+                OpenCodeProvider("google", "Google"),
+                OpenCodeProvider("openrouter", "OpenRouter"),
+                OpenCodeProvider("groq", "Groq"),
+                OpenCodeProvider("deepseek", "DeepSeek"),
+                OpenCodeProvider("mistral", "Mistral"),
+                OpenCodeProvider("xai", "xAI"),
+            )
+    }
 }

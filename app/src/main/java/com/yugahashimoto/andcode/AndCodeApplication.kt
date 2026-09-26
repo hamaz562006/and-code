@@ -74,6 +74,7 @@ import com.yugahashimoto.andcode.runtime.local.LocalRuntimeReleaseClient
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeServiceController
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeTarget
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeUpdater
+import com.yugahashimoto.andcode.runtime.local.PiController
 import com.yugahashimoto.andcode.runtime.local.PiRuntime
 import com.yugahashimoto.andcode.runtime.local.PiTarget
 import com.yugahashimoto.andcode.runtime.local.SystemPromptStore
@@ -220,6 +221,9 @@ class AndCodeApplication : Application() {
         private set
 
     lateinit var codexController: CodexController
+        private set
+
+    lateinit var piController: PiController
         private set
 
     /** Which agents the shared sandbox holds, for callers that must not pay for a full runtime check. */
@@ -372,6 +376,7 @@ class AndCodeApplication : Application() {
             }
         }
         codexController = CodexController(codexRuntime, codexTarget, installer, abi, runtimeWork, applicationScope)
+        piController = PiController(piRuntime, piTarget, installer, runtimeWork, applicationScope)
         runtimeMessages = AndroidLocalRuntimeMessages(this)
         gitCloneRepository =
             GitCloneRepository(
@@ -453,6 +458,9 @@ class AndCodeApplication : Application() {
                 processMetricsProvider = launcher::metrics,
                 commandExecutor = commandRunner::run,
                 fullDevelopmentToolsInstalledProvider = localRuntimeManager::fullDevelopmentToolsInstalled,
+                installedAgentIdsProvider = {
+                    localRuntimeManager.installedMetadata()?.components.orEmpty()
+                },
                 messages = runtimeMessages,
             )
         localRuntimeController = LocalRuntimeServiceController(this)
@@ -493,7 +501,14 @@ class AndCodeApplication : Application() {
                 // Ready path establishes the default, and Codex's quicker `--version` check would
                 // otherwise win that race and pick a Codex that may not be signed in yet.
                 val openCodeInstalled = installer.installedMetadata()?.has(LocalAgent.OPEN_CODE) == true
-                if (state is RuntimeState.Connected && !openCodeInstalled) runtimeRegistry.selectIfUnset(codexTarget.id)
+                if (state is RuntimeState.Connected && !openCodeInstalled) {
+                    val selected = runtimeRegistry.selected.value
+                    val stuckOnOpenCode =
+                        selected == null ||
+                            selected.agent == null ||
+                            selected.agent == LocalAgent.OPEN_CODE
+                    if (stuckOnOpenCode) runtimeRegistry.select(codexTarget.id)
+                }
                 // The chat's agent and model lists were read while Codex was unusable, so they held
                 // another runtime's (an OpenCode "build" agent, no Codex model) until something else
                 // refreshed them. Re-read them when Codex recovers from being unusable - not on the
@@ -501,6 +516,46 @@ class AndCodeApplication : Application() {
                 val recovered = state is RuntimeState.Connected && (previous is RuntimeState.Unavailable || previous is RuntimeState.Failed)
                 val codexSelected = runtimeRegistry.selected.value?.id == codexTarget.id
                 if (recovered && codexSelected && ::catalogRepository.isInitialized) catalogRepository.refresh()
+                previous = state
+            }
+        }
+        // Prefer a non-OpenCode local agent immediately from disk metadata — do not wait for
+        // connect(). Pi and Codex are independent of the OpenCode HTTP server.
+        applicationScope.launch {
+            val metadata = installer.installedMetadata() ?: return@launch
+            if (metadata.has(LocalAgent.OPEN_CODE)) return@launch
+            val selected = runtimeRegistry.selected.value
+            val stuckOnOpenCode =
+                selected == null || selected.agent == null || selected.agent == LocalAgent.OPEN_CODE
+            if (!stuckOnOpenCode) return@launch
+            when {
+                metadata.has(LocalAgent.PI) -> runtimeRegistry.select(piTarget.id)
+                metadata.has(LocalAgent.CODEX) -> runtimeRegistry.select(codexTarget.id)
+                metadata.has(LocalAgent.CLAUDE_CODE) -> runtimeRegistry.select(claudeCodeTarget.id)
+                metadata.has(LocalAgent.ANTIGRAVITY) -> runtimeRegistry.select(antigravityTarget.id)
+            }
+        }
+        // Pi-only: replace a dead OpenCode selection once Pi reports Connected (Codex-style).
+        applicationScope.launch {
+            var previous: RuntimeState? = null
+            piTarget.state.collect { state ->
+                val metadata = installer.installedMetadata()
+                val openCodeInstalled = metadata?.has(LocalAgent.OPEN_CODE) == true
+                if (state is RuntimeState.Connected && !openCodeInstalled) {
+                    val selected = runtimeRegistry.selected.value
+                    val stuckOnOpenCode =
+                        selected == null ||
+                            selected.agent == null ||
+                            selected.agent == LocalAgent.OPEN_CODE
+                    if (stuckOnOpenCode) {
+                        runtimeRegistry.select(piTarget.id)
+                    }
+                }
+                val recovered =
+                    state is RuntimeState.Connected &&
+                        (previous is RuntimeState.Unavailable || previous is RuntimeState.Failed)
+                val piSelected = runtimeRegistry.selected.value?.id == piTarget.id
+                if (recovered && piSelected && ::catalogRepository.isInitialized) catalogRepository.refresh()
                 previous = state
             }
         }

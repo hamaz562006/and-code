@@ -135,7 +135,14 @@ class LocalRuntimeManager(
                 if (hadOpenCode || installed.metadata.has(LocalAgent.OPEN_CODE)) {
                     startInstalled(installed)
                 } else {
-                    mutableState.value = LocalRuntimeStatus.NotInstalled
+                    // Pi / Codex / Claude-only: shared rootfs is provisioned, but there is no
+                    // OpenCode HTTP server to start. Do not report NotInstalled — that made the
+                    // setup guide look like the install never ran after a successful Pi-only setup.
+                    mutableState.value =
+                        LocalRuntimeStatus.Stopped(
+                            installed.metadata.version,
+                            installed.metadata.port.coerceIn(0, 65535),
+                        )
                 }
                 Unit
             }.onFailure { error ->
@@ -267,6 +274,8 @@ class LocalRuntimeManager(
     // UI readers must not wait on the installer's write lock during a long package download.
     fun fullDevelopmentToolsInstalled(): Boolean = readMetadata()?.hasFullDevelopmentTools() == true
 
+    fun installedMetadata(): LocalRuntimeMetadata? = readMetadata()
+
     fun runtimeEnvironmentInstalled(): Boolean = readMetadata() != null && File(runtimeDirectory, "environment/rootfs").isDirectory
 
     suspend fun installFullDevelopmentTools(): Result<Unit> =
@@ -329,6 +338,11 @@ class LocalRuntimeManager(
             val metadata =
                 currentMetadataForOperation()
                     ?: return@withLock Result.failure(IllegalStateException("Local runtime is not installed"))
+            if (!metadata.has(LocalAgent.OPEN_CODE)) {
+                return@withLock Result.failure(
+                    IllegalStateException("OpenCode is not part of this install"),
+                )
+            }
             runCatching { engine.check(metadata.version, abi) }
                 .onFailure { error ->
                     if (error is CancellationException) throw error
@@ -645,12 +659,20 @@ class LocalRuntimeManager(
             }.getOrElse { error ->
                 return LocalRuntimeStatus.Broken("Runtime metadata is invalid: ${error.message}")
             }
-        // A sandbox provisioned for Claude Code only is not a broken OpenCode install: OpenCode was
-        // never asked for, so it is simply not installed and the UI should offer to add it.
-        if (!metadata.has(LocalAgent.OPEN_CODE)) return LocalRuntimeStatus.NotInstalled
         val rootfs = File(runtimeDirectory, "environment/rootfs")
+        if (!rootfs.isDirectory) {
+            return LocalRuntimeStatus.Broken(messages.missingFiles)
+        }
+        // OpenCode is optional. Pi/Codex/Claude-only sandboxes still have a provisioned rootfs —
+        // report Stopped so Local runtime is not stuck on "Not installed". OpenCode's target maps
+        // itself to Unavailable when its binary is absent (see LocalRuntimeTarget.mapStatus).
+        if (!metadata.has(LocalAgent.OPEN_CODE)) {
+            val version = metadata.version.ifBlank { "agent-sandbox" }
+            val port = metadata.port.takeIf { it in 1..65535 } ?: 0
+            return LocalRuntimeStatus.Stopped(version, port)
+        }
         val openCode = File(rootfs, "usr/local/bin/opencode")
-        if (!rootfs.isDirectory || !openCode.isFile) {
+        if (!openCode.isFile) {
             return LocalRuntimeStatus.Broken(messages.missingFiles)
         }
         if (metadata.version.isBlank() || metadata.port !in 1..65535) {
@@ -665,6 +687,10 @@ class LocalRuntimeManager(
         }
         return LocalRuntimeStatus.Stopped(metadata.version, metadata.port)
     }
+
+    /** True when the OpenCode CLI is present in the active rootfs. */
+    fun hasOpenCodeBinary(): Boolean =
+        File(runtimeDirectory, "environment/rootfs/usr/local/bin/opencode").isFile
 
     private fun readMetadata(): LocalRuntimeMetadata? {
         val metadataFile = File(runtimeDirectory, METADATA_FILE)

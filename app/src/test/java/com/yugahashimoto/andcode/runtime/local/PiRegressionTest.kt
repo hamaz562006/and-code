@@ -22,6 +22,15 @@ class PiRegressionTest {
         val binary = rootfs.resolve("usr/local/bin/pi")
         binary.parentFile.mkdirs()
         binary.writeText("test")
+        // Host-extract install also requires the bundled CLI under node_modules.
+        assertFalse(PiInstaller.isInstalledIn(rootfs))
+
+        val cli =
+            rootfs.resolve(
+                "usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js",
+            )
+        cli.parentFile.mkdirs()
+        cli.writeText("export {}")
 
         assertTrue(PiInstaller.isInstalledIn(rootfs))
     }

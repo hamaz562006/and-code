@@ -32,7 +32,18 @@ data class OpenCodeAgentUiState(
                 status is LocalRuntimeStatus.Updating
 
     val installed: Boolean
-        get() = status !is LocalRuntimeStatus.NotInstalled && status !is LocalRuntimeStatus.UnsupportedAbi
+        get() =
+            when (val current = status) {
+                is LocalRuntimeStatus.Ready,
+                is LocalRuntimeStatus.Starting,
+                is LocalRuntimeStatus.Updating,
+                -> true
+                // Agent-only sandboxes (Pi/Codex/…) report Stopped with a placeholder version and
+                // port 0 — that is not an OpenCode install.
+                is LocalRuntimeStatus.Stopped ->
+                    current.port in 1..65535 && current.version != "agent-sandbox"
+                else -> false
+            }
 
     val version: String?
         get() =

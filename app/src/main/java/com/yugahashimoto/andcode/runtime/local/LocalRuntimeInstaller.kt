@@ -183,7 +183,9 @@ class LocalRuntimeInstaller(
                     installPackages(
                         rootfs = rootfs,
                         suite = commandSuite,
-                        packages = listOf("nodejs", "npm"),
+                        // Node only — Pi is extracted from npm tarballs on the host (Codex-style),
+                        // so the Alpine `npm` package is not required inside the guest.
+                        packages = listOf("nodejs"),
                     )
                 }
                 if (LocalAgent.CLAUDE_CODE in requestedAgents) {
@@ -233,7 +235,7 @@ class LocalRuntimeInstaller(
 
                 val metadata =
                     LocalRuntimeMetadata(
-                        version = if (withOpenCode) manifest.openCodeVersion else "",
+                        version = if (withOpenCode) manifest.openCodeVersion else PiInstaller.PI_VERSION,
                         port = manifest.port,
                         installedAt = System.currentTimeMillis(),
                         runtimeVersion = manifest.runtimeVersion,

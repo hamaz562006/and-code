@@ -381,7 +381,17 @@ class LocalRuntimeService : Service() {
                 autoRestartEnabled = true
                 val agents = localRuntimeInstallAgents(intent?.getStringArrayExtra(EXTRA_AGENTS))
                 val installFullDevelopmentTools = intent?.getBooleanExtra(EXTRA_FULL_DEVELOPMENT_TOOLS, false) == true
-                launchOperation { manager.installAgents(agents, installFullDevelopmentTools) }
+                launchOperation {
+                    manager.installAgents(agents, installFullDevelopmentTools)
+                    // Pi/Codex/Claude-only installs never start the OpenCode HTTP server. Keeping
+                    // this service alive pins a permanent "not installed" notification that is
+                    // about OpenCode, not those agents.
+                    val status = manager.status()
+                    if (status !is LocalRuntimeStatus.Ready && status !is LocalRuntimeStatus.Starting) {
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelf()
+                    }
+                }
             }
             LocalRuntimeServiceCommand.InstallAndStart -> {
                 autoRestartEnabled = true

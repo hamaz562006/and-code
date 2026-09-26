@@ -27,6 +27,7 @@ import com.yugahashimoto.andcode.feature.settings.GitHubSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ModelVisibilityScreen
 import com.yugahashimoto.andcode.feature.settings.OpenCodeAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.OpenCodeAgentSettingsViewModel
+import com.yugahashimoto.andcode.feature.settings.PiAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ProviderSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.SettingsScreenV2
 import com.yugahashimoto.andcode.feature.settings.SettingsViewModel
@@ -281,6 +282,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenClaudeCode = { navController.navigate(ROUTE_SETTINGS_AGENT_CLAUDE) },
             onOpenAntigravity = { navController.navigate(ROUTE_SETTINGS_AGENT_ANTIGRAVITY) },
             onOpenCodex = { navController.navigate(ROUTE_SETTINGS_AGENT_CODEX) },
+            onOpenPi = { navController.navigate(ROUTE_SETTINGS_AGENT_PI) },
             onBack = { navController.popBackStack() },
         )
     }
@@ -426,6 +428,17 @@ fun NavGraphBuilder.settingsNavGraph(
             onInstall = app.codexController::install,
             onSignOut = app.codexController::signOut,
             onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_CODEX) },
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable(ROUTE_SETTINGS_AGENT_PI) {
+        val app = context.applicationContext as com.yugahashimoto.andcode.AndCodeApplication
+        val pi by app.piController.state.collectAsState()
+        androidx.compose.runtime.LaunchedEffect(Unit) { app.piController.refresh() }
+        PiAgentSettingsScreen(
+            pi = pi,
+            onInstall = app.piController::install,
             onBack = { navController.popBackStack() },
         )
     }

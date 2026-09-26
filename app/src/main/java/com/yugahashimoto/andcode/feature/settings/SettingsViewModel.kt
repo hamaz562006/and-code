@@ -197,13 +197,28 @@ class SettingsViewModel(
             // `availableProviders` answers "whose credentials can I manage", which is always the
             // provider-owning runtime. Serving both from one catalogue put OpenCode's models in the
             // model picker while Claude Code was the active agent.
+            val storedCredentialIds = credentials.managedProviderIds()
             val chatConnected =
-                (core.runtime.providers.connected.toSet() + oauth.locallyConnected) - oauth.locallyDisconnected
+                (core.runtime.providers.connected.toSet() + oauth.locallyConnected + storedCredentialIds) -
+                    oauth.locallyDisconnected
             val managed = core.providerCatalog ?: core.runtime.providers
+            // Pi has no OpenCode catalogue until models are discovered after API keys are stored.
+            // Without a seed list the Providers screen is empty and the chat picker shows
+            // "No connected providers yet".
+            val piSeedProviders =
+                if (core.selected?.agent == LocalAgent.PI && managed.all.isEmpty()) {
+                    PI_SEED_PROVIDERS
+                } else {
+                    emptyList()
+                }
             SettingsUiState(
-                providers = core.runtime.providers.all.filter { it.id in chatConnected },
-                availableProviders = managed.all,
-                connectedProviderIds = (managed.connected.toSet() + oauth.locallyConnected) - oauth.locallyDisconnected,
+                providers =
+                    (core.runtime.providers.all.ifEmpty { piSeedProviders })
+                        .filter { it.id in chatConnected },
+                availableProviders = managed.all.ifEmpty { piSeedProviders },
+                connectedProviderIds =
+                    (managed.connected.toSet() + oauth.locallyConnected + storedCredentialIds) -
+                        oauth.locallyDisconnected,
                 agents = core.runtime.agents.filter { it.mode == null || it.mode == "primary" },
                 providerId = core.preferences.providerId,
                 modelId = core.preferences.modelId,
@@ -374,13 +389,18 @@ class SettingsViewModel(
     }
 
     /**
-     * Runtime that owns provider credentials.
+     * Runtime that owns provider credentials / catalogue for the Providers screen.
      *
-     * Providers are an OpenCode concept: Claude Code authenticates as itself and has no catalogue.
-     * With Claude selected, every one of these calls used to go to a runtime that cannot answer, so
-     * the connect button simply did nothing.
+     * OpenCode and Pi both expose provider lists. Claude Code / Antigravity / Codex authenticate as
+     * themselves. When the user is on Pi (typical Pi-only setup), route here — not to the
+     * Android-local OpenCode target, which is Unavailable and fails with
+     * "Failed to connect to /127.0.0.1:4097".
      */
-    private fun providerTarget(): RuntimeTarget? = registry.targetFor(LocalAgent.OPEN_CODE)
+    private fun providerTarget(): RuntimeTarget? {
+        val selected = registry.selected.value
+        if (selected?.agent == LocalAgent.PI) return selected
+        return registry.targetFor(LocalAgent.OPEN_CODE)
+    }
 
     fun openProviderAuth(providerId: String) {
         val methods = oauthState.value.methods[providerId].orEmpty()
@@ -460,7 +480,6 @@ class SettingsViewModel(
     }
 
     private fun submitProviderApiKey(dialog: ProviderAuthDialogState) {
-        val target = providerTarget() ?: return
         val apiKey = dialog.apiKey.trim()
         if (apiKey.isEmpty()) return
         providerAuthJob =
@@ -468,18 +487,24 @@ class SettingsViewModel(
                 oauthState.update {
                     it.copy(dialog = dialog.copy(isSubmitting = true, failed = false, error = null))
                 }
-                runCatching { target.setProviderApiKey(dialog.providerId, apiKey, dialog.inputs) }
-                    .onSuccess { completed ->
-                        if (completed) {
-                            if (target.kind == BackendKind.LOCAL) {
-                                credentials.setCredential(dialog.providerId, apiKey)
-                            }
-                            finishProviderAuth(ProviderAuthNotice.CONNECTED)
-                        } else {
-                            updateProviderAuthError(null)
-                        }
+                val target = providerTarget()
+                // Prefer writing through the OpenCode runtime when it is up. Always persist to the
+                // shared credential store so agents that do not use OpenCode's HTTP server (Pi) still
+                // receive the key via auth.json sync. Without this, Pi-only setup failed with
+                // "Android local OpenCode runtime is not installed" and never stored the key.
+                val runtimeAccepted =
+                    if (target != null) {
+                        runCatching { target.setProviderApiKey(dialog.providerId, apiKey, dialog.inputs) }
+                            .getOrDefault(false)
+                    } else {
+                        false
                     }
-                    .onFailure(::updateProviderAuthError)
+                credentials.setCredential(dialog.providerId, apiKey)
+                if (runtimeAccepted || target == null || target.kind == BackendKind.LOCAL) {
+                    finishProviderAuth(ProviderAuthNotice.CONNECTED)
+                } else {
+                    updateProviderAuthError(null)
+                }
             }
     }
 
@@ -771,10 +796,15 @@ class SettingsViewModel(
                     oauthState.update { current -> current.copy(methods = methods, message = null) }
                 }
                 .onFailure { error ->
+                    val detail = error.message?.takeIf(String::isNotBlank)
+                    // OpenCode-only failures must not poison Pi-only setup (which does not need the
+                    // OpenCode HTTP server to store API keys for Pi).
+                    val hide =
+                        detail?.contains("OpenCode runtime is not installed", ignoreCase = true) == true
                     oauthState.update { current ->
                         current.copy(
                             methods = emptyMap(),
-                            message = error.message?.takeIf(String::isNotBlank),
+                            message = detail?.takeUnless { hide },
                         )
                     }
                 }
@@ -812,5 +842,17 @@ class SettingsViewModel(
         const val TAG = "SettingsVM"
         const val AUTO_OAUTH_TIMEOUT_MS = 6 * 60 * 1000L
         const val AUTO_OAUTH_POLL_MS = 3000L
+
+        private val PI_SEED_PROVIDERS =
+            listOf(
+                OpenCodeProvider("anthropic", "Anthropic"),
+                OpenCodeProvider("openai", "OpenAI"),
+                OpenCodeProvider("google", "Google"),
+                OpenCodeProvider("openrouter", "OpenRouter"),
+                OpenCodeProvider("groq", "Groq"),
+                OpenCodeProvider("deepseek", "DeepSeek"),
+                OpenCodeProvider("mistral", "Mistral"),
+                OpenCodeProvider("xai", "xAI"),
+            )
     }
 }

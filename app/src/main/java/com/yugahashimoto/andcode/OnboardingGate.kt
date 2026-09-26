@@ -14,8 +14,8 @@ internal fun hasUsableRuntimeSetup(
     localRuntimeStatus: LocalRuntimeStatus,
     hasRemoteConnection: Boolean,
     /**
-     * Claude Code, Antigravity or Codex is installed in the shared sandbox. [localRuntimeStatus] only
-     * describes OpenCode, which a setup that picked another agent never installs.
+     * Claude Code, Antigravity, Codex or Pi is installed in the shared sandbox.
+     * [localRuntimeStatus] only describes OpenCode, which a setup that picked another agent never installs.
      */
     hasOtherLocalAgent: Boolean = false,
 ): Boolean {

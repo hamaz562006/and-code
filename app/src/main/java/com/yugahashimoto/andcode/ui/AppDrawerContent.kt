@@ -147,8 +147,9 @@ fun AppDrawerContent(
                 DrawerHeader()
                 NewChatRow(onClick = onNewChat)
 
-                // Only worth a switcher when there is something to switch between.
-                if (agents.size > 1) {
+                // Always list installed agents (even a single Pi/Codex-only setup) so the user can
+                // see which local agent is active. Switching still only matters when size > 1.
+                if (agents.isNotEmpty()) {
                     DrawerSectionHeader(
                         text = stringResource(R.string.drawer_agents_title),
                         collapsed = collapsedSections.contains("agents"),

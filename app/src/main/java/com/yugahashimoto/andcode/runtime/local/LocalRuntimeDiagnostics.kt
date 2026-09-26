@@ -57,6 +57,8 @@ class LocalRuntimeDiagnosticsCollector(
     private val processMetricsProvider: () -> LocalRuntimeProcessMetrics?,
     private val commandExecutor: (LocalRuntimeToolDefinition) -> LocalRuntimeCommandResult,
     private val fullDevelopmentToolsInstalledProvider: () -> Boolean = { false },
+    /** Installed agent ids from runtime metadata; drives which "required" agent tools are listed. */
+    private val installedAgentIdsProvider: () -> Set<String> = { emptySet() },
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val maxLogCharacters: Int = 12_000,
     private val messages: LocalRuntimeMessages = LocalRuntimeMessages,
@@ -70,8 +72,19 @@ class LocalRuntimeDiagnosticsCollector(
         val installed =
             status !is LocalRuntimeStatus.NotInstalled &&
                 status !is LocalRuntimeStatus.UnsupportedAbi
+        val agentIds = installedAgentIdsProvider()
+        val agentTools =
+            buildList {
+                if (agentIds.isEmpty() || "opencode" in agentIds) {
+                    add(OPENCODE_TOOL)
+                }
+                if ("pi" in agentIds) {
+                    add(PI_TOOL)
+                }
+            }
         val definitions =
-            REQUIRED_TOOLS +
+            agentTools +
+                SHARED_REQUIRED_TOOLS +
                 OPTIONAL_TOOLS.takeIf { fullDevelopmentToolsInstalledProvider() }.orEmpty()
         val tools =
             if (installed) {
@@ -169,9 +182,14 @@ class LocalRuntimeDiagnosticsCollector(
     companion object {
         private const val MAX_UTF8_BYTES_PER_CHARACTER = 4L
 
-        val REQUIRED_TOOLS =
+        val OPENCODE_TOOL =
+            LocalRuntimeToolDefinition("opencode", "OpenCode", "/usr/local/bin/opencode --version")
+
+        val PI_TOOL =
+            LocalRuntimeToolDefinition("pi", "Pi", "/usr/local/bin/pi --version")
+
+        val SHARED_REQUIRED_TOOLS =
             listOf(
-                LocalRuntimeToolDefinition("opencode", "OpenCode", "/usr/local/bin/opencode --version"),
                 LocalRuntimeToolDefinition("git", "Git", "git --version"),
                 LocalRuntimeToolDefinition("bash", "Bash", "bash --version | head -n 1"),
                 LocalRuntimeToolDefinition("curl", "curl", "curl --version | head -n 1"),
@@ -185,6 +203,9 @@ class LocalRuntimeDiagnosticsCollector(
                 LocalRuntimeToolDefinition("adb", "ADB", "adb version | head -n 1"),
                 LocalRuntimeToolDefinition("python3", "Python", "python3 --version"),
             )
+
+        /** @deprecated Use agent-aware lists; kept for callers that still reference it. */
+        val REQUIRED_TOOLS = listOf(OPENCODE_TOOL) + SHARED_REQUIRED_TOOLS
 
         val OPTIONAL_TOOLS =
             listOf(
