@@ -183,7 +183,9 @@ class LocalRuntimeInstaller(
                     installPackages(
                         rootfs = rootfs,
                         suite = commandSuite,
-                        packages = listOf("nodejs", "npm"),
+                        // Node only — Pi is extracted from npm tarballs on the host (Codex-style),
+                        // so the Alpine `npm` package is not required inside the guest.
+                        packages = listOf("nodejs"),
                     )
                 }
                 if (LocalAgent.CLAUDE_CODE in requestedAgents) {
