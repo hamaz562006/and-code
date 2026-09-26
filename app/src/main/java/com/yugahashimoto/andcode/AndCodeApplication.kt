@@ -498,7 +498,14 @@ class AndCodeApplication : Application() {
                 // Ready path establishes the default, and Codex's quicker `--version` check would
                 // otherwise win that race and pick a Codex that may not be signed in yet.
                 val openCodeInstalled = installer.installedMetadata()?.has(LocalAgent.OPEN_CODE) == true
-                if (state is RuntimeState.Connected && !openCodeInstalled) runtimeRegistry.selectIfUnset(codexTarget.id)
+                if (state is RuntimeState.Connected && !openCodeInstalled) {
+                    val selected = runtimeRegistry.selected.value
+                    val stuckOnOpenCode =
+                        selected == null ||
+                            selected.agent == null ||
+                            selected.agent == LocalAgent.OPEN_CODE
+                    if (stuckOnOpenCode) runtimeRegistry.select(codexTarget.id)
+                }
                 // The chat's agent and model lists were read while Codex was unusable, so they held
                 // another runtime's (an OpenCode "build" agent, no Codex model) until something else
                 // refreshed them. Re-read them when Codex recovers from being unusable - not on the
@@ -509,10 +516,23 @@ class AndCodeApplication : Application() {
                 previous = state
             }
         }
-        // Pi-only (or any setup without OpenCode): the persisted selectedRuntimeId often still
-        // points at the Android-local OpenCode target. selectIfUnset then never runs, the chat
-        // stays on an Unavailable OpenCode, Provider Settings tries 127.0.0.1:4097, and Pi never
-        // appears as the active runtime. Replace that dead OpenCode selection once Pi connects.
+        // Prefer a non-OpenCode local agent immediately from disk metadata — do not wait for
+        // connect(). Pi and Codex are independent of the OpenCode HTTP server.
+        applicationScope.launch {
+            val metadata = installer.installedMetadata() ?: return@launch
+            if (metadata.has(LocalAgent.OPEN_CODE)) return@launch
+            val selected = runtimeRegistry.selected.value
+            val stuckOnOpenCode =
+                selected == null || selected.agent == null || selected.agent == LocalAgent.OPEN_CODE
+            if (!stuckOnOpenCode) return@launch
+            when {
+                metadata.has(LocalAgent.PI) -> runtimeRegistry.select(piTarget.id)
+                metadata.has(LocalAgent.CODEX) -> runtimeRegistry.select(codexTarget.id)
+                metadata.has(LocalAgent.CLAUDE_CODE) -> runtimeRegistry.select(claudeCodeTarget.id)
+                metadata.has(LocalAgent.ANTIGRAVITY) -> runtimeRegistry.select(antigravityTarget.id)
+            }
+        }
+        // Pi-only: replace a dead OpenCode selection once Pi reports Connected (Codex-style).
         applicationScope.launch {
             var previous: RuntimeState? = null
             piTarget.state.collect { state ->
