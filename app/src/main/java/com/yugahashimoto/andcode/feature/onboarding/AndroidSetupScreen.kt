@@ -232,6 +232,18 @@ fun AndroidSetupScreen(
         if (piSelected) onRefreshPiState()
     }
 
+    // Step 3 with Pi/Codex/Claude idle and not installed: install may never have been kicked off
+    // (process death after step 2, or a silent failure). Start it once so the user is not stuck
+    // on "Not installed" with only Back.
+    LaunchedEffect(currentStep, piSelected, piReady, pi.install, codexSelected, codexReady, codex.install) {
+        if (currentStep != 3) return@LaunchedEffect
+        if (packageInstallRunning) return@LaunchedEffect
+        val needsPi = piSelected && !piReady && pi.install is PiInstallStatus.Idle
+        val needsCodex = codexSelected && !codexReady && codex.install is CodexInstallStatus.Idle
+        if (!needsPi && !needsCodex) return@LaunchedEffect
+        onStartSetup(selectedAgents, installFullDevelopmentTools)
+    }
+
     LaunchedEffect(openCodeReady, openCodeSelected, settingsState.availableProviders, settingsState.providerAuthMethods) {
         if (!openCodeSelected || !openCodeReady) return@LaunchedEffect
         if (settingsState.availableProviders.isNotEmpty() && settingsState.providerAuthMethods.isNotEmpty()) return@LaunchedEffect
@@ -275,7 +287,12 @@ fun AndroidSetupScreen(
                     antigravity.error != null ||
                     codex.install is CodexInstallStatus.Failed ||
                     pi.install is PiInstallStatus.Failed ||
-                    fullDevelopmentToolsInstallFailed
+                    fullDevelopmentToolsInstallFailed ||
+                    // Idle "Not installed" with no progress: install never started or died silently.
+                    // Without this the step had only Back and looked permanently stuck.
+                    (piSelected && !piReady && pi.install !is PiInstallStatus.Installing) ||
+                    (codexSelected && !codexReady && codex.install !is CodexInstallStatus.Installing) ||
+                    (claudeSelected && !claudeReady && claude.install !is ClaudeInstallStatus.Installing)
                 ) {
                     SetupPrimaryAction(stringResource(R.string.claude_retry_install_button), true) {
                         onStartSetup(

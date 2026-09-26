@@ -969,10 +969,9 @@ fun AndCodeApp(
                                 if (com.yugahashimoto.andcode.runtime.LocalAgent.OPEN_CODE in agents) {
                                     workspaceViewModel.setupLocalRuntime(agents, installFullDevelopmentTools)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.PI in agents) {
-                                    // Through LocalRuntimeManager so setup sees Installing progress.
-                                    // Does not start the OpenCode HTTP server (Pi has its own RPC).
-                                    workspaceViewModel.installAgents(agents, installFullDevelopmentTools)
-                                    app.piController.refresh()
+                                    // Same pattern as CodexController: PiController owns UI progress
+                                    // and provisions the shared rootfs + npm package. No OpenCode server.
+                                    app.piController.install(agents, installFullDevelopmentTools)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY in agents) {
                                     app.antigravityController.install(agents, installFullDevelopmentTools)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CODEX in agents) {
