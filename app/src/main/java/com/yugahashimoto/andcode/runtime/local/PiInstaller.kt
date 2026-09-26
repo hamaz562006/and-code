@@ -7,8 +7,10 @@ import java.util.concurrent.TimeUnit
 
 object PiInstaller {
     const val PI_VERSION = "0.87.1"
+
     /** Canonical path we expose to the rest of the app. */
     private const val PI_BINARY = "/usr/local/bin/pi"
+
     /** Alpine's npm global prefix is often /usr, so the bin may land here instead. */
     private const val PI_BINARY_ALPINE = "/usr/bin/pi"
     private const val MIN_NODE_MAJOR = 22
