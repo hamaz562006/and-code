@@ -313,8 +313,16 @@ class LocalRuntimeTarget(
         scope.cancel()
     }
 
-    private fun mapStatus(status: LocalRuntimeStatus): RuntimeState =
-        when (status) {
+    private fun mapStatus(status: LocalRuntimeStatus): RuntimeState {
+        // Agent-only sandboxes report Stopped without an OpenCode binary. This target is OpenCode
+        // alone — stay Unavailable so the drawer does not show a fake disconnected OpenCode.
+        if (status !is LocalRuntimeStatus.NotInstalled &&
+            status !is LocalRuntimeStatus.UnsupportedAbi &&
+            !runtimeManager.hasOpenCodeBinary()
+        ) {
+            return RuntimeState.Unavailable(messages.notInstalled)
+        }
+        return when (status) {
             LocalRuntimeStatus.NotInstalled -> RuntimeState.Unavailable(messages.notInstalled)
             is LocalRuntimeStatus.UnsupportedAbi -> RuntimeState.Unavailable(messages.unsupportedAbi(status.abi))
             is LocalRuntimeStatus.Installing -> RuntimeState.Connecting
@@ -324,6 +332,7 @@ class LocalRuntimeTarget(
             is LocalRuntimeStatus.Broken -> RuntimeState.Failed(status.reason)
             is LocalRuntimeStatus.Ready -> RuntimeState.Connected(status.version)
         }
+    }
 
     private fun RuntimeState.describe(): String =
         when (this) {

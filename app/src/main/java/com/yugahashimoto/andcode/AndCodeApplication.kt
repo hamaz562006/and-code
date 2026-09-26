@@ -458,6 +458,9 @@ class AndCodeApplication : Application() {
                 processMetricsProvider = launcher::metrics,
                 commandExecutor = commandRunner::run,
                 fullDevelopmentToolsInstalledProvider = localRuntimeManager::fullDevelopmentToolsInstalled,
+                installedAgentIdsProvider = {
+                    localRuntimeManager.installedMetadata()?.components.orEmpty()
+                },
                 messages = runtimeMessages,
             )
         localRuntimeController = LocalRuntimeServiceController(this)

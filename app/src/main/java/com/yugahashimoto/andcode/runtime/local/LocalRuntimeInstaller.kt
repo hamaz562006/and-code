@@ -235,7 +235,7 @@ class LocalRuntimeInstaller(
 
                 val metadata =
                     LocalRuntimeMetadata(
-                        version = if (withOpenCode) manifest.openCodeVersion else "",
+                        version = if (withOpenCode) manifest.openCodeVersion else PiInstaller.PI_VERSION,
                         port = manifest.port,
                         installedAt = System.currentTimeMillis(),
                         runtimeVersion = manifest.runtimeVersion,
