@@ -73,7 +73,8 @@ object PiInstaller {
                     """
                     #!/usr/bin/env node
                     import("file:///$MODULES_DIR/$PI_MODULE/$CLI_RELATIVE");
-                    """.trimIndent() + "\n",
+                    """.trimIndent() +
+                        "\n",
                 )
                 bin.setExecutable(true, false)
                 bin.setReadable(true, false)
