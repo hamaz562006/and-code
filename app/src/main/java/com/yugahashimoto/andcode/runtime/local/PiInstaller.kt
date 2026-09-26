@@ -3,6 +3,9 @@ package com.yugahashimoto.andcode.runtime.local
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.concurrent.TimeUnit
 
 object PiInstaller {
@@ -15,6 +18,9 @@ object PiInstaller {
     private const val PI_BINARY_ALPINE = "/usr/bin/pi"
     private const val MIN_NODE_MAJOR = 22
     private const val MIN_NODE_MINOR = 19
+    private const val PACKAGE_NAME = "@earendil-works/pi-coding-agent"
+    private const val TARBALL_URL =
+        "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-$PI_VERSION.tgz"
 
     fun isInstalledIn(rootfs: File): Boolean =
         File(rootfs, PI_BINARY.removePrefix("/")).isFile ||
@@ -29,36 +35,54 @@ object PiInstaller {
             accessCoordinator.write {
                 val prootTmp = File(runtimeDirectory, "proot-tmp").apply { mkdirs() }
                 val apkCache = File(runtimeDirectory, "cache/apk").apply { mkdirs() }
+                val npmCache = File(runtimeDirectory, "cache/npm").apply { mkdirs() }
                 val log =
                     File(runtimeDirectory, "logs/pi-install.log").apply {
                         parentFile?.mkdirs()
                         delete()
                     }
-                // Install under /usr/local so the binary is always at /usr/local/bin/pi.
-                // Alpine's default npm prefix is /usr; without --prefix the bin landed in /usr/bin
-                // and the final `/usr/local/bin/pi --version` step failed after a successful npm
-                // install, producing a log that only showed `node --version` / `npm --version`.
+
+                // Download the package tarball on the Android host (outside proot) so npm inside
+                // the sandbox only has to resolve/install dependencies, not re-fetch the main
+                // payload. Exit 137 on prior builds was the OOM killer during a full in-proot
+                // `npm install` of this tree.
+                val hostTarball = File(npmCache, "pi-coding-agent-$PI_VERSION.tgz")
+                downloadTarball(hostTarball)
+                val guestTarball = File(runtime.rootfs, "tmp/pi-coding-agent-$PI_VERSION.tgz")
+                guestTarball.parentFile?.mkdirs()
+                hostTarball.copyTo(guestTarball, overwrite = true)
+
+                // Cap V8 heap and npm concurrency so low-RAM devices do not SIGKILL (exit 137).
+                // --ignore-scripts skips native builds (e.g. photon-node) that are not required for
+                // the RPC coding-agent path and are a common OOM source on Alpine/arm.
                 val shell =
                     """
                     set -e
                     export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+                    export NODE_OPTIONS="--max-old-space-size=256"
+                    export npm_config_maxsockets=1
+                    export npm_config_fund=false
+                    export npm_config_audit=false
+                    export npm_config_update_notifier=false
+                    export npm_config_prefix=/usr/local
                     echo "node=${'$'}(node --version)"
                     echo "npm=${'$'}(npm --version)"
                     node -e 'const v=process.versions.node.split(".").map(Number); if (v[0] < $MIN_NODE_MAJOR || (v[0] === $MIN_NODE_MAJOR && v[1] < $MIN_NODE_MINOR)) throw new Error("Pi requires Node.js >= $MIN_NODE_MAJOR.$MIN_NODE_MINOR; found " + process.versions.node)'
                     npm config set registry https://registry.npmjs.org/
                     npm config set prefix /usr/local
-                    mkdir -p /usr/local/bin /usr/local/lib
-                    echo "npm install @earendil-works/pi-coding-agent@$PI_VERSION ..."
-                    npm install -g --prefix /usr/local --no-fund --no-audit --progress=false \
+                    mkdir -p /usr/local/bin /usr/local/lib /tmp
+                    echo "npm install $PACKAGE_NAME@$PI_VERSION from local tarball ..."
+                    npm install -g --prefix /usr/local \
+                      --ignore-scripts --no-audit --no-fund --progress=false \
                       --fetch-retries=3 --fetch-timeout=300000 \
                       --fetch-retry-mintimeout=2000 --fetch-retry-maxtimeout=60000 \
-                      @earendil-works/pi-coding-agent@$PI_VERSION
+                      /tmp/pi-coding-agent-$PI_VERSION.tgz
                     if [ ! -x $PI_BINARY ]; then
                       if [ -x $PI_BINARY_ALPINE ]; then
                         ln -sfn $PI_BINARY_ALPINE $PI_BINARY
                       elif [ -f /usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js ]; then
                         printf '%s\n' '#!/usr/bin/env node' \
-                          'require("/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js")' \
+                          'import("file:///usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js")' \
                           > $PI_BINARY
                         chmod +x $PI_BINARY
                       else
@@ -104,15 +128,22 @@ object PiInstaller {
                             environment()["PROOT_TMP_DIR"] = prootTmp.absolutePath
                             environment()["PI_VERSION"] = PI_VERSION
                             environment()["npm_config_prefix"] = "/usr/local"
+                            environment()["NODE_OPTIONS"] = "--max-old-space-size=256"
                         }.start()
-                if (!process.waitFor(15, TimeUnit.MINUTES)) {
+                if (!process.waitFor(20, TimeUnit.MINUTES)) {
                     process.destroyForcibly()
                     error("Pi installation timed out")
                 }
-                // Prefer a host-side symlink so isInstalledIn and runtime always see /usr/local/bin/pi.
                 ensureLocalBinLink(runtime.rootfs)
-                require(process.exitValue() == 0) {
-                    "Pi installation failed (exit ${process.exitValue()}): ${logTail(log)}"
+                val exit = process.exitValue()
+                require(exit == 0) {
+                    val hint =
+                        if (exit == 137 || exit == 9) {
+                            " (process killed — usually out of memory during npm install)"
+                        } else {
+                            ""
+                        }
+                    "Pi installation failed (exit $exit)$hint:\n${logTail(log)}"
                 }
                 require(isInstalledIn(runtime.rootfs)) {
                     "Pi installation completed without installing pi binary. Log:\n${logTail(log)}"
@@ -120,6 +151,37 @@ object PiInstaller {
                 logTail(log).lineSequence().lastOrNull { it.isNotBlank() }?.trim() ?: PI_VERSION
             }
         }
+
+    private fun downloadTarball(destination: File) {
+        if (destination.isFile && destination.length() > 10_000L) return
+        destination.parentFile?.mkdirs()
+        val tmp = File(destination.parentFile, "${destination.name}.part")
+        tmp.delete()
+        val connection =
+            (URL(TARBALL_URL).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 60_000
+                readTimeout = 300_000
+                instanceFollowRedirects = true
+                setRequestProperty("Accept", "application/octet-stream")
+                setRequestProperty("User-Agent", "and-code-pi-installer/$PI_VERSION")
+            }
+        try {
+            connection.inputStream.use { input ->
+                FileOutputStream(tmp).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            require(tmp.length() > 10_000L) {
+                "Downloaded Pi tarball is too small (${tmp.length()} bytes)"
+            }
+            if (!tmp.renameTo(destination)) {
+                tmp.copyTo(destination, overwrite = true)
+                tmp.delete()
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     private fun ensureLocalBinLink(rootfs: File) {
         val local = File(rootfs, PI_BINARY.removePrefix("/"))
@@ -129,8 +191,6 @@ object PiInstaller {
         local.parentFile?.mkdirs()
         runCatching {
             local.delete()
-            // Relative symlink inside the rootfs so proot resolves it cleanly.
-            // /usr/local/bin/pi -> /usr/bin/pi
             java.nio.file.Files.createSymbolicLink(
                 local.toPath(),
                 java.nio.file.Paths.get("..", "..", "bin", "pi"),
