@@ -202,9 +202,20 @@ class SettingsViewModel(
                 (core.runtime.providers.connected.toSet() + oauth.locallyConnected + storedCredentialIds) -
                     oauth.locallyDisconnected
             val managed = core.providerCatalog ?: core.runtime.providers
+            // Pi has no OpenCode catalogue until models are discovered after API keys are stored.
+            // Without a seed list the Providers screen is empty and the chat picker shows
+            // "No connected providers yet".
+            val piSeedProviders =
+                if (core.selected?.agent == LocalAgent.PI && managed.all.isEmpty()) {
+                    PI_SEED_PROVIDERS
+                } else {
+                    emptyList()
+                }
             SettingsUiState(
-                providers = core.runtime.providers.all.filter { it.id in chatConnected },
-                availableProviders = managed.all,
+                providers =
+                    (core.runtime.providers.all.ifEmpty { piSeedProviders })
+                        .filter { it.id in chatConnected },
+                availableProviders = managed.all.ifEmpty { piSeedProviders },
                 connectedProviderIds =
                     (managed.connected.toSet() + oauth.locallyConnected + storedCredentialIds) -
                         oauth.locallyDisconnected,
@@ -378,13 +389,18 @@ class SettingsViewModel(
     }
 
     /**
-     * Runtime that owns provider credentials.
+     * Runtime that owns provider credentials / catalogue for the Providers screen.
      *
-     * Providers are an OpenCode concept: Claude Code authenticates as itself and has no catalogue.
-     * With Claude selected, every one of these calls used to go to a runtime that cannot answer, so
-     * the connect button simply did nothing.
+     * OpenCode and Pi both expose provider lists. Claude Code / Antigravity / Codex authenticate as
+     * themselves. When the user is on Pi (typical Pi-only setup), route here — not to the
+     * Android-local OpenCode target, which is Unavailable and fails with
+     * "Failed to connect to /127.0.0.1:4097".
      */
-    private fun providerTarget(): RuntimeTarget? = registry.targetFor(LocalAgent.OPEN_CODE)
+    private fun providerTarget(): RuntimeTarget? {
+        val selected = registry.selected.value
+        if (selected?.agent == LocalAgent.PI) return selected
+        return registry.targetFor(LocalAgent.OPEN_CODE)
+    }
 
     fun openProviderAuth(providerId: String) {
         val methods = oauthState.value.methods[providerId].orEmpty()
@@ -826,5 +842,17 @@ class SettingsViewModel(
         const val TAG = "SettingsVM"
         const val AUTO_OAUTH_TIMEOUT_MS = 6 * 60 * 1000L
         const val AUTO_OAUTH_POLL_MS = 3000L
+
+        private val PI_SEED_PROVIDERS =
+            listOf(
+                OpenCodeProvider("anthropic", "Anthropic"),
+                OpenCodeProvider("openai", "OpenAI"),
+                OpenCodeProvider("google", "Google"),
+                OpenCodeProvider("openrouter", "OpenRouter"),
+                OpenCodeProvider("groq", "Groq"),
+                OpenCodeProvider("deepseek", "DeepSeek"),
+                OpenCodeProvider("mistral", "Mistral"),
+                OpenCodeProvider("xai", "xAI"),
+            )
     }
 }

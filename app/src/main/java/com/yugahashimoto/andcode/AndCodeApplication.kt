@@ -509,14 +509,24 @@ class AndCodeApplication : Application() {
                 previous = state
             }
         }
-        // Same defaulting for Pi-only setups: without OpenCode, nothing else selects a runtime.
+        // Pi-only (or any setup without OpenCode): the persisted selectedRuntimeId often still
+        // points at the Android-local OpenCode target. selectIfUnset then never runs, the chat
+        // stays on an Unavailable OpenCode, Provider Settings tries 127.0.0.1:4097, and Pi never
+        // appears as the active runtime. Replace that dead OpenCode selection once Pi connects.
         applicationScope.launch {
             var previous: RuntimeState? = null
             piTarget.state.collect { state ->
-                val openCodeInstalled = installer.installedMetadata()?.has(LocalAgent.OPEN_CODE) == true
-                val codexInstalled = installer.installedMetadata()?.has(LocalAgent.CODEX) == true
-                if (state is RuntimeState.Connected && !openCodeInstalled && !codexInstalled) {
-                    runtimeRegistry.selectIfUnset(piTarget.id)
+                val metadata = installer.installedMetadata()
+                val openCodeInstalled = metadata?.has(LocalAgent.OPEN_CODE) == true
+                if (state is RuntimeState.Connected && !openCodeInstalled) {
+                    val selected = runtimeRegistry.selected.value
+                    val stuckOnOpenCode =
+                        selected == null ||
+                            selected.agent == null ||
+                            selected.agent == LocalAgent.OPEN_CODE
+                    if (stuckOnOpenCode) {
+                        runtimeRegistry.select(piTarget.id)
+                    }
                 }
                 val recovered =
                     state is RuntimeState.Connected &&

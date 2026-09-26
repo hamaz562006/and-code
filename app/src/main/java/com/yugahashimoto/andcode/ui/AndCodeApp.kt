@@ -679,6 +679,21 @@ fun AndCodeApp(
     val startDestination = remember { if (app.settings.onboardingCompleted) ROUTE_CHAT else ROUTE_ONBOARDING }
     val completeOnboardingAndGoToChat: () -> Unit = {
         app.settings.onboardingCompleted = true
+        // Without OpenCode, leave chat on a real local agent — otherwise the stored selection
+        // stays on Android-local OpenCode (Unavailable) and models/providers never load.
+        val metadata = app.localRuntimeInstaller.installedMetadata()
+        if (metadata?.has(com.yugahashimoto.andcode.runtime.LocalAgent.OPEN_CODE) != true) {
+            when {
+                metadata?.has(com.yugahashimoto.andcode.runtime.LocalAgent.PI) == true ->
+                    app.runtimeRegistry.select(app.piTarget.id)
+                metadata?.has(com.yugahashimoto.andcode.runtime.LocalAgent.CODEX) == true ->
+                    app.runtimeRegistry.select(app.codexTarget.id)
+                metadata?.has(com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE) == true ->
+                    app.runtimeRegistry.select(app.claudeCodeTarget.id)
+                metadata?.has(com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY) == true ->
+                    app.runtimeRegistry.select(app.antigravityTarget.id)
+            }
+        }
         navController.navigate(ROUTE_CHAT) {
             popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
             launchSingleTop = true
