@@ -75,8 +75,7 @@ class PiTarget(
 
     override suspend fun health(): OpenCodeHealth = connect().getOrElse { OpenCodeHealth(false, "") }
 
-    override suspend fun listSessions(directory: String?): List<OpenCodeSession> =
-        withContext(Dispatchers.IO) { runtime.listSessions() }
+    override suspend fun listSessions(directory: String?): List<OpenCodeSession> = withContext(Dispatchers.IO) { runtime.listSessions() }
 
     override suspend fun createSession(
         title: String?,
@@ -104,11 +103,9 @@ class PiTarget(
         withContext(Dispatchers.IO) { runtime.send(sessionId, request.text) }
     }
 
-    override suspend fun abortSession(sessionId: String): Boolean =
-        withContext(Dispatchers.IO) { runtime.abort(sessionId) }
+    override suspend fun abortSession(sessionId: String): Boolean = withContext(Dispatchers.IO) { runtime.abort(sessionId) }
 
-    override suspend fun deleteSession(sessionId: String): Boolean =
-        withContext(Dispatchers.IO) { runtime.deleteSession(sessionId) }
+    override suspend fun deleteSession(sessionId: String): Boolean = withContext(Dispatchers.IO) { runtime.deleteSession(sessionId) }
 
     override fun events(): Flow<OpenCodeEvent> = runtime.events()
 
@@ -135,6 +132,5 @@ class PiTarget(
         pattern: String,
     ): List<OpenCodeSearchMatch> = withContext(Dispatchers.IO) { files.search(directory, pattern) }
 
-    override suspend fun listWorkspaces(): List<WorkspaceRef> =
-        listOf(WorkspaceRef("/workspace", "workspace", "/workspace"))
+    override suspend fun listWorkspaces(): List<WorkspaceRef> = listOf(WorkspaceRef("/workspace", "workspace", "/workspace"))
 }

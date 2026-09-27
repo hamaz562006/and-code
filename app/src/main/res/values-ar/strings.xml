@@ -905,6 +905,7 @@
     <string name="agent_claude_code_name">Claude Code</string>
     <string name="agent_antigravity_name">Antigravity</string>
     <string name="agent_codex_name">Codex</string>
+    <string name="agent_pi_name">Pi</string>
     <string name="runtime_error_install_failed">تعذّر تثبيت بيئة التشغيل المحلية</string>
     <string name="runtime_error_reinstall_failed">تعذّرت إعادة تثبيت بيئة التشغيل المحلية</string>
     <string name="runtime_error_start_failed">تعذّر تشغيل OpenCode المحلي</string>
@@ -1012,6 +1013,7 @@
     <string name="codex_installed_version">Codex %1$s</string>
     <string name="setup_agent_codex_desc">سجّل الدخول بحساب ChatGPT أو بمفتاح OpenAI API. يتم تنزيل حوالي 140 ميغابايت.</string>
     <string name="install_step_downloading_codex">جارٍ تنزيل Codex</string>
+    <string name="install_step_installing_pi">جارٍ تثبيت Pi</string>
     <string name="codex_install_button">تثبيت Codex</string>
     <string name="codex_retry_install_button">إعادة محاولة التثبيت</string>
     <string name="codex_installing">جارٍ تنزيل Codex وتثبيته…</string>
