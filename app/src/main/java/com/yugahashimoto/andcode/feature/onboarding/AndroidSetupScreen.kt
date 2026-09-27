@@ -749,6 +749,7 @@ private fun RuntimeDownloadStep(
     claudeSelected: Boolean,
     antigravitySelected: Boolean,
     codexSelected: Boolean,
+    piSelected: Boolean,
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
     // each step is shown under the agent it names. Without this the OpenCode panel displayed
