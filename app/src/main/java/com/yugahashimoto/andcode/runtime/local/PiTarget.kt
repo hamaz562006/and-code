@@ -1,6 +1,8 @@
 package com.yugahashimoto.andcode.runtime.local
 
+import com.yugahashimoto.andcode.core.api.OpenCodeAgent
 import com.yugahashimoto.andcode.core.api.OpenCodeEvent
+import com.yugahashimoto.andcode.core.api.ProviderCatalog
 import com.yugahashimoto.andcode.core.api.OpenCodeFileContent
 import com.yugahashimoto.andcode.core.api.OpenCodeFileNode
 import com.yugahashimoto.andcode.core.api.OpenCodeHealth
@@ -74,6 +76,11 @@ class PiTarget(
     }
 
     override suspend fun health(): OpenCodeHealth = connect().getOrElse { OpenCodeHealth(false, "") }
+
+    override suspend fun listProviders(): ProviderCatalog = ProviderCatalog()
+
+    override suspend fun listAgents(): List<OpenCodeAgent> =
+        listOf(OpenCodeAgent(name = "pi", description = "Pi", mode = "primary", native = true))
 
     override suspend fun listSessions(directory: String?): List<OpenCodeSession> = withContext(Dispatchers.IO) { runtime.listSessions() }
 

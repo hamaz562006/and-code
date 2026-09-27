@@ -1108,6 +1108,11 @@ private fun SignInStep(
                         onSignIn = onSignInCodex,
                         onSignOut = onSignOutCodex,
                     )
+                LocalAgent.PI ->
+                    Text(
+                        text = stringResource(R.string.agent_pi_name),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
             }
         }
     }

@@ -260,6 +260,7 @@ fun WorkspacesScreen(
                                     LocalAgent.OPEN_CODE -> state.localStatus is LocalRuntimeStatus.Ready
                                     LocalAgent.ANTIGRAVITY -> target.state is RuntimeState.Connected
                                     LocalAgent.CODEX -> target.state is RuntimeState.Connected
+                                    LocalAgent.PI -> target.state is RuntimeState.Connected
                                     null -> true
                                 },
                         ) {
