@@ -901,6 +901,7 @@
     <string name="agent_claude_code_name">Claude Code</string>
     <string name="agent_antigravity_name">Antigravity</string>
     <string name="agent_codex_name">Codex</string>
+    <string name="agent_pi_name">Pi</string>
     <string name="runtime_error_install_failed">Не удалось установить локальную среду</string>
     <string name="runtime_error_reinstall_failed">Не удалось переустановить локальную среду</string>
     <string name="runtime_error_start_failed">Не удалось запустить локальный OpenCode</string>
@@ -1007,7 +1008,9 @@
     <string name="codex_error_stopped">Codex был остановлен до завершения хода</string>
     <string name="codex_installed_version">Codex %1$s</string>
     <string name="setup_agent_codex_desc">Войдите в аккаунт ChatGPT или используйте ключ API OpenAI. Загрузка около 140 МБ.</string>
+    <string name="setup_agent_pi_desc">Агент для кода через npm. Использует API-ключи провайдеров внутри Pi. При выборе загружает Node.js и пакет Pi.</string>
     <string name="install_step_downloading_codex">Загрузка Codex</string>
+    <string name="install_step_installing_pi">Установка Pi</string>
     <string name="codex_install_button">Установить Codex</string>
     <string name="codex_retry_install_button">Повторить установку</string>
     <string name="codex_installing">Загрузка и установка Codex…</string>

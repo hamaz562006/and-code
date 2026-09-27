@@ -159,6 +159,7 @@ fun AndroidSetupScreen(
     val claudeSelected = LocalAgent.CLAUDE_CODE in selectedAgents
     val antigravitySelected = LocalAgent.ANTIGRAVITY in selectedAgents
     val codexSelected = LocalAgent.CODEX in selectedAgents
+    val piSelected = LocalAgent.PI in selectedAgents
     val openCodeReady = runtimeStatus is LocalRuntimeStatus.Ready || runtimeStatus is LocalRuntimeStatus.Stopped
     val antigravityReady = antigravitySelected && antigravity.installed && !antigravity.busy
     val codexReady = codex.installed && codex.install !is CodexInstallStatus.Installing && codex.install !is CodexInstallStatus.Failed
@@ -374,6 +375,7 @@ fun AndroidSetupScreen(
                         claudeSelected = claudeSelected,
                         antigravitySelected = antigravitySelected,
                         codexSelected = codexSelected,
+                        piSelected = piSelected,
                     )
                 4 ->
                     SignInStep(
@@ -610,6 +612,12 @@ private fun AgentSelectionStep(
             selected = LocalAgent.CODEX in selectedAgents,
             onToggle = { onToggle(LocalAgent.CODEX) },
         )
+        AgentOption(
+            title = stringResource(R.string.agent_pi_name),
+            description = stringResource(R.string.setup_agent_pi_desc),
+            selected = LocalAgent.PI in selectedAgents,
+            onToggle = { onToggle(LocalAgent.PI) },
+        )
         if (selectedAgents.size >= 2) {
             Text(
                 text = stringResource(R.string.setup_runtime_shared_note),
@@ -741,6 +749,7 @@ private fun RuntimeDownloadStep(
     claudeSelected: Boolean,
     antigravitySelected: Boolean,
     codexSelected: Boolean,
+    piSelected: Boolean,
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
     // each step is shown under the agent it names. Without this the OpenCode panel displayed
@@ -784,6 +793,13 @@ private fun RuntimeDownloadStep(
                 Text(stringResource(R.string.agent_codex_name), fontWeight = FontWeight.SemiBold)
                 val step = stepFor(LocalAgent.CODEX)
                 if (step != null) SharedInstallProgress(step) else CodexInstallProgress(codex)
+            }
+        }
+        if (piSelected) {
+            SetupPanel {
+                Text(stringResource(R.string.agent_pi_name), fontWeight = FontWeight.SemiBold)
+                val step = stepFor(LocalAgent.PI)
+                if (step != null) SharedInstallProgress(step) else Text(stringResource(R.string.install_step_installing_pi))
             }
         }
     }
@@ -1107,6 +1123,11 @@ private fun SignInStep(
                         onInstall = {},
                         onSignIn = onSignInCodex,
                         onSignOut = onSignOutCodex,
+                    )
+                LocalAgent.PI ->
+                    Text(
+                        text = stringResource(R.string.agent_pi_name),
+                        style = MaterialTheme.typography.bodyMedium,
                     )
             }
         }

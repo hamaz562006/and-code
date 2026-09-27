@@ -1,0 +1,425 @@
+package com.yugahashimoto.andcode.runtime.local
+
+import com.yugahashimoto.andcode.core.api.OpenCodeEvent
+import com.yugahashimoto.andcode.core.api.OpenCodeMessage
+import com.yugahashimoto.andcode.core.api.OpenCodeMessageInfo
+import com.yugahashimoto.andcode.core.api.OpenCodePart
+import com.yugahashimoto.andcode.core.api.OpenCodeSession
+import com.yugahashimoto.andcode.core.api.OpenCodeTime
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import java.io.BufferedReader
+import java.io.BufferedWriter
+import java.io.File
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
+
+/**
+ * Runs Pi inside the shared Alpine/PRoot sandbox over its `--mode rpc` JSONL protocol.
+ *
+ * Commands go on stdin; `response` records and session events arrive on stdout. Events are mapped
+ * into the shared [OpenCodeEvent]/[OpenCodeMessage]/[OpenCodePart] model so the existing chat UI
+ * renders Pi sessions with no UI changes. This is event-model reuse only — Pi does not speak HTTP
+ * and does not go through any OpenCode backend.
+ *
+ * Protocol reference: https://github.com/earendil-works/pi/blob/v0.87.1/packages/coding-agent/docs/rpc.md
+ */
+class PiRuntime(
+    internal val runtimeDirectory: File,
+    private val installedRuntime: () -> LocalRuntimeInstaller.InstalledRuntime?,
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+) {
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
+
+    private val events = MutableSharedFlow<OpenCodeEvent>(extraBufferCapacity = 256)
+    private val messageStore = ConcurrentHashMap<String, MutableList<OpenCodeMessage>>()
+    private val sessions = ConcurrentHashMap<String, OpenCodeSession>()
+
+    private val processLock = Mutex()
+    private var serverProcess: ServerProcess? = null
+    private var readerJob: Job? = null
+    private val requestCounter = AtomicLong(0)
+    private val pending = ConcurrentHashMap<String, CompletableDeferred<JsonObject>>()
+
+    private class ServerProcess(
+        val process: Process,
+        val stdin: BufferedWriter,
+        val stdout: BufferedReader,
+    )
+
+    fun events(): Flow<OpenCodeEvent> = events
+
+    fun announceConnected() {
+        scope.launch { events.emit(OpenCodeEvent.ServerConnected) }
+    }
+
+    fun isInstalled(): Boolean {
+        val runtime = installedRuntime() ?: return false
+        return PiInstaller.isInstalledIn(runtime.rootfs)
+    }
+
+    fun version(): String? {
+        if (!isInstalled()) return null
+        return runCatching {
+            val runtime = installedRuntime() ?: return null
+            val workspace = File(runtimeDirectory, "workspace").apply { mkdirs() }
+            val tmp = File(runtimeDirectory, "tmp").apply { mkdirs() }
+            val command =
+                PiSandboxLauncher.command(
+                    runtime,
+                    workspace.absolutePath,
+                    listOf("--version"),
+                )
+            val process =
+                ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .apply {
+                        environment().putAll(PiSandboxLauncher.environment(runtime, tmp))
+                        environment()["PROOT_TMP_DIR"] =
+                            File(runtimeDirectory, "proot-tmp").apply { mkdirs() }.absolutePath
+                    }
+                    .start()
+            val output = process.inputStream.bufferedReader().readText().trim()
+            val completed = process.waitFor(10, TimeUnit.SECONDS)
+            if (!completed) {
+                process.destroyForcibly()
+                return null
+            }
+            if (process.exitValue() != 0) return null
+            output.lines().firstOrNull { it.isNotBlank() }?.trim()
+        }.getOrNull()
+    }
+
+    suspend fun listSessions(): List<OpenCodeSession> =
+        withContext(Dispatchers.IO) {
+            sessions.values.sortedByDescending { it.time.updated ?: it.time.created }
+        }
+
+    suspend fun createSession(
+        title: String?,
+        directory: String,
+    ): OpenCodeSession =
+        withContext(Dispatchers.IO) {
+            ensureServer(directory)
+            val id = "pi-${UUID.randomUUID()}"
+            runCatching {
+                call(
+                    buildJsonObject {
+                        put("type", "new_session")
+                    },
+                )
+            }
+            val now = System.currentTimeMillis()
+            val session =
+                OpenCodeSession(
+                    id = id,
+                    title = title?.takeIf { it.isNotBlank() } ?: "Pi session",
+                    directory = directory,
+                    version = version() ?: PiInstaller.PI_VERSION,
+                    time = OpenCodeTime(created = now, updated = now),
+                )
+            sessions[id] = session
+            messageStore[id] = mutableListOf()
+            events.emit(OpenCodeEvent.SessionCreated(session))
+            session
+        }
+
+    suspend fun renameSession(
+        sessionId: String,
+        title: String,
+    ): OpenCodeSession =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                call(
+                    buildJsonObject {
+                        put("type", "set_session_name")
+                        put("name", title)
+                    },
+                )
+            }
+            val existing = sessions[sessionId] ?: error("Unknown Pi session: $sessionId")
+            val updated =
+                existing.copy(
+                    title = title,
+                    time = existing.time.copy(updated = System.currentTimeMillis()),
+                )
+            sessions[sessionId] = updated
+            events.emit(OpenCodeEvent.SessionUpdated(updated))
+            updated
+        }
+
+    suspend fun deleteSession(sessionId: String): Boolean =
+        withContext(Dispatchers.IO) {
+            val removed = sessions.remove(sessionId) != null
+            messageStore.remove(sessionId)
+            removed
+        }
+
+    fun listMessages(sessionId: String): List<OpenCodeMessage> = messageStore[sessionId]?.toList() ?: emptyList()
+
+    suspend fun send(
+        sessionId: String,
+        text: String,
+    ): Unit =
+        withContext(Dispatchers.IO) {
+            ensureServer("/workspace")
+            val now = System.currentTimeMillis()
+            val userInfo =
+                OpenCodeMessageInfo(
+                    id = "user-${UUID.randomUUID()}",
+                    sessionId = sessionId,
+                    role = "user",
+                    time = OpenCodeTime(created = now),
+                )
+            val userMessage =
+                OpenCodeMessage(
+                    info = userInfo,
+                    parts =
+                        listOf(
+                            OpenCodePart(
+                                id = "part-${UUID.randomUUID()}",
+                                sessionId = sessionId,
+                                messageId = userInfo.id,
+                                type = "text",
+                                text = text,
+                            ),
+                        ),
+                )
+            messageStore.getOrPut(sessionId) { mutableListOf() }.add(userMessage)
+            events.emit(OpenCodeEvent.MessageUpdated(userInfo))
+            call(
+                buildJsonObject {
+                    put("type", "prompt")
+                    put("message", text)
+                },
+            )
+            sessions[sessionId]?.let { s ->
+                sessions[sessionId] = s.copy(time = s.time.copy(updated = System.currentTimeMillis()))
+            }
+        }
+
+    suspend fun abort(sessionId: String): Boolean =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                call(
+                    buildJsonObject {
+                        put("type", "abort")
+                    },
+                )
+                true
+            }.getOrDefault(false)
+        }
+
+    fun stopAll() {
+        scope.launch {
+            processLock.withLock { stopServerLocked() }
+        }
+    }
+
+    private suspend fun ensureServer(workspaceDir: String): ServerProcess =
+        processLock.withLock {
+            serverProcess?.takeIf { it.process.isAlive }?.let { return it }
+            stopServerLocked()
+            val runtime = installedRuntime() ?: error("Pi runtime is not installed")
+            check(PiInstaller.isInstalledIn(runtime.rootfs)) { "Pi binary is not installed in the rootfs" }
+            val workspace = File(runtimeDirectory, "workspace").apply { mkdirs() }
+            val hostWorkspace =
+                if (workspaceDir == "/workspace" || workspaceDir.isBlank()) {
+                    workspace
+                } else {
+                    File(workspaceDir).takeIf { it.isDirectory } ?: workspace
+                }
+            val tmp = File(runtimeDirectory, "tmp").apply { mkdirs() }
+            val command =
+                PiSandboxLauncher.command(
+                    runtime,
+                    hostWorkspace.absolutePath,
+                    listOf("--mode", "rpc", "--no-session"),
+                )
+            val process =
+                ProcessBuilder(command)
+                    .redirectError(ProcessBuilder.Redirect.PIPE)
+                    .apply {
+                        environment().putAll(PiSandboxLauncher.environment(runtime, tmp))
+                        environment()["PROOT_TMP_DIR"] =
+                            File(runtimeDirectory, "proot-tmp").apply { mkdirs() }.absolutePath
+                    }
+                    .start()
+            val stdin = BufferedWriter(OutputStreamWriter(process.outputStream, Charsets.UTF_8))
+            val stdout = BufferedReader(InputStreamReader(process.inputStream, Charsets.UTF_8))
+            val server = ServerProcess(process, stdin, stdout)
+            serverProcess = server
+            readerJob =
+                scope.launch {
+                    try {
+                        while (process.isAlive) {
+                            val line = stdout.readLine() ?: break
+                            handleStdoutLine(line)
+                        }
+                    } finally {
+                        processLock.withLock {
+                            if (serverProcess === server) {
+                                serverProcess = null
+                            }
+                        }
+                    }
+                }
+            scope.launch {
+                runCatching {
+                    process.errorStream.bufferedReader().use { reader ->
+                        while (true) {
+                            reader.readLine() ?: break
+                        }
+                    }
+                }
+            }
+            server
+        }
+
+    private fun stopServerLocked() {
+        readerJob?.cancel()
+        readerJob = null
+        serverProcess?.let { server ->
+            runCatching { server.stdin.close() }
+            runCatching {
+                if (!server.process.waitFor(3, TimeUnit.SECONDS)) {
+                    server.process.destroyForcibly()
+                }
+            }
+        }
+        serverProcess = null
+        pending.values.forEach { it.cancel() }
+        pending.clear()
+    }
+
+    private suspend fun call(command: JsonObject): JsonObject {
+        val id = "req-${requestCounter.incrementAndGet()}"
+        val payload =
+            buildJsonObject {
+                put("id", id)
+                command.forEach { (k, v) -> put(k, v) }
+            }
+        val deferred = CompletableDeferred<JsonObject>()
+        pending[id] = deferred
+        val server = processLock.withLock { serverProcess } ?: error("Pi RPC process is not running")
+        withContext(Dispatchers.IO) {
+            server.stdin.write(payload.toString())
+            server.stdin.write("\n")
+            server.stdin.flush()
+        }
+        return try {
+            withTimeout(120_000) { deferred.await() }
+        } finally {
+            pending.remove(id)
+        }
+    }
+
+    private suspend fun handleStdoutLine(line: String) {
+        if (line.isBlank()) return
+        val element = runCatching { json.parseToJsonElement(line) }.getOrNull() ?: return
+        val obj = element.jsonObject
+        val type = obj["type"]?.jsonPrimitive?.contentOrNull ?: return
+
+        when (type) {
+            "response" -> {
+                val id = obj["id"]?.jsonPrimitive?.contentOrNull
+                if (id != null) {
+                    pending.remove(id)?.complete(obj)
+                }
+            }
+            "message_update" -> {
+                val assistantEvent = obj["assistantMessageEvent"]?.jsonObject
+                val deltaType = assistantEvent?.get("type")?.jsonPrimitive?.contentOrNull
+                val delta = assistantEvent?.get("delta")?.jsonPrimitive?.contentOrNull
+                if (deltaType == "text_delta" && !delta.isNullOrEmpty()) {
+                    val sessionId = sessions.keys.lastOrNull() ?: return
+                    val messageId = "assistant-$sessionId"
+                    val partId = "part-$messageId"
+                    val store = messageStore.getOrPut(sessionId) { mutableListOf() }
+                    val existing = store.find { it.info.id == messageId && it.info.role == "assistant" }
+                    if (existing == null) {
+                        val info =
+                            OpenCodeMessageInfo(
+                                id = messageId,
+                                sessionId = sessionId,
+                                role = "assistant",
+                                time = OpenCodeTime(created = System.currentTimeMillis()),
+                            )
+                        store.add(
+                            OpenCodeMessage(
+                                info = info,
+                                parts =
+                                    listOf(
+                                        OpenCodePart(
+                                            id = partId,
+                                            sessionId = sessionId,
+                                            messageId = messageId,
+                                            type = "text",
+                                            text = delta,
+                                        ),
+                                    ),
+                            ),
+                        )
+                        events.emit(OpenCodeEvent.MessageUpdated(info))
+                    } else {
+                        val prevText = existing.parts.firstOrNull()?.text.orEmpty()
+                        val updatedPart =
+                            OpenCodePart(
+                                id = partId,
+                                sessionId = sessionId,
+                                messageId = messageId,
+                                type = "text",
+                                text = prevText + delta,
+                            )
+                        val idx = store.indexOfFirst { it.info.id == messageId }
+                        if (idx >= 0) {
+                            store[idx] = existing.copy(parts = listOf(updatedPart))
+                        }
+                    }
+                    events.emit(
+                        OpenCodeEvent.MessagePartDelta(
+                            sessionId = sessionId,
+                            messageId = messageId,
+                            partId = partId,
+                            field = "text",
+                            delta = delta,
+                        ),
+                    )
+                }
+            }
+            "agent_settled", "agent_end" -> {
+                val sessionId = sessions.keys.lastOrNull() ?: return
+                events.emit(OpenCodeEvent.SessionIdle(sessionId))
+                events.emit(OpenCodeEvent.SessionStatusChanged(sessionId, "idle"))
+            }
+            else -> {
+                // Other session events accepted but not yet fully mapped.
+            }
+        }
+    }
+}

@@ -178,6 +178,7 @@ val appModule =
                         // long-lived app-server whose approvals and threads a second runtime would
                         // not see. Resolved lazily, after AndCodeApplication.onCreate has built it.
                         (androidContext().applicationContext as AndCodeApplication).codexTarget,
+                        (androidContext().applicationContext as AndCodeApplication).piTarget,
                     ),
             )
         }
