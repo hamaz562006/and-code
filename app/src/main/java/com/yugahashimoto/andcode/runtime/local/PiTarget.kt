@@ -2,7 +2,6 @@ package com.yugahashimoto.andcode.runtime.local
 
 import com.yugahashimoto.andcode.core.api.OpenCodeAgent
 import com.yugahashimoto.andcode.core.api.OpenCodeEvent
-import com.yugahashimoto.andcode.core.api.ProviderCatalog
 import com.yugahashimoto.andcode.core.api.OpenCodeFileContent
 import com.yugahashimoto.andcode.core.api.OpenCodeFileNode
 import com.yugahashimoto.andcode.core.api.OpenCodeHealth
@@ -10,8 +9,10 @@ import com.yugahashimoto.andcode.core.api.OpenCodeMessage
 import com.yugahashimoto.andcode.core.api.OpenCodeSearchMatch
 import com.yugahashimoto.andcode.core.api.OpenCodeSession
 import com.yugahashimoto.andcode.core.api.PromptRequest
+import com.yugahashimoto.andcode.core.api.ProviderCatalog
 import com.yugahashimoto.andcode.runtime.BackendKind
 import com.yugahashimoto.andcode.runtime.LocalAgent
+import com.yugahashimoto.andcode.runtime.PermissionResponse
 import com.yugahashimoto.andcode.runtime.RuntimeCapabilities
 import com.yugahashimoto.andcode.runtime.RuntimeState
 import com.yugahashimoto.andcode.runtime.RuntimeTarget
@@ -113,6 +114,13 @@ class PiTarget(
     override suspend fun abortSession(sessionId: String): Boolean = withContext(Dispatchers.IO) { runtime.abort(sessionId) }
 
     override suspend fun deleteSession(sessionId: String): Boolean = withContext(Dispatchers.IO) { runtime.deleteSession(sessionId) }
+
+    override suspend fun respondToPermission(
+        sessionId: String,
+        permissionId: String,
+        response: PermissionResponse,
+        remember: Boolean,
+    ): Boolean = false
 
     override fun events(): Flow<OpenCodeEvent> = runtime.events()
 
