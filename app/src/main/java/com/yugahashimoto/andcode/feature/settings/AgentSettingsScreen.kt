@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -101,41 +102,72 @@ fun AgentSettingsScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PiAgentSettingsScreen(
-    installed: Boolean,
-    version: String?,
+    pi: com.yugahashimoto.andcode.runtime.local.PiUiState,
     onInstall: () -> Unit,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.PI.displayNameRes), onBack = onBack) {
         AgentCardSection {
-            AgentStatusCard(
-                status =
-                    if (installed) {
-                        version?.takeIf(String::isNotBlank)?.let { "Pi $it" }
+            val statusText =
+                when (val install = pi.install) {
+                    is com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Installing ->
+                        install.step?.takeIf { it.isNotBlank() } ?: stringResource(R.string.pi_installing)
+                    is com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Failed ->
+                        install.message ?: stringResource(R.string.pi_error_install_failed)
+                    is com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Ready ->
+                        pi.version?.let { stringResource(R.string.pi_installed_version, it) }
                             ?: stringResource(R.string.agent_pi_name)
-                    } else {
-                        stringResource(R.string.runtime_status_not_installed)
-                    },
-                active = installed,
+                    else ->
+                        if (pi.installed) {
+                            pi.version?.let { stringResource(R.string.pi_installed_version, it) }
+                                ?: stringResource(R.string.agent_pi_name)
+                        } else {
+                            stringResource(R.string.runtime_status_not_installed)
+                        }
+                }
+            AgentStatusCard(
+                status = statusText,
+                active = pi.isReady(),
                 metrics =
-                    version?.takeIf(String::isNotBlank)?.let { v ->
+                    pi.version?.takeIf(String::isNotBlank)?.let { v ->
                         listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
                     }.orEmpty(),
             ) {
-                if (!installed) {
-                    Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.install_step_installing_pi))
+                when (val install = pi.install) {
+                    is com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Installing -> {
+                        val progress = install.progress
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
                     }
-                } else {
-                    Text(
-                        text = stringResource(R.string.setup_agent_pi_desc),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    is com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Failed -> {
+                        Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.pi_install_button))
+                        }
+                    }
+                    else -> {
+                        if (!pi.installed) {
+                            Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.pi_install_button))
+                            }
+                        } else {
+                            Text(
+                                text = stringResource(R.string.setup_agent_pi_desc),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
+
 
 /** What the Codex sign-in dialog can do; the same callbacks [ProviderAuthDialog] takes for OpenCode's providers. */
 data class CodexSignInActions(

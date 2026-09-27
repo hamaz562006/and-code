@@ -114,6 +114,7 @@ fun AndroidSetupScreen(
     onSignOutAntigravity: () -> Unit = {},
     onSelectAntigravityPermissionMode: (com.yugahashimoto.andcode.runtime.local.AntigravityPermissionMode) -> Unit = {},
     codex: CodexUiState = CodexUiState(),
+    pi: com.yugahashimoto.andcode.runtime.local.PiUiState = com.yugahashimoto.andcode.runtime.local.PiUiState(),
     /** Codex signs in through its own dialog state, not [settingsState]'s, which is OpenCode's. */
     codexSignInDialog: ProviderAuthDialogState? = null,
     codexSignIn: CodexSignInActions =
@@ -371,6 +372,7 @@ fun AndroidSetupScreen(
                         claude = claude,
                         antigravity = antigravity,
                         codex = codex,
+                        pi = pi,
                         openCodeSelected = openCodeSelected,
                         claudeSelected = claudeSelected,
                         antigravitySelected = antigravitySelected,
@@ -745,6 +747,7 @@ private fun RuntimeDownloadStep(
     claude: ClaudeCodeUiState,
     antigravity: AntigravityControllerState,
     codex: CodexUiState,
+    pi: com.yugahashimoto.andcode.runtime.local.PiUiState,
     openCodeSelected: Boolean,
     claudeSelected: Boolean,
     antigravitySelected: Boolean,
@@ -799,7 +802,25 @@ private fun RuntimeDownloadStep(
             SetupPanel {
                 Text(stringResource(R.string.agent_pi_name), fontWeight = FontWeight.SemiBold)
                 val step = stepFor(LocalAgent.PI)
-                if (step != null) SharedInstallProgress(step) else Text(stringResource(R.string.install_step_installing_pi))
+                when {
+                    step != null -> SharedInstallProgress(step)
+                    pi.install is com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Installing -> {
+                        val inst = pi.install as com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Installing
+                        Text(inst.step?.takeIf { it.isNotBlank() } ?: stringResource(R.string.pi_installing), fontWeight = FontWeight.Medium)
+                        val progress = inst.progress
+                        if (progress != null) {
+                            LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    pi.install is com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Failed -> {
+                        val inst = pi.install as com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Failed
+                        Text(inst.message ?: stringResource(R.string.pi_error_install_failed), color = MaterialTheme.colorScheme.error)
+                    }
+                    pi.isReady() -> Text(stringResource(R.string.pi_installed_version, pi.version ?: ""), fontWeight = FontWeight.Medium)
+                    else -> Text(stringResource(R.string.install_step_installing_pi))
+                }
             }
         }
     }

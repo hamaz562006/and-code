@@ -289,12 +289,11 @@ fun NavGraphBuilder.settingsNavGraph(
 
     composable(ROUTE_SETTINGS_AGENT_PI) {
         val app = context.applicationContext as com.yugahashimoto.andcode.AndCodeApplication
-        val installed = app.piRuntime.isInstalled()
-        val version = runCatching { app.piRuntime.version() }.getOrNull()
+        val pi by app.piController.state.collectAsState()
+        androidx.compose.runtime.LaunchedEffect(Unit) { app.piController.refresh() }
         PiAgentSettingsScreen(
-            installed = installed,
-            version = version,
-            onInstall = {},
+            pi = pi,
+            onInstall = { app.piController.install() },
             onBack = { navController.popBackStack() },
         )
     }
