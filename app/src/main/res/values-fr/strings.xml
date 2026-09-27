@@ -1009,6 +1009,11 @@
     <string name="setup_agent_pi_desc">Agent de code via npm. Utilise vos clés API fournisseur dans Pi. Télécharge Node.js et le paquet Pi à la sélection.</string>
     <string name="install_step_downloading_codex">Téléchargement de Codex</string>
     <string name="install_step_installing_pi">Installation de Pi</string>
+    <string name="install_step_downloading_pi">Téléchargement de Pi</string>
+    <string name="pi_error_install_failed">Échec de l'installation de Pi</string>
+    <string name="pi_install_button">Installer Pi</string>
+    <string name="pi_installed_version">Pi %1$s</string>
+    <string name="pi_installing">Installation de Pi…</string>
     <string name="codex_install_button">Installer Codex</string>
     <string name="codex_retry_install_button">Réessayer l’installation</string>
     <string name="codex_installing">Téléchargement et installation de Codex…</string>

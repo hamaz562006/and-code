@@ -1015,6 +1015,11 @@
     <string name="setup_agent_pi_desc">وكيل برمجة عبر npm. يستخدم مفاتيح API داخل Pi. يحمّل Node.js وحزمة Pi عند الاختيار.</string>
     <string name="install_step_downloading_codex">جارٍ تنزيل Codex</string>
     <string name="install_step_installing_pi">جارٍ تثبيت Pi</string>
+    <string name="install_step_downloading_pi">جارٍ تنزيل Pi</string>
+    <string name="pi_error_install_failed">فشل تثبيت Pi</string>
+    <string name="pi_install_button">تثبيت Pi</string>
+    <string name="pi_installed_version">Pi %1$s</string>
+    <string name="pi_installing">جارٍ تثبيت Pi…</string>
     <string name="codex_install_button">تثبيت Codex</string>
     <string name="codex_retry_install_button">إعادة محاولة التثبيت</string>
     <string name="codex_installing">جارٍ تنزيل Codex وتثبيته…</string>

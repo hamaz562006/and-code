@@ -629,14 +629,13 @@ class LocalRuntimeInstaller(
             servers.put(SCHEDULE_MCP_NAME, scheduleMcpEntry("antigravity"))
             root.put("mcpServers", servers)
         }
-    
+
         mergeJsonConfig(File(rootfs, "root/.pi/agent/mcp.json")) { root ->
             val servers = root.optJSONObject("mcpServers") ?: JSONObject()
             servers.put(SCHEDULE_MCP_NAME, scheduleMcpEntry("pi"))
             root.put("mcpServers", servers)
         }
     }
-
 
     private fun scheduleMcpEntry(agent: String): JSONObject =
         when (agent) {

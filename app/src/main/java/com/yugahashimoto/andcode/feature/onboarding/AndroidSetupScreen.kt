@@ -806,7 +806,10 @@ private fun RuntimeDownloadStep(
                     step != null -> SharedInstallProgress(step)
                     pi.install is com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Installing -> {
                         val inst = pi.install as com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Installing
-                        Text(inst.step?.takeIf { it.isNotBlank() } ?: stringResource(R.string.pi_installing), fontWeight = FontWeight.Medium)
+                        Text(
+                            inst.step?.takeIf { it.isNotBlank() } ?: stringResource(R.string.pi_installing),
+                            fontWeight = FontWeight.Medium,
+                        )
                         val progress = inst.progress
                         if (progress != null) {
                             LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
