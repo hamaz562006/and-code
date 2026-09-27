@@ -63,6 +63,7 @@ class LocalRuntimeInstaller(
             val onClaude: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.CLAUDE_CODE) }
             val onAntigravity: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.ANTIGRAVITY) }
             val onCodex: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.CODEX) }
+            val onPi: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.PI) }
             runtimeDirectory.mkdirs()
             onShared(0.02f, context.getString(R.string.install_step_preparing_command_env))
             val existingMetadata = installedMetadata()
@@ -187,6 +188,12 @@ class LocalRuntimeInstaller(
                     // Into the staging rootfs like every other agent here, so it is swapped in with the
                     // environment and is not lost when a later install rebuilds the sandbox.
                     CodexInstaller.install(rootfs, abi, runtimeDirectory, accessCoordinator, httpClient)
+                }
+                if (LocalAgent.PI in requestedAgents) {
+                    onPi(0.938f, context.getString(R.string.install_step_installing_pi))
+                    // npm + Node.js are installed only for Pi (isolated step), not via the shared
+                    // REQUIRED/OPTIONAL package lists. See PiInstaller.
+                    PiInstaller.install(rootfs, commandSuite, runtimeDirectory, accessCoordinator)
                 }
                 if (LocalAgent.ANTIGRAVITY in requestedAgents) {
                     onAntigravity(0.94f, context.getString(R.string.install_step_downloading_antigravity))
