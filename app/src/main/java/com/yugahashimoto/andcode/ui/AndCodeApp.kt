@@ -957,6 +957,10 @@ fun AndCodeApp(
                                     // No OpenCode to carry the install: Codex's own install provisions
                                     // the shared environment and every other selected agent with it.
                                     app.codexController.install(agents, installFullDevelopmentTools)
+                                } else if (com.yugahashimoto.andcode.runtime.LocalAgent.PI in agents) {
+                                    // Pi-only (or Pi + Claude) install: shared Alpine path installs Pi
+                                    // via npm when LocalAgent.PI is in the selection.
+                                    workspaceViewModel.setupLocalRuntime(agents, installFullDevelopmentTools)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE in agents) {
                                     workspaceViewModel.installClaudeCode(installFullDevelopmentTools)
                                 }

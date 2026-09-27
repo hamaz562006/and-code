@@ -1012,6 +1012,7 @@
     <string name="codex_error_stopped">تم إيقاف Codex قبل إكمال الدور</string>
     <string name="codex_installed_version">Codex %1$s</string>
     <string name="setup_agent_codex_desc">سجّل الدخول بحساب ChatGPT أو بمفتاح OpenAI API. يتم تنزيل حوالي 140 ميغابايت.</string>
+    <string name="setup_agent_pi_desc">وكيل برمجة عبر npm. يستخدم مفاتيح API داخل Pi. يحمّل Node.js وحزمة Pi عند الاختيار.</string>
     <string name="install_step_downloading_codex">جارٍ تنزيل Codex</string>
     <string name="install_step_installing_pi">جارٍ تثبيت Pi</string>
     <string name="codex_install_button">تثبيت Codex</string>

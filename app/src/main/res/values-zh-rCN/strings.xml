@@ -1002,6 +1002,7 @@
     <string name="codex_error_stopped">Codex 在完成本轮之前已被停止</string>
     <string name="codex_installed_version">Codex %1$s</string>
     <string name="setup_agent_codex_desc">使用 ChatGPT 账号或 OpenAI API 密钥登录。下载约 140 MB。</string>
+    <string name="setup_agent_pi_desc">通过 npm 安装的编码代理。在 Pi 内使用你自己的模型提供商 API 密钥。选中时会下载 Node.js 与 Pi 包。</string>
     <string name="install_step_downloading_codex">正在下载 Codex</string>
     <string name="install_step_installing_pi">正在安装 Pi</string>
     <string name="codex_install_button">安装 Codex</string>

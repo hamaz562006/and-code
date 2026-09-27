@@ -21,6 +21,7 @@ import com.yugahashimoto.andcode.feature.settings.AgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.AntigravityAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ClaudeCodeAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.CodexAgentSettingsScreen
+import com.yugahashimoto.andcode.feature.settings.PiAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.CodexSignInActions
 import com.yugahashimoto.andcode.feature.settings.CodexSignInViewModel
 import com.yugahashimoto.andcode.feature.settings.GitHubSettingsScreen
@@ -281,6 +282,19 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenClaudeCode = { navController.navigate(ROUTE_SETTINGS_AGENT_CLAUDE) },
             onOpenAntigravity = { navController.navigate(ROUTE_SETTINGS_AGENT_ANTIGRAVITY) },
             onOpenCodex = { navController.navigate(ROUTE_SETTINGS_AGENT_CODEX) },
+            onOpenPi = { navController.navigate(ROUTE_SETTINGS_AGENT_PI) },
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable(ROUTE_SETTINGS_AGENT_PI) {
+        val app = context.applicationContext as com.yugahashimoto.andcode.AndCodeApplication
+        val installed = app.piRuntime.isInstalled()
+        val version = runCatching { app.piRuntime.version() }.getOrNull()
+        PiAgentSettingsScreen(
+            installed = installed,
+            version = version,
+            onInstall = {},
             onBack = { navController.popBackStack() },
         )
     }

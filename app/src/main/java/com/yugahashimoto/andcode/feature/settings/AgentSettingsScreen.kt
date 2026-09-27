@@ -79,6 +79,7 @@ fun AgentSettingsScreen(
     onOpenClaudeCode: () -> Unit,
     onOpenAntigravity: () -> Unit,
     onOpenCodex: () -> Unit,
+    onOpenPi: () -> Unit,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(R.string.settings_agents_row), onBack = onBack) {
@@ -90,6 +91,48 @@ fun AgentSettingsScreen(
             AgentRow(LocalAgent.ANTIGRAVITY, onOpenAntigravity)
             SettingsDivider()
             AgentRow(LocalAgent.CODEX, onOpenCodex)
+            SettingsDivider()
+            AgentRow(LocalAgent.PI, onOpenPi)
+        }
+    }
+}
+
+/** Minimal Pi agent page: status and install hint until a full settings UI is added. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PiAgentSettingsScreen(
+    installed: Boolean,
+    version: String?,
+    onInstall: () -> Unit,
+    onBack: () -> Unit,
+) {
+    AgentSettingsScaffold(title = stringResource(LocalAgent.PI.displayNameRes), onBack = onBack) {
+        AgentCardSection {
+            AgentStatusCard(
+                status =
+                    if (installed) {
+                        version?.takeIf(String::isNotBlank)?.let { "Pi $it" }
+                            ?: stringResource(R.string.agent_pi_name)
+                    } else {
+                        stringResource(R.string.runtime_status_not_installed)
+                    },
+                active = installed,
+                metrics =
+                    version?.takeIf(String::isNotBlank)?.let { v ->
+                        listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
+                    }.orEmpty(),
+            ) {
+                if (!installed) {
+                    Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.install_step_installing_pi))
+                    }
+                } else {
+                    Text(
+                        text = stringResource(R.string.setup_agent_pi_desc),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
         }
     }
 }
