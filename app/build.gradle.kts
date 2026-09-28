@@ -19,7 +19,8 @@ plugins {
 // `gradleprops` field this project's future fdroiddata metadata will declare) to produce a build
 // with no Firebase/Google Play services code at all.
 val isFdroidBuild = providers.gradleProperty("andcode.fdroidBuild").orNull.toBoolean()
-if (!isFdroidBuild) {
+val hasGoogleServices = file("google-services.json").isFile
+if (!isFdroidBuild && hasGoogleServices) {
     apply(plugin = "com.google.gms.google-services")
     apply(plugin = "com.google.firebase.crashlytics")
 }

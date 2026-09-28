@@ -77,6 +77,7 @@ jobs:
           # workflow publishes shows "GitHubクライアントIDが含まれていない" with no way to sign in.
           GITHUB_CLIENT_ID: ${{ vars.AND_CODE_GITHUB_CLIENT_ID }}
         run: |
+          chmod +x gradlew
           if [ -z "$GITHUB_CLIENT_ID" ]; then
             echo "AND_CODE_GITHUB_CLIENT_ID repo variable is not set - the published APK would have no GitHub sign-in" >&2
             exit 1
