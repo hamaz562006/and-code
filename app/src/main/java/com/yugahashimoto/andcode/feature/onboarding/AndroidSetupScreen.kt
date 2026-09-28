@@ -181,6 +181,7 @@ fun AndroidSetupScreen(
             LocalAgent.CLAUDE_CODE.takeIf { claudeSelected && claude.installed },
             LocalAgent.ANTIGRAVITY.takeIf { antigravitySelected && antigravity.installed },
             LocalAgent.CODEX.takeIf { codexSelected && codex.installed },
+            LocalAgent.PI.takeIf { piSelected && pi.installed },
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
@@ -1176,8 +1177,9 @@ private fun SignInStep(
                     )
                 LocalAgent.PI ->
                     Text(
-                        text = stringResource(R.string.agent_pi_name),
+                        text = stringResource(R.string.setup_agent_pi_desc),
                         style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
             }
         }

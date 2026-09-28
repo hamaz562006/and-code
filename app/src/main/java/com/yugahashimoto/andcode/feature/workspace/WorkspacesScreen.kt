@@ -854,6 +854,8 @@ private fun targetSubtitle(
         // uninstalled one showed the target's raw English reason ("Antigravity is not installed
         // or incompatible with this ABI") where Claude Code shows "Not installed".
         localAgentSubtitle(target.state, R.string.antigravity_installed_version, R.string.runtime_status_not_installed)
+    } else if (target.agent == LocalAgent.PI) {
+        localAgentSubtitle(target.state, R.string.pi_installed_version, R.string.runtime_status_not_installed)
     } else {
         when (target.type) {
             RuntimeType.REMOTE ->

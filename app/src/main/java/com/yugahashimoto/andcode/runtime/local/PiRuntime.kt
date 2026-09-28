@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicLong
 class PiRuntime(
     internal val runtimeDirectory: File,
     private val installedRuntime: () -> LocalRuntimeInstaller.InstalledRuntime?,
+    private val accessCoordinator: LocalRuntimeAccessCoordinator = LocalRuntimeAccessCoordinator(),
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) {
     private val json =
@@ -85,8 +86,10 @@ class PiRuntime(
 
     fun version(): String? {
         if (!isInstalled()) return null
+        val runtime = installedRuntime() ?: return null
+        val recorded = PiInstaller.installedVersion(runtime.rootfs)
+        if (!recorded.isNullOrBlank()) return recorded
         return runCatching {
-            val runtime = installedRuntime() ?: return null
             val workspace = File(runtimeDirectory, "workspace").apply { mkdirs() }
             val tmp = File(runtimeDirectory, "tmp").apply { mkdirs() }
             val command =
@@ -108,11 +111,21 @@ class PiRuntime(
             val completed = process.waitFor(10, TimeUnit.SECONDS)
             if (!completed) {
                 process.destroyForcibly()
-                return null
+                return PiInstaller.PI_VERSION
             }
-            if (process.exitValue() != 0) return null
-            output.lines().firstOrNull { it.isNotBlank() }?.trim()
-        }.getOrNull()
+            if (process.exitValue() != 0) return PiInstaller.PI_VERSION
+            output.lines().firstOrNull { it.isNotBlank() }?.trim() ?: PiInstaller.PI_VERSION
+        }.getOrDefault(PiInstaller.PI_VERSION)
+    }
+
+    suspend fun install(abi: String): String {
+        val runtime = installedRuntime() ?: error("The Linux environment is not installed yet")
+        return PiInstaller.install(
+            rootfs = runtime.rootfs,
+            abi = abi,
+            runtimeDirectory = runtimeDirectory,
+            accessCoordinator = accessCoordinator,
+        )
     }
 
     suspend fun listSessions(): List<OpenCodeSession> =

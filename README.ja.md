@@ -67,8 +67,9 @@ AndCodeはAIコーディングエージェントをスマートフォンで使�
 | [Claude Code](https://github.com/anthropics/claude-code) | ✓ | — | ベータ |
 | [Google Antigravity](https://github.com/google-antigravity/antigravity-cli) | ✓ | — | ベータ |
 | [OpenAI Codex](https://github.com/openai/codex) | ✓ | — | ベータ |
+| [Pi](https://github.com/earendil-works/pi) | ✓ | — | ベータ |
 
-オンデバイスエージェントはPRoot経由でLinux環境内で実行されます。OpenCode、Claude Code、CodexはAlpine Linuxを使用し、Google Antigravityは公式`agy`バイナリのglibc互換性のためDebian Bookworm rootfsを導入します。
+オンデバイスエージェントはPRoot経由でLinux環境内で実行されます。OpenCode、Claude Code、Codex、PiはAlpine Linuxを使用し、Google Antigravityは公式`agy`バイナリのglibc互換性のためDebian Bookworm rootfsを導入します。
 
 ## 主な機能
 

@@ -30,22 +30,21 @@ data class PiUiState(
     val install: PiInstallStatus = PiInstallStatus.Idle,
 ) {
     /**
-     * True only when the binary is present and the last install did not leave us mid-flight or failed.
-     * Requires [PiInstallStatus.Ready] so a reinstall in progress is never reported as ready.
+     * True when the binary is installed and no install is currently failing or in flight.
      */
-    fun isReady(): Boolean = installed && install is PiInstallStatus.Ready
+    fun isReady(): Boolean = installed && install !is PiInstallStatus.Installing && install !is PiInstallStatus.Failed
 }
 
 /**
  * Single owner of the Pi install state.
  *
- * Mirrors [CodexController]: one verified path into the shared Alpine rootfs (here via npm in
- * [PiInstaller]), no permission-mode setting. Auth stays inside Pi's own `~/.pi/` config.
+ * Backed by the official earendil-works/pi standalone release archive.
  */
 class PiController(
     private val runtime: PiRuntime,
     private val target: PiTarget,
     private val installer: LocalRuntimeInstaller,
+    private val abi: String = "arm64-v8a",
     private val runtimeWork: RuntimeWorkTracker,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO),
 ) {
@@ -63,6 +62,7 @@ class PiController(
     private suspend fun rehydrate() {
         target.connect()
         val version = (target.state.value as? RuntimeState.Connected)?.version
+            ?: (if (runtime.isInstalled()) runtime.version() else null)
         if (version == null) {
             mutableState.update {
                 it.copy(
@@ -104,13 +104,15 @@ class PiController(
                 try {
                     val existing = installer.installedMetadata()
                     val othersMissing = (agents - LocalAgent.PI).any { existing?.has(it) != true }
-                    if (installer.installedRuntime() == null || othersMissing || existing?.has(LocalAgent.PI) != true) {
+                    if (installer.installedRuntime() == null || othersMissing) {
                         installer.install(agents + LocalAgent.PI, installFullDevelopmentTools) { progress, step, _ ->
                             mutableState.update { it.copy(install = PiInstallStatus.Installing(progress, step)) }
                         }
                     } else {
                         if (installFullDevelopmentTools) installer.installFullDevelopmentTools()
-                        // Already recorded; re-run PiInstaller only when metadata says missing (above).
+                        runCatching { installer.installPackagesIntoActive(listOf("gcompat")) }
+                        runtime.install(abi)
+                        installer.recordAgent(LocalAgent.PI)
                     }
                     mutableState.update { it.copy(install = PiInstallStatus.Ready) }
                     runCatching { rehydrate() }

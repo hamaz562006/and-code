@@ -61,11 +61,22 @@ class LocalRuntimeServiceCommandTest {
     @Test
     fun `an install carries the selected agents`() {
         assertEquals(
-            setOf(LocalAgent.OPEN_CODE, LocalAgent.CLAUDE_CODE, LocalAgent.ANTIGRAVITY),
+            setOf(LocalAgent.OPEN_CODE, LocalAgent.CLAUDE_CODE, LocalAgent.ANTIGRAVITY, LocalAgent.CODEX, LocalAgent.PI),
             localRuntimeInstallAgents(
-                arrayOf(LocalAgent.OPEN_CODE.id, LocalAgent.CLAUDE_CODE.id, LocalAgent.ANTIGRAVITY.id),
+                arrayOf(
+                    LocalAgent.OPEN_CODE.id,
+                    LocalAgent.CLAUDE_CODE.id,
+                    LocalAgent.ANTIGRAVITY.id,
+                    LocalAgent.CODEX.id,
+                    LocalAgent.PI.id,
+                ),
             ),
         )
+    }
+
+    @Test
+    fun `an install with Pi alone carries Pi`() {
+        assertEquals(setOf(LocalAgent.PI), localRuntimeInstallAgents(arrayOf(LocalAgent.PI.id)))
     }
 
     /** Callers with no selection - the notification's restart, the watchdog - mean OpenCode alone. */

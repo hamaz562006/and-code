@@ -372,7 +372,7 @@ class AndCodeApplication : Application() {
             }
         }
         codexController = CodexController(codexRuntime, codexTarget, installer, abi, runtimeWork, applicationScope)
-        piController = PiController(piRuntime, piTarget, installer, runtimeWork, applicationScope)
+        piController = PiController(piRuntime, piTarget, installer, abi, runtimeWork, applicationScope)
         runtimeMessages = AndroidLocalRuntimeMessages(this)
         gitCloneRepository =
             GitCloneRepository(
@@ -480,11 +480,12 @@ class AndCodeApplication : Application() {
                 additionalTargets = listOf(claudeCodeTarget, antigravityTarget, codexTarget, piTarget),
             )
         // Surface the installed/version state to the workspace picker without waiting for the
-        // first chat to touch Antigravity.
+        // first chat to touch Antigravity or Pi.
         applicationScope.launch { antigravityTarget.connect() }
+        applicationScope.launch { piTarget.connect() }
         // A setup without OpenCode has nothing else to establish a default runtime: the auto-start
-        // path only ever selects the OpenCode-local target, so a Codex-only install used to open on
-        // no runtime at all and send nowhere. Fill an empty selection with Codex once it connects;
+        // path only ever selects the OpenCode-local target, so a Codex-only or Pi-only install used
+        // to open on no runtime at all and send nowhere. Fill an empty selection once it connects;
         // selectIfUnset never overrides a runtime the user picked.
         applicationScope.launch {
             var previous: RuntimeState? = null
@@ -501,6 +502,21 @@ class AndCodeApplication : Application() {
                 val recovered = state is RuntimeState.Connected && (previous is RuntimeState.Unavailable || previous is RuntimeState.Failed)
                 val codexSelected = runtimeRegistry.selected.value?.id == codexTarget.id
                 if (recovered && codexSelected && ::catalogRepository.isInitialized) catalogRepository.refresh()
+                previous = state
+            }
+        }
+        applicationScope.launch {
+            var previous: RuntimeState? = null
+            piTarget.state.collect { state ->
+                val openCodeInstalled = installer.installedMetadata()?.has(LocalAgent.OPEN_CODE) == true
+                val codexInstalled = installer.installedMetadata()?.has(LocalAgent.CODEX) == true
+                val antigravityInstalled = installer.installedMetadata()?.has(LocalAgent.ANTIGRAVITY) == true
+                if (state is RuntimeState.Connected && !openCodeInstalled && !codexInstalled && !antigravityInstalled) {
+                    runtimeRegistry.selectIfUnset(piTarget.id)
+                }
+                val recovered = state is RuntimeState.Connected && (previous is RuntimeState.Unavailable || previous is RuntimeState.Failed)
+                val piSelected = runtimeRegistry.selected.value?.id == piTarget.id
+                if (recovered && piSelected && ::catalogRepository.isInitialized) catalogRepository.refresh()
                 previous = state
             }
         }

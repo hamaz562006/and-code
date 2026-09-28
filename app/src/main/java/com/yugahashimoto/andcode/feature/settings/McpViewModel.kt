@@ -61,7 +61,7 @@ class McpViewModel(
     private val _state =
         MutableStateFlow(
             McpUiState(
-                supportsConnectToggle = agent !in setOf(LocalAgent.CLAUDE_CODE, LocalAgent.ANTIGRAVITY, LocalAgent.CODEX),
+                supportsConnectToggle = agent !in setOf(LocalAgent.CLAUDE_CODE, LocalAgent.ANTIGRAVITY, LocalAgent.CODEX, LocalAgent.PI),
                 supportsOAuth = agent == LocalAgent.OPEN_CODE,
             ),
         )

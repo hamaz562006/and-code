@@ -67,8 +67,9 @@ AndCode is a native Android GUI app that brings AI coding agents to your phone. 
 | [Claude Code](https://github.com/anthropics/claude-code) | ✓ | — | Beta |
 | [Google Antigravity](https://github.com/google-antigravity/antigravity-cli) | ✓ | — | Beta |
 | [OpenAI Codex](https://github.com/openai/codex) | ✓ | — | Beta |
+| [Pi](https://github.com/earendil-works/pi) | ✓ | — | Beta |
 
-On-device agents run inside a Linux environment via PRoot. OpenCode, Claude Code, and Codex use Alpine Linux; Google Antigravity additionally installs a Debian Bookworm rootfs alongside Alpine, since the official `agy` binary links against glibc.
+On-device agents run inside a Linux environment via PRoot. OpenCode, Claude Code, Codex, and Pi use Alpine Linux; Google Antigravity additionally installs a Debian Bookworm rootfs alongside Alpine, since the official `agy` binary links against glibc.
 
 ## Features
 

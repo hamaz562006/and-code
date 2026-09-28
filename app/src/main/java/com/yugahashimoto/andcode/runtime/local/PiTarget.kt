@@ -43,12 +43,12 @@ class PiTarget(
     override val type = RuntimeType.LOCAL
 
     // Streaming + tool events are wired through PiRuntime's message_update mapping.
-    // Session resume is supported via create/list; provider model list is not yet exposed.
+    // Session resume is supported via create/list; provider model list is exposed through PiModels.
     override val capabilities =
         RuntimeCapabilities(
             permissions = false,
             toolEvents = true,
-            providerModelList = false,
+            providerModelList = true,
         )
 
     private val mutableState = MutableStateFlow<RuntimeState>(RuntimeState.Disconnected)
@@ -78,7 +78,7 @@ class PiTarget(
 
     override suspend fun health(): OpenCodeHealth = connect().getOrElse { OpenCodeHealth(false, "") }
 
-    override suspend fun listProviders(): ProviderCatalog = ProviderCatalog()
+    override suspend fun listProviders(): ProviderCatalog = PiModels.catalog()
 
     override suspend fun listAgents(): List<OpenCodeAgent> =
         listOf(OpenCodeAgent(name = "pi", description = "Pi", mode = "primary", native = true))

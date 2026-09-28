@@ -191,9 +191,14 @@ class LocalRuntimeInstaller(
                 }
                 if (LocalAgent.PI in requestedAgents) {
                     onPi(0.938f, context.getString(R.string.install_step_installing_pi))
-                    // npm + Node.js are installed only for Pi (isolated step), not via the shared
-                    // REQUIRED/OPTIONAL package lists. See PiInstaller.
-                    PiInstaller.install(rootfs, commandSuite, runtimeDirectory, accessCoordinator)
+                    runCatching { installPackages(rootfs, commandSuite, listOf("gcompat")) }
+                    PiInstaller.install(
+                        rootfs = rootfs,
+                        abi = abi,
+                        runtimeDirectory = runtimeDirectory,
+                        accessCoordinator = accessCoordinator,
+                        httpClient = httpClient,
+                    )
                 }
                 if (LocalAgent.ANTIGRAVITY in requestedAgents) {
                     onAntigravity(0.94f, context.getString(R.string.install_step_downloading_antigravity))
@@ -305,6 +310,14 @@ class LocalRuntimeInstaller(
                 runCatching { json.decodeFromString<LocalRuntimeMetadata>(metadataFile.readText()) }.getOrNull()
                     ?: return@write
             metadataFile.writeText(json.encodeToString(metadata.with(agent)))
+        }
+    }
+
+    /** Installs packages into the active rootfs without rebuilding the runtime. */
+    fun installPackagesIntoActive(packages: List<String>) {
+        accessCoordinator.write {
+            val installed = installedRuntime() ?: return@write
+            installPackages(installed.rootfs, installed.commandSuite, packages)
         }
     }
 
