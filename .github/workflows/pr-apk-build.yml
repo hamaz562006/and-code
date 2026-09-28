@@ -48,6 +48,9 @@ jobs:
       # Same shape as android.yml / release.yml: rely on the runner's Android SDK
       # and Gradle's automatic component installs. Do NOT use android-actions/setup-android
       # which still requests the removed "tools" package and fails on current runners.
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
       - name: Test and build debug APK
         env:
           GITHUB_CLIENT_ID: ${{ vars.AND_CODE_GITHUB_CLIENT_ID }}

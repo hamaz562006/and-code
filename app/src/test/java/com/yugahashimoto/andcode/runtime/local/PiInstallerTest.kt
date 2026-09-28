@@ -19,10 +19,11 @@ class PiInstallerTest {
         assertFalse(PiInstaller.isInstalledIn(rootfs))
 
         val binDir = File(rootfs, "usr/local/bin").apply { mkdirs() }
-        val piBinary = File(binDir, "pi").apply {
-            writeText("#!/bin/sh\necho 0.87.1")
-            setExecutable(true)
-        }
+        val piBinary =
+            File(binDir, "pi").apply {
+                writeText("#!/bin/sh\necho 0.87.1")
+                setExecutable(true)
+            }
 
         assertTrue(PiInstaller.isInstalledIn(rootfs))
     }
@@ -33,10 +34,11 @@ class PiInstallerTest {
         assertNull(PiInstaller.installedVersion(rootfs))
 
         val binDir = File(rootfs, "usr/local/bin").apply { mkdirs() }
-        val piBinary = File(binDir, "pi").apply {
-            writeText("#!/bin/sh\necho 0.87.1")
-            setExecutable(true)
-        }
+        val piBinary =
+            File(binDir, "pi").apply {
+                writeText("#!/bin/sh\necho 0.87.1")
+                setExecutable(true)
+            }
 
         assertEquals(PiManifest.VERSION, PiInstaller.installedVersion(rootfs))
 

@@ -77,10 +77,11 @@ class PiTargetTest {
             val runtimeDir = tempFolder.newFolder("runtime-installed")
             val rootfs = File(runtimeDir, "environment/rootfs").apply { mkdirs() }
             val binDir = File(rootfs, "usr/local/bin").apply { mkdirs() }
-            val piBinary = File(binDir, "pi").apply {
-                writeText("#!/bin/sh\necho 0.87.1")
-                setExecutable(true)
-            }
+            val piBinary =
+                File(binDir, "pi").apply {
+                    writeText("#!/bin/sh\necho 0.87.1")
+                    setExecutable(true)
+                }
             PiInstaller.writeInstalledVersion(rootfs, "0.87.1")
 
             val installedRuntime =

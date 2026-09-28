@@ -61,8 +61,9 @@ class PiController(
 
     private suspend fun rehydrate() {
         target.connect()
-        val version = (target.state.value as? RuntimeState.Connected)?.version
-            ?: (if (runtime.isInstalled()) runtime.version() else null)
+        val version =
+            (target.state.value as? RuntimeState.Connected)?.version
+                ?: (if (runtime.isInstalled()) runtime.version() else null)
         if (version == null) {
             mutableState.update {
                 it.copy(
