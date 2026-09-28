@@ -168,9 +168,8 @@ fun AndroidSetupScreen(
     val antigravityReady = antigravitySelected && antigravity.installed && !antigravity.busy
     val codexReady = codex.installed && codex.install !is CodexInstallStatus.Installing && codex.install !is CodexInstallStatus.Failed
     val claudeReady = claude.installed && claude.install !is ClaudeInstallStatus.Installing && claude.install !is ClaudeInstallStatus.Failed
-    // Pi is tracked by its own controller, not by the shared runtime status: that status only ever
-    // reaches Ready/Stopped once OpenCode's server is up, so a selection without OpenCode never
-    // reports Pi's completion through it. isReady() also excludes a reinstall in flight and a failure.
+    // Pi is an agent of its own: its readiness comes from PiController alone and never from OpenCode's
+    // runtime status. isReady() also excludes a reinstall in flight and a failure.
     val piReady = pi.isReady()
     // Only what is selected *and* actually on the device: an agent whose binary is missing has no
     // sign-in to offer, and Claude Code's card would shell out to /usr/bin/claude and fail there.
@@ -234,10 +233,6 @@ fun AndroidSetupScreen(
     // controller that ran the install (Antigravity's or Codex's) knows only its own agent, so the
     // others it provisioned alongside were never re-read and the step never completed. Re-reading
     // every selected agent when any install stops running covers both.
-    //
-    // Pi is re-read here too: an OpenCode + Pi selection is installed by the shared runtime path and
-    // never passes through PiController.install, so without this Pi would read as not installed
-    // forever and hold the Next button disabled.
     var installWasRunning by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(openCodeReady, packageInstallRunning) {
         val installJustFinished = installWasRunning && !packageInstallRunning
@@ -246,7 +241,19 @@ fun AndroidSetupScreen(
         if (claudeSelected) onRefreshClaudeState()
         if (antigravitySelected) onRefreshAntigravityState()
         if (codexSelected) onRefreshCodexState()
-        if (piSelected) (context.applicationContext as? AndCodeApplication)?.piController?.refresh()
+    }
+
+    // Pi has its own trigger, independent of OpenCode's readiness above. Whichever install pass
+    // provisioned Pi (its own controller, or a pass another agent started for the whole selection),
+    // Pi's state is re-read from PiController's own source once that pass stops running, so the Next
+    // button never waits on anything OpenCode-related.
+    var piInstallWasRunning by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(piSelected, packageInstallRunning) {
+        val justFinished = piInstallWasRunning && !packageInstallRunning
+        piInstallWasRunning = packageInstallRunning
+        if (piSelected && justFinished) {
+            (context.applicationContext as? AndCodeApplication)?.piController?.refresh()
+        }
     }
 
     LaunchedEffect(openCodeReady, openCodeSelected, settingsState.availableProviders, settingsState.providerAuthMethods) {
