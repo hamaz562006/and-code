@@ -584,11 +584,18 @@ class LocalRuntimeInstaller(
             servers.put(BROWSER_MCP_NAME, browserMcpEntry("antigravity"))
             root.put("mcpServers", servers)
         }
+        // Pi reads ~/.pi/agent/mcp.json (Claude-compatible mcpServers shape). See earendil-works/pi
+        // packages/coding-agent docs / MCP extension notes.
+        mergeJsonConfig(File(rootfs, "root/.pi/agent/mcp.json")) { root ->
+            val servers = root.optJSONObject("mcpServers") ?: JSONObject()
+            servers.put(BROWSER_MCP_NAME, browserMcpEntry("pi"))
+            root.put("mcpServers", servers)
+        }
     }
 
     private fun browserMcpEntry(agent: String): JSONObject =
         when (agent) {
-            "claude" ->
+            "claude", "pi" ->
                 JSONObject()
                     .put("type", "stdio")
                     .put("command", BROWSER_MCP_BIN)
@@ -622,11 +629,17 @@ class LocalRuntimeInstaller(
             servers.put(SCHEDULE_MCP_NAME, scheduleMcpEntry("antigravity"))
             root.put("mcpServers", servers)
         }
+
+        mergeJsonConfig(File(rootfs, "root/.pi/agent/mcp.json")) { root ->
+            val servers = root.optJSONObject("mcpServers") ?: JSONObject()
+            servers.put(SCHEDULE_MCP_NAME, scheduleMcpEntry("pi"))
+            root.put("mcpServers", servers)
+        }
     }
 
     private fun scheduleMcpEntry(agent: String): JSONObject =
         when (agent) {
-            "claude" ->
+            "claude", "pi" ->
                 JSONObject()
                     .put("type", "stdio")
                     .put("command", SCHEDULE_MCP_BIN)

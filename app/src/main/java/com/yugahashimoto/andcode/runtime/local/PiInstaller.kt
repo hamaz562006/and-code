@@ -151,7 +151,7 @@ object PiInstaller {
         suite: EmbeddedCommandSuite.Paths,
         runtimeDirectory: File,
         shellCommand: String,
-        timeoutMinutes: Long = 5,
+        timeoutMinutes: Long = 20,
     ): CommandResult {
         val prootTmp = File(runtimeDirectory, "proot-tmp").apply { mkdirs() }
         val apkCache = File(runtimeDirectory, "cache/apk").apply { mkdirs() }

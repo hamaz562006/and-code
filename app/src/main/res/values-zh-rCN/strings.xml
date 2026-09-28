@@ -1005,6 +1005,11 @@
     <string name="setup_agent_pi_desc">通过 npm 安装的编码代理。在 Pi 内使用你自己的模型提供商 API 密钥。选中时会下载 Node.js 与 Pi 包。</string>
     <string name="install_step_downloading_codex">正在下载 Codex</string>
     <string name="install_step_installing_pi">正在安装 Pi</string>
+    <string name="install_step_downloading_pi">正在下载 Pi</string>
+    <string name="pi_error_install_failed">Pi 安装失败</string>
+    <string name="pi_install_button">安装 Pi</string>
+    <string name="pi_installed_version">Pi %1$s</string>
+    <string name="pi_installing">正在安装 Pi…</string>
     <string name="codex_install_button">安装 Codex</string>
     <string name="codex_retry_install_button">重试安装</string>
     <string name="codex_installing">正在下载并安装 Codex…</string>

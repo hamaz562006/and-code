@@ -198,6 +198,7 @@ fun AndCodeApp(
     val preferences by app.preferences.state.collectAsState()
     val antigravityState by app.antigravityController.state.collectAsState()
     val codexState by app.codexController.state.collectAsState()
+    val piState by app.piController.state.collectAsState()
     val codexSignInViewModel: CodexSignInViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel(
             key = "setup-codex-sign-in",
@@ -958,9 +959,7 @@ fun AndCodeApp(
                                     // the shared environment and every other selected agent with it.
                                     app.codexController.install(agents, installFullDevelopmentTools)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.PI in agents) {
-                                    // Pi-only (or Pi + Claude) install: shared Alpine path installs Pi
-                                    // via npm when LocalAgent.PI is in the selection.
-                                    workspaceViewModel.setupLocalRuntime(agents, installFullDevelopmentTools)
+                                    app.piController.install(agents, installFullDevelopmentTools)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE in agents) {
                                     workspaceViewModel.installClaudeCode(installFullDevelopmentTools)
                                 }
@@ -977,6 +976,7 @@ fun AndCodeApp(
                             onCancelAntigravitySignIn = app.antigravityController::cancelAuth,
                             onSignOutAntigravity = app.antigravityController::logout,
                             codex = codexState,
+                            pi = piState,
                             codexSignInDialog = codexSignInDialog,
                             codexSignIn =
                                 CodexSignInActions(

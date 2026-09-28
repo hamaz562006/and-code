@@ -1053,6 +1053,11 @@
     <string name="setup_agent_pi_desc">npm経由のコーディングエージェント。Pi内でプロバイダーのAPIキーを使います。選択時にNode.jsとPiパッケージをダウンロードします。</string>
     <string name="install_step_downloading_codex">Codexをダウンロードしています</string>
     <string name="install_step_installing_pi">Piをインストールしています</string>
+    <string name="install_step_downloading_pi">Piをダウンロードしています</string>
+    <string name="pi_error_install_failed">Piのインストールに失敗しました</string>
+    <string name="pi_install_button">Piをインストール</string>
+    <string name="pi_installed_version">Pi %1$s</string>
+    <string name="pi_installing">Piをインストールしています…</string>
     <string name="codex_install_button">Codexをインストール</string>
     <string name="codex_retry_install_button">インストールを再試行</string>
     <string name="codex_installing">Codexをダウンロードしてインストールしています…</string>

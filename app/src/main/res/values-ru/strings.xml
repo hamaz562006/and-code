@@ -1011,6 +1011,11 @@
     <string name="setup_agent_pi_desc">Агент для кода через npm. Использует API-ключи провайдеров внутри Pi. При выборе загружает Node.js и пакет Pi.</string>
     <string name="install_step_downloading_codex">Загрузка Codex</string>
     <string name="install_step_installing_pi">Установка Pi</string>
+    <string name="install_step_downloading_pi">Загрузка Pi</string>
+    <string name="pi_error_install_failed">Не удалось установить Pi</string>
+    <string name="pi_install_button">Установить Pi</string>
+    <string name="pi_installed_version">Pi %1$s</string>
+    <string name="pi_installing">Установка Pi…</string>
     <string name="codex_install_button">Установить Codex</string>
     <string name="codex_retry_install_button">Повторить установку</string>
     <string name="codex_installing">Загрузка и установка Codex…</string>
