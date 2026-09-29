@@ -24,6 +24,7 @@ data class ServerInfoUiState(
     val configEditDraft: String? = null,
     val isSaving: Boolean = false,
     val saveSuccess: Boolean = false,
+    val serverConfigSupported: Boolean = true,
 )
 
 class ServerInfoViewModel(
@@ -42,9 +43,24 @@ class ServerInfoViewModel(
     }
 
     fun refresh() {
-        val backend = registry.selected.value ?: return
+        val target = registry.selected.value ?: return
+        if (!target.capabilities.serverConfig) {
+            _state.update {
+                it.copy(
+                    configJson = null,
+                    configProviders = emptyList(),
+                    commands = emptyList(),
+                    skills = emptyList(),
+                    isLoading = false,
+                    error = null,
+                    serverConfigSupported = false,
+                )
+            }
+            return
+        }
+        val backend = target
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null) }
+            _state.update { it.copy(isLoading = true, error = null, serverConfigSupported = true) }
             runCatching {
                 val config = backend.config()
                 val providers = runCatching { backend.configProviders() }.getOrDefault(emptyList())
@@ -60,6 +76,7 @@ class ServerInfoViewModel(
                         commands = commands,
                         skills = skills,
                         isLoading = false,
+                        serverConfigSupported = true,
                     )
                 }
             }.onFailure { e ->

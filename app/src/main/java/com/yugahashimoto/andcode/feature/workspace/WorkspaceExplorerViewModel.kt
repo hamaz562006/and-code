@@ -32,14 +32,24 @@ data class WorkspaceExplorerUiState(
     val isSearching: Boolean = false,
     val isLoadingChanges: Boolean = false,
     val error: String? = null,
+    val vcsSupported: Boolean = true,
 )
 
 class WorkspaceExplorerViewModel(
     private val backend: OpenCodeBackend,
     workspace: WorkspaceRef,
+    private val capabilities: com.yugahashimoto.andcode.runtime.RuntimeCapabilities =
+        (backend as? com.yugahashimoto.andcode.runtime.RuntimeTarget)?.capabilities
+            ?: com.yugahashimoto.andcode.runtime.RuntimeCapabilities(vcs = true),
 ) : ViewModel() {
     private val mutableState =
-        MutableStateFlow(WorkspaceExplorerUiState(workspace = workspace, currentPath = WorkspaceFolders.normalize(workspace.path)))
+        MutableStateFlow(
+            WorkspaceExplorerUiState(
+                workspace = workspace,
+                currentPath = WorkspaceFolders.normalize(workspace.path),
+                vcsSupported = capabilities.vcs,
+            ),
+        )
     val state: StateFlow<WorkspaceExplorerUiState> = mutableState.asStateFlow()
 
     init {
@@ -109,6 +119,18 @@ class WorkspaceExplorerViewModel(
     }
 
     fun refreshChanges() {
+        if (!capabilities.vcs) {
+            mutableState.update {
+                it.copy(
+                    vcsInfo = null,
+                    changes = emptyList(),
+                    diff = emptyList(),
+                    isLoadingChanges = false,
+                    error = null,
+                )
+            }
+            return
+        }
         mutableState.update { it.copy(isLoadingChanges = true, error = null) }
         viewModelScope.launch {
             val directory = mutableState.value.workspace.path

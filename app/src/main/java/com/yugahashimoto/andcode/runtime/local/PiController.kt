@@ -59,6 +59,16 @@ class PiController(
         scope.launch { runCatching { rehydrate() } }
     }
 
+    fun stop() {
+        runtime.stopAll()
+        refresh()
+    }
+
+    fun restart() {
+        runtime.stopAll()
+        refresh()
+    }
+
     private suspend fun rehydrate() {
         target.connect()
         val version =

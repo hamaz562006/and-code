@@ -56,6 +56,9 @@ class LocalRuntimeTarget(
             abortsBeforeInterrupt = true,
             editMessages = true,
             diffCapable = true,
+            vcs = true,
+            serverConfig = true,
+            browsableHttpServer = true,
         )
 
     private val mutableState = MutableStateFlow(mapStatus(runtimeManager.status()))

@@ -163,6 +163,7 @@ class SettingsViewModel(
     )
 
     init {
+        customProviders.remove("pi")
         viewModelScope.launch {
             registry.selected.collect {
                 dismissProviderAuth()
@@ -199,7 +200,13 @@ class SettingsViewModel(
             // model picker while Claude Code was the active agent.
             val chatConnected =
                 (core.runtime.providers.connected.toSet() + oauth.locallyConnected) - oauth.locallyDisconnected
-            val managed = core.providerCatalog ?: core.runtime.providers
+            val managed =
+                core.providerCatalog
+                    ?: if (core.selected?.agent == LocalAgent.OPEN_CODE || core.selected?.agent == null) {
+                        core.runtime.providers
+                    } else {
+                        catalog.cachedProviders(LocalAgent.OPEN_CODE.targetId) ?: ProviderCatalog()
+                    }
             SettingsUiState(
                 providers = core.runtime.providers.all.filter { it.id in chatConnected },
                 availableProviders = managed.all,
@@ -648,6 +655,11 @@ class SettingsViewModel(
             )
         if (definition.id.isEmpty() || definition.baseUrl.isEmpty() || definition.models.isEmpty()) {
             customProviderDialogState.update { it?.copy(error = customProviderInvalidMessage) }
+            return
+        }
+        val reserved = setOf("pi", "codex", "opencode", "claude", "claude-code", "antigravity")
+        if (definition.id.lowercase() in reserved || definition.name.lowercase() in reserved) {
+            customProviderDialogState.update { it?.copy(error = "Provider name cannot collide with an agent name") }
             return
         }
         customProviderJob =

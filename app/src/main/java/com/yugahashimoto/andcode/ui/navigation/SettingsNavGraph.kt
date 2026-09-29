@@ -91,6 +91,8 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenSupport = { showSupportSheet = true },
             onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP) },
             onOpenServerInfo = { navController.navigate(ROUTE_SETTINGS_SERVER_INFO) },
+            supportsServerInfo = runtimeRegistry.selected.value?.capabilities?.serverConfig == true,
+            supportsGuestBrowser = runtimeRegistry.selected.value?.capabilities?.browsableHttpServer == true,
             onOpenLegal = { navController.navigate(ROUTE_SETTINGS_LEGAL) },
             currentTheme = preferences().theme,
             onThemeChange = { appPreferences.setTheme(it) },
@@ -294,6 +296,9 @@ fun NavGraphBuilder.settingsNavGraph(
         PiAgentSettingsScreen(
             pi = pi,
             onInstall = { app.piController.install() },
+            onRestart = { app.piRuntime.stopAll() },
+            onStop = { app.piRuntime.stopAll() },
+            onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_PI) },
             onBack = { navController.popBackStack() },
         )
     }
@@ -522,6 +527,15 @@ fun NavGraphBuilder.settingsNavGraph(
         com.yugahashimoto.andcode.feature.settings.McpScreen(
             registry = runtimeRegistry,
             agent = com.yugahashimoto.andcode.runtime.LocalAgent.CODEX,
+            onOpenBrowser = {},
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable(ROUTE_SETTINGS_MCP_PI) {
+        com.yugahashimoto.andcode.feature.settings.McpScreen(
+            registry = runtimeRegistry,
+            agent = com.yugahashimoto.andcode.runtime.LocalAgent.PI,
             onOpenBrowser = {},
             onBack = { navController.popBackStack() },
         )

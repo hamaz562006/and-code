@@ -87,6 +87,8 @@ fun SettingsScreenV2(
     onOpenSupport: () -> Unit = {},
     onOpenMcp: () -> Unit = {},
     onOpenServerInfo: () -> Unit = {},
+    supportsServerInfo: Boolean = true,
+    supportsGuestBrowser: Boolean = true,
     onOpenLegal: () -> Unit = {},
     currentTheme: String = "dark",
     onThemeChange: (String) -> Unit = {},
@@ -304,23 +306,27 @@ fun SettingsScreenV2(
                     onClick = onOpenGitHubSettings,
                 )
                 SettingsDivider()
-                SettingsRow(
-                    icon = Icons.Default.Build,
-                    title = stringResource(R.string.server_info_settings_row),
-                    onClick = onOpenServerInfo,
-                )
-                SettingsDivider()
+                if (supportsServerInfo) {
+                    SettingsRow(
+                        icon = Icons.Default.Build,
+                        title = stringResource(R.string.server_info_settings_row),
+                        onClick = onOpenServerInfo,
+                    )
+                    SettingsDivider()
+                }
                 SettingsRow(
                     icon = Icons.Default.Terminal,
                     title = stringResource(R.string.settings_local_runtime_row),
                     onClick = onOpenLocalRuntime,
                 )
-                SettingsDivider()
-                SettingsRow(
-                    icon = Icons.Default.OpenInBrowser,
-                    title = stringResource(R.string.guest_browser_row),
-                    onClick = onOpenGuestBrowser,
-                )
+                if (supportsGuestBrowser) {
+                    SettingsDivider()
+                    SettingsRow(
+                        icon = Icons.Default.OpenInBrowser,
+                        title = stringResource(R.string.guest_browser_row),
+                        onClick = onOpenGuestBrowser,
+                    )
+                }
                 SettingsDivider()
                 SettingsRow(
                     icon = Icons.Default.Router,

@@ -67,14 +67,18 @@ class LocalRuntimeDiagnosticsCollector(
 
     fun collect(): LocalRuntimeDiagnostics {
         val status = statusProvider()
-        val installed =
-            status !is LocalRuntimeStatus.NotInstalled &&
-                status !is LocalRuntimeStatus.UnsupportedAbi
+        val metadataFile = File(runtimeDirectory, "metadata.json")
+        val rootfs = File(runtimeDirectory, "environment/rootfs")
+        val environmentProvisioned =
+            rootfs.isDirectory ||
+                status is LocalRuntimeStatus.Ready ||
+                status is LocalRuntimeStatus.Stopped ||
+                (metadataFile.isFile && rootfs.isDirectory)
         val definitions =
             REQUIRED_TOOLS +
                 OPTIONAL_TOOLS.takeIf { fullDevelopmentToolsInstalledProvider() }.orEmpty()
         val tools =
-            if (installed) {
+            if (environmentProvisioned) {
                 definitions.map { definition ->
                     runCatching { commandExecutor(definition) }
                         .fold(

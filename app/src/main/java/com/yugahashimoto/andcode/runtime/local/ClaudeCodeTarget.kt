@@ -85,6 +85,9 @@ class ClaudeCodeTarget(
                 toolEvents = true,
                 resume = true,
                 diffCapable = true,
+                vcs = true,
+                serverConfig = false,
+                browsableHttpServer = false,
             )
         }
 

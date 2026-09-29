@@ -598,7 +598,16 @@ private fun ChangesTab(
             }
         }
 
-        if (state.isLoadingChanges) {
+        if (!state.vcsSupported) {
+            item {
+                SectionCard {
+                    Text(
+                        stringResource(R.string.vcs_not_supported_for_agent),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        } else if (state.isLoadingChanges) {
             item { LoadingCard(stringResource(R.string.loading_changes)) }
         } else if (state.changes.isEmpty()) {
             item {

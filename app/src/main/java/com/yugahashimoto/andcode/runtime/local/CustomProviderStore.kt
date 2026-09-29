@@ -55,7 +55,12 @@ class CustomProviderStore(
         json = json,
     )
 
-    fun definitions(): List<CustomProviderDefinition> = load()
+    fun definitions(): List<CustomProviderDefinition> =
+        load().filterNot {
+            val lowerId = it.id.lowercase()
+            val lowerName = it.name.lowercase()
+            lowerId in RESERVED_AGENT_NAMES || lowerName in RESERVED_AGENT_NAMES
+        }
 
     fun upsert(definition: CustomProviderDefinition) {
         val normalized = definition.normalized()
@@ -63,6 +68,9 @@ class CustomProviderStore(
         require(normalized.name.isNotEmpty()) { "Provider name is required" }
         require(normalized.baseUrl.isNotEmpty()) { "Base URL is required" }
         require(normalized.models.isNotEmpty()) { "At least one model id is required" }
+        require(normalized.id.lowercase() !in RESERVED_AGENT_NAMES && normalized.name.lowercase() !in RESERVED_AGENT_NAMES) {
+            "Provider name cannot collide with an agent name"
+        }
         save(definitions().filterNot { it.id == normalized.id } + normalized)
     }
 
@@ -84,6 +92,7 @@ class CustomProviderStore(
         val current = definitions()
         val currentIds = current.map { it.id }.toSet()
         (loadSyncedIds() - currentIds).forEach(providers::remove)
+        RESERVED_AGENT_NAMES.forEach(providers::remove)
         current.forEach { definition -> providers[definition.id] = definition.toProviderConfig() }
 
         val updatedRoot = JsonObject(existingRoot + ("provider" to JsonObject(providers)))
@@ -134,6 +143,8 @@ class CustomProviderStore(
     }
 
     companion object {
+        val RESERVED_AGENT_NAMES = setOf("pi", "codex", "opencode", "claude", "claude-code", "antigravity")
+
         private val defaultJson: Json =
             Json {
                 ignoreUnknownKeys = true

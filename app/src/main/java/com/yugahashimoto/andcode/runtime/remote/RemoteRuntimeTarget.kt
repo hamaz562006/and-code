@@ -49,6 +49,9 @@ class RemoteRuntimeTarget(
             abortsBeforeInterrupt = true,
             editMessages = true,
             diffCapable = true,
+            vcs = true,
+            serverConfig = true,
+            browsableHttpServer = false,
         )
 
     private val mutableState = MutableStateFlow<RuntimeState>(RuntimeState.Disconnected)

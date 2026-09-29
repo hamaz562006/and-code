@@ -98,12 +98,15 @@ fun AgentSettingsScreen(
     }
 }
 
-/** Minimal Pi agent page: status and install hint until a full settings UI is added. */
+/** Pi's own settings: status card with reinstall/restart controls, and MCP servers. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PiAgentSettingsScreen(
     pi: com.yugahashimoto.andcode.runtime.local.PiUiState,
     onInstall: () -> Unit,
+    onRestart: (() -> Unit)? = null,
+    onStop: (() -> Unit)? = null,
+    onOpenMcp: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.PI.displayNameRes), onBack = onBack) {
@@ -133,37 +136,20 @@ fun PiAgentSettingsScreen(
                         listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
                     }.orEmpty(),
             ) {
-                when (val install = pi.install) {
-                    is com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Installing -> {
-                        val progress = install.progress
-                        if (progress != null) {
-                            LinearProgressIndicator(
-                                progress = { progress.coerceIn(0f, 1f) },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        } else {
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                        }
-                    }
-                    is com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Failed -> {
-                        Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
-                            Text(stringResource(R.string.pi_install_button))
-                        }
-                    }
-                    else -> {
-                        if (!pi.installed) {
-                            Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
-                                Text(stringResource(R.string.pi_install_button))
-                            }
-                        } else {
-                            Text(
-                                text = stringResource(R.string.setup_agent_pi_desc),
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    }
-                }
+                com.yugahashimoto.andcode.feature.workspace.PiCard(
+                    pi = pi,
+                    onInstall = onInstall,
+                    onRestart = onRestart,
+                    onStop = onStop,
+                )
             }
+        }
+        SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+            SettingsRow(
+                icon = Icons.Default.Extension,
+                title = stringResource(R.string.mcp_settings_row),
+                onClick = onOpenMcp,
+            )
         }
     }
 }

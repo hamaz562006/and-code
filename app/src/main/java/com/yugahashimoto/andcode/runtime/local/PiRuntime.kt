@@ -198,9 +198,20 @@ class PiRuntime(
     suspend fun send(
         sessionId: String,
         text: String,
+        modelId: String? = null,
     ): Unit =
         withContext(Dispatchers.IO) {
             ensureServer("/workspace")
+            if (!modelId.isNullOrBlank()) {
+                runCatching {
+                    call(
+                        buildJsonObject {
+                            put("type", "set_model")
+                            put("model", modelId)
+                        },
+                    )
+                }
+            }
             val now = System.currentTimeMillis()
             val userInfo =
                 OpenCodeMessageInfo(
@@ -235,6 +246,19 @@ class PiRuntime(
                 sessions[sessionId] = s.copy(time = s.time.copy(updated = System.currentTimeMillis()))
             }
         }
+
+    private fun mcpConfigFile(): File {
+        val rootfs = installedRuntime()?.rootfs ?: File(runtimeDirectory, "environment/rootfs")
+        return File(rootfs, "root/.pi/mcp.json")
+    }
+
+    fun mcpServers(): List<com.yugahashimoto.andcode.core.api.McpServer> = PiMcp.list(mcpConfigFile())
+
+    fun addMcpServer(name: String, url: String?, command: String?): com.yugahashimoto.andcode.core.api.McpServer =
+        PiMcp.add(mcpConfigFile(), name, url, command)
+
+    fun removeMcpServer(name: String): Boolean =
+        PiMcp.remove(mcpConfigFile(), name)
 
     suspend fun abort(sessionId: String): Boolean =
         withContext(Dispatchers.IO) {

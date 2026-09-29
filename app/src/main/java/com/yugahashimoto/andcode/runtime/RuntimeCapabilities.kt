@@ -49,4 +49,18 @@ data class RuntimeCapabilities(
      * Antigravity has no diff implementation at all, so this stays false there.
      */
     val diffCapable: Boolean = false,
+    /**
+     * True when the backend supports version control status, branches, diffs, and info
+     * via [com.yugahashimoto.andcode.runtime.OpenCodeBackend.vcsInfo] and related endpoints.
+     */
+    val vcs: Boolean = false,
+    /**
+     * True when the backend exposes server configuration via
+     * [com.yugahashimoto.andcode.runtime.OpenCodeBackend.config].
+     */
+    val serverConfig: Boolean = false,
+    /**
+     * True when the local runtime serves a browsable HTTP UI at its port (e.g. OpenCode server).
+     */
+    val browsableHttpServer: Boolean = false,
 )

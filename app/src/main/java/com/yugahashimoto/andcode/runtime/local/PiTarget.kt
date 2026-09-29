@@ -1,5 +1,6 @@
 package com.yugahashimoto.andcode.runtime.local
 
+import com.yugahashimoto.andcode.core.api.McpServer
 import com.yugahashimoto.andcode.core.api.OpenCodeAgent
 import com.yugahashimoto.andcode.core.api.OpenCodeEvent
 import com.yugahashimoto.andcode.core.api.OpenCodeFileContent
@@ -24,6 +25,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import java.io.File
 
 /**
@@ -148,4 +152,19 @@ class PiTarget(
     ): List<OpenCodeSearchMatch> = withContext(Dispatchers.IO) { files.search(directory, pattern) }
 
     override suspend fun listWorkspaces(): List<WorkspaceRef> = listOf(WorkspaceRef("/workspace", "workspace", "/workspace"))
+
+    override suspend fun mcpServers(): List<McpServer> = withContext(Dispatchers.IO) { runtime.mcpServers() }
+
+    override suspend fun addMcpServer(body: JsonObject): McpServer =
+        withContext(Dispatchers.IO) {
+            val name = (body["name"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf(String::isNotEmpty)
+                ?: error("An MCP server needs a name")
+            val url = (body["url"] as? JsonPrimitive)?.contentOrNull
+            val command = (body["command"] as? JsonPrimitive)?.contentOrNull
+            runtime.addMcpServer(name, url, command)
+            runtime.mcpServers().firstOrNull { it.name == name } ?: McpServer(name = name)
+        }
+
+    override suspend fun disconnectMcpServer(name: String): Boolean =
+        withContext(Dispatchers.IO) { runtime.removeMcpServer(name) }
 }
