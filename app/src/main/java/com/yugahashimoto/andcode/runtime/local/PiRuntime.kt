@@ -1,5 +1,6 @@
 package com.yugahashimoto.andcode.runtime.local
 
+import com.yugahashimoto.andcode.core.api.McpServer
 import com.yugahashimoto.andcode.core.api.OpenCodeEvent
 import com.yugahashimoto.andcode.core.api.OpenCodeMessage
 import com.yugahashimoto.andcode.core.api.OpenCodeMessageInfo
@@ -252,13 +253,15 @@ class PiRuntime(
         return File(rootfs, "root/.pi/mcp.json")
     }
 
-    fun mcpServers(): List<com.yugahashimoto.andcode.core.api.McpServer> = PiMcp.list(mcpConfigFile())
+    fun mcpServers(): List<McpServer> = PiMcp.list(mcpConfigFile())
 
-    fun addMcpServer(name: String, url: String?, command: String?): com.yugahashimoto.andcode.core.api.McpServer =
-        PiMcp.add(mcpConfigFile(), name, url, command)
+    fun addMcpServer(
+        name: String,
+        url: String?,
+        command: String?,
+    ): McpServer = PiMcp.add(mcpConfigFile(), name, url, command)
 
-    fun removeMcpServer(name: String): Boolean =
-        PiMcp.remove(mcpConfigFile(), name)
+    fun removeMcpServer(name: String): Boolean = PiMcp.remove(mcpConfigFile(), name)
 
     suspend fun abort(sessionId: String): Boolean =
         withContext(Dispatchers.IO) {

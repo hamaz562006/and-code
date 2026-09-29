@@ -66,6 +66,7 @@ fun NavGraphBuilder.settingsNavGraph(
 ) {
     composable(ROUTE_SETTINGS) {
         val settingsState by settingsViewModel.state.collectAsState()
+        val selectedRuntime by runtimeRegistry.selected.collectAsState()
         var showSupportSheet by remember { mutableStateOf(false) }
 
         SettingsScreenV2(
@@ -91,8 +92,8 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenSupport = { showSupportSheet = true },
             onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP) },
             onOpenServerInfo = { navController.navigate(ROUTE_SETTINGS_SERVER_INFO) },
-            supportsServerInfo = runtimeRegistry.selected.value?.capabilities?.serverConfig == true,
-            supportsGuestBrowser = runtimeRegistry.selected.value?.capabilities?.browsableHttpServer == true,
+            supportsServerInfo = selectedRuntime?.capabilities?.serverConfig == true,
+            supportsGuestBrowser = selectedRuntime?.capabilities?.browsableHttpServer == true,
             onOpenLegal = { navController.navigate(ROUTE_SETTINGS_LEGAL) },
             currentTheme = preferences().theme,
             onThemeChange = { appPreferences.setTheme(it) },

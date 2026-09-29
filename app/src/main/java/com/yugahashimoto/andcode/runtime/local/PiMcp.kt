@@ -15,7 +15,11 @@ import java.io.File
  * Persists configured MCP servers in `~/.pi/mcp.json` inside Pi's home directory.
  */
 object PiMcp {
-    private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            prettyPrint = true
+        }
 
     fun list(configFile: File): List<McpServer> {
         if (!configFile.exists()) return emptyList()

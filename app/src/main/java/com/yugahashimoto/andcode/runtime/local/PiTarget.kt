@@ -157,14 +157,14 @@ class PiTarget(
 
     override suspend fun addMcpServer(body: JsonObject): McpServer =
         withContext(Dispatchers.IO) {
-            val name = (body["name"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf(String::isNotEmpty)
-                ?: error("An MCP server needs a name")
+            val name =
+                (body["name"] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf(String::isNotEmpty)
+                    ?: error("An MCP server needs a name")
             val url = (body["url"] as? JsonPrimitive)?.contentOrNull
             val command = (body["command"] as? JsonPrimitive)?.contentOrNull
             runtime.addMcpServer(name, url, command)
             runtime.mcpServers().firstOrNull { it.name == name } ?: McpServer(name = name)
         }
 
-    override suspend fun disconnectMcpServer(name: String): Boolean =
-        withContext(Dispatchers.IO) { runtime.removeMcpServer(name) }
+    override suspend fun disconnectMcpServer(name: String): Boolean = withContext(Dispatchers.IO) { runtime.removeMcpServer(name) }
 }

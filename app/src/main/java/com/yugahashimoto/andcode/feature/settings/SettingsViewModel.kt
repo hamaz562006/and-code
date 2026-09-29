@@ -532,7 +532,8 @@ class SettingsViewModel(
                                 completed = result.getOrDefault(false)
                                 android.util.Log.w(
                                     TAG,
-                                    "completeProviderOAuth attempt=$attempt completed=$completed error=${result.exceptionOrNull()?.message}",
+                                    "completeProviderOAuth attempt=$attempt completed=$completed " +
+                                        "error=${result.exceptionOrNull()?.message}",
                                 )
                                 if (!completed) delay(AUTO_OAUTH_POLL_MS)
                             }

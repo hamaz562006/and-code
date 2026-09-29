@@ -30,7 +30,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -47,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import com.yugahashimoto.andcode.R
 import com.yugahashimoto.andcode.feature.workspace.ClaudeCodeCard
 import com.yugahashimoto.andcode.feature.workspace.CodexCard
+import com.yugahashimoto.andcode.feature.workspace.PiCard
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import com.yugahashimoto.andcode.runtime.local.AntigravityAuthCoordinator
@@ -59,6 +59,8 @@ import com.yugahashimoto.andcode.runtime.local.ClaudePermissionMode
 import com.yugahashimoto.andcode.runtime.local.CodexInstallStatus
 import com.yugahashimoto.andcode.runtime.local.CodexUiState
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeUpdateCheck
+import com.yugahashimoto.andcode.runtime.local.PiInstallStatus
+import com.yugahashimoto.andcode.runtime.local.PiUiState
 import com.yugahashimoto.andcode.ui.components.RuntimeOperationResultCard
 import com.yugahashimoto.andcode.ui.components.RuntimeUpdateProgressCard
 import com.yugahashimoto.andcode.ui.components.SectionCard
@@ -102,7 +104,7 @@ fun AgentSettingsScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PiAgentSettingsScreen(
-    pi: com.yugahashimoto.andcode.runtime.local.PiUiState,
+    pi: PiUiState,
     onInstall: () -> Unit,
     onRestart: (() -> Unit)? = null,
     onStop: (() -> Unit)? = null,
@@ -113,11 +115,11 @@ fun PiAgentSettingsScreen(
         AgentCardSection {
             val statusText =
                 when (val install = pi.install) {
-                    is com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Installing ->
+                    is PiInstallStatus.Installing ->
                         install.step?.takeIf { it.isNotBlank() } ?: stringResource(R.string.pi_installing)
-                    is com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Failed ->
+                    is PiInstallStatus.Failed ->
                         install.message ?: stringResource(R.string.pi_error_install_failed)
-                    is com.yugahashimoto.andcode.runtime.local.PiInstallStatus.Ready ->
+                    is PiInstallStatus.Ready ->
                         pi.version?.let { stringResource(R.string.pi_installed_version, it) }
                             ?: stringResource(R.string.agent_pi_name)
                     else ->
@@ -136,7 +138,7 @@ fun PiAgentSettingsScreen(
                         listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
                     }.orEmpty(),
             ) {
-                com.yugahashimoto.andcode.feature.workspace.PiCard(
+                PiCard(
                     pi = pi,
                     onInstall = onInstall,
                     onRestart = onRestart,

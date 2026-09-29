@@ -9,6 +9,8 @@ import com.yugahashimoto.andcode.core.api.OpenCodeVcsInfo
 import com.yugahashimoto.andcode.core.util.isNonGitWorkspaceError
 import com.yugahashimoto.andcode.core.util.safeMessage
 import com.yugahashimoto.andcode.runtime.OpenCodeBackend
+import com.yugahashimoto.andcode.runtime.RuntimeCapabilities
+import com.yugahashimoto.andcode.runtime.RuntimeTarget
 import com.yugahashimoto.andcode.runtime.WorkspaceRef
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -38,9 +40,9 @@ data class WorkspaceExplorerUiState(
 class WorkspaceExplorerViewModel(
     private val backend: OpenCodeBackend,
     workspace: WorkspaceRef,
-    private val capabilities: com.yugahashimoto.andcode.runtime.RuntimeCapabilities =
-        (backend as? com.yugahashimoto.andcode.runtime.RuntimeTarget)?.capabilities
-            ?: com.yugahashimoto.andcode.runtime.RuntimeCapabilities(vcs = true),
+    private val capabilities: RuntimeCapabilities =
+        (backend as? RuntimeTarget)?.capabilities
+            ?: RuntimeCapabilities(vcs = true),
 ) : ViewModel() {
     private val mutableState =
         MutableStateFlow(

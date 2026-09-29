@@ -250,13 +250,7 @@ object ClaudeCodeInstaller {
             File(rootfs, DNS_PRELOAD.removePrefix("/")).apply {
                 if (isFile) return@runCatching
                 parentFile?.mkdirs()
-                writeText(
-                    """
-                    try { require("dns").setServers(["1.1.1.1", "8.8.8.8"]); } catch (e) {}
-                    """.trimIndent()
-                        +
-                        "\n",
-                )
+                writeText("try { require(\"dns\").setServers([\"1.1.1.1\", \"8.8.8.8\"]); } catch (e) {}\n")
             }
         }
     }
