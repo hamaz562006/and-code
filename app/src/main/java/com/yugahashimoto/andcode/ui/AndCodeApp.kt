@@ -940,9 +940,6 @@ fun AndCodeApp(
                                 scope.launch {
                                     context.contentResolver.openInputStream(uri)?.use { input ->
                                         app.localRuntimeManager.importRuntime(input)
-                                        app.piController.refresh()
-                                        app.antigravityController.refresh()
-                                        app.codexController.refresh()
                                     }
                                 }
                             },

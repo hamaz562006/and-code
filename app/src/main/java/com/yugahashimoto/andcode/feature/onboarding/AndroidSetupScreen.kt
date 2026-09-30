@@ -866,7 +866,7 @@ private fun RuntimeDownloadStep(
             }
         }
         if (runtimeStatus is LocalRuntimeStatus.NotInstalled || runtimeStatus is LocalRuntimeStatus.Broken) {
-            TextButton(onClick = onImportClick, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+            TextButton(onClick = onImportClick, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                 Text(
                     "Already have a backup? Import instead",
                     textDecoration = TextDecoration.Underline,

@@ -159,16 +159,21 @@ fun LocalRuntimeManagementScreen(
                     RuntimeManagementCard(
                         busy = busy,
                         isDeleting = state.isDeleting,
-                        isExporting = state.isExporting,
-                        exportProgress = state.exportProgress,
-                        exportStep = state.exportStep,
-                        isImporting = state.isImporting,
                         onRepair = onRepair,
                         onRequestDelete = onRequestDelete,
-                        onExport = { exportLauncher.launch("andcode-runtime-export.tar.gz") },
-                        onImport = { importLauncher.launch(arrayOf("application/gzip", "application/x-gzip", "*/*")) },
                     )
                 }
+
+                RuntimeBackupCard(
+                    busy = busy,
+                    isInstalled = diagnostics.status.isInstalled(),
+                    isExporting = state.isExporting,
+                    exportProgress = state.exportProgress,
+                    exportStep = state.exportStep,
+                    isImporting = state.isImporting,
+                    onExport = { exportLauncher.launch("andcode-runtime-export.tar.gz") },
+                    onImport = { importLauncher.launch(arrayOf("application/gzip", "application/x-gzip", "*/*")) },
+                )
             }
 
             state.error?.let { error ->
@@ -362,14 +367,8 @@ private fun RuntimeLogsCard(logTail: String) {
 private fun RuntimeManagementCard(
     busy: Boolean,
     isDeleting: Boolean,
-    isExporting: Boolean,
-    exportProgress: Float? = null,
-    exportStep: String? = null,
-    isImporting: Boolean,
     onRepair: () -> Unit,
     onRequestDelete: () -> Unit,
-    onExport: () -> Unit,
-    onImport: () -> Unit,
 ) {
     SectionCard {
         Text(stringResource(R.string.management_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -382,47 +381,6 @@ private fun RuntimeManagementCard(
             Icon(Icons.Default.Build, contentDescription = stringResource(R.string.cd_repair))
             Spacer(Modifier.padding(horizontal = 4.dp))
             Text(stringResource(R.string.repair_and_resetup_button))
-        }
-        Spacer(Modifier.height(8.dp))
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = onExport,
-            enabled = !busy,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            if (isExporting) {
-                if (exportProgress != null) {
-                    CircularProgressIndicator(
-                        progress = { exportProgress.coerceIn(0f, 1f) },
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                    )
-                    Spacer(Modifier.padding(horizontal = 4.dp))
-                    Text(exportStep ?: "Exporting...")
-                } else {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.padding(horizontal = 4.dp))
-                    Text("Exporting...")
-                }
-            } else {
-                Icon(Icons.Default.Upload, contentDescription = "Export runtime")
-                Spacer(Modifier.padding(horizontal = 4.dp))
-                Text("Export runtime")
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = onImport,
-            enabled = !busy,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            if (isImporting) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                Icon(Icons.Default.Download, contentDescription = "Import runtime")
-            }
-            Spacer(Modifier.padding(horizontal = 4.dp))
-            Text(if (isImporting) "Importing..." else "Import runtime")
         }
         Spacer(Modifier.height(8.dp))
         OutlinedButton(
@@ -649,4 +607,60 @@ private fun AdbPairDialog(
             }
         },
     )
+}
+
+@Composable
+private fun RuntimeBackupCard(
+    busy: Boolean,
+    isInstalled: Boolean,
+    isExporting: Boolean,
+    exportProgress: Float? = null,
+    exportStep: String? = null,
+    isImporting: Boolean,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
+) {
+    SectionCard {
+        Text("Backup & Restore", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(10.dp))
+        OutlinedButton(
+            onClick = onExport,
+            enabled = isInstalled && !busy,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            if (isExporting) {
+                if (exportProgress != null) {
+                    CircularProgressIndicator(
+                        progress = { exportProgress.coerceIn(0f, 1f) },
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(Modifier.padding(horizontal = 4.dp))
+                    Text(exportStep ?: "Exporting...")
+                } else {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.padding(horizontal = 4.dp))
+                    Text("Exporting...")
+                }
+            } else {
+                Icon(Icons.Default.Upload, contentDescription = "Export runtime")
+                Spacer(Modifier.padding(horizontal = 4.dp))
+                Text("Export runtime")
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = onImport,
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            if (isImporting) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            } else {
+                Icon(Icons.Default.Download, contentDescription = "Import runtime")
+            }
+            Spacer(Modifier.padding(horizontal = 4.dp))
+            Text(if (isImporting) "Importing..." else "Import runtime")
+        }
+    }
 }

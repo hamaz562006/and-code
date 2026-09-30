@@ -191,7 +191,7 @@ class LocalRuntimeManagementViewModel(
                 .onFailure { error ->
                     mutableState.update {
                         it.copy(
-                            error = error.message?.takeIf(String::isNotBlank) ?: getString(R.string.runtime_repair_start_failed),
+                            error = error.message?.takeIf(String::isNotBlank) ?: getString(R.string.operation_failed_title),
                         )
                     }
                 }

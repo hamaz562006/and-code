@@ -120,7 +120,6 @@ fun NavGraphBuilder.workspaceNavGraph(
                             importAction = { uri ->
                                 context.contentResolver.openInputStream(uri)?.use { input ->
                                     app.localRuntimeManager.importRuntime(input)
-                                    // Refresh controller state after successful import
                                     app.piController.refresh()
                                     app.antigravityController.refresh()
                                     app.codexController.refresh()
