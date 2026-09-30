@@ -163,7 +163,6 @@ class LocalRuntimeManagementViewModel(
         )
     }
 
-
     fun exportRuntime(uri: android.net.Uri) {
         val action = exportAction ?: return
         mutableState.update { it.copy(isExporting = true, exportProgress = null, exportStep = null, error = null) }
@@ -176,7 +175,7 @@ class LocalRuntimeManagementViewModel(
                 .onFailure { error ->
                     mutableState.update {
                         it.copy(
-                            error = error.message?.takeIf(String::isNotBlank) ?: getString(R.string.operation_failed_title)
+                            error = error.message?.takeIf(String::isNotBlank) ?: getString(R.string.operation_failed_title),
                         )
                     }
                 }
@@ -192,7 +191,7 @@ class LocalRuntimeManagementViewModel(
                 .onFailure { error ->
                     mutableState.update {
                         it.copy(
-                            error = error.message?.takeIf(String::isNotBlank) ?: getString(R.string.runtime_repair_start_failed)
+                            error = error.message?.takeIf(String::isNotBlank) ?: getString(R.string.runtime_repair_start_failed),
                         )
                     }
                 }

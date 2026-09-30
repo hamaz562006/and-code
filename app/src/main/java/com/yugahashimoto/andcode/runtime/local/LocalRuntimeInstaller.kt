@@ -252,102 +252,111 @@ class LocalRuntimeInstaller(
             }
         }
 
-
     suspend fun export(
         output: java.io.OutputStream,
-        onProgress: (Float, String) -> Unit = { _, _ -> }
-    ): Unit = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        accessCoordinator.write {
-            val active = java.io.File(runtimeDirectory, "environment")
-            require(active.isDirectory) { "Runtime environment is not installed" }
-            RuntimeArchive.createTarGz(output, runtimeDirectory, onProgress)
-            Unit
+        onProgress: (Float, String) -> Unit = { _, _ -> },
+    ): Unit =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            accessCoordinator.write {
+                val active = java.io.File(runtimeDirectory, "environment")
+                require(active.isDirectory) { "Runtime environment is not installed" }
+                RuntimeArchive.createTarGz(output, runtimeDirectory, onProgress)
+                Unit
+            }
         }
-    }
 
     suspend fun import(
         input: java.io.InputStream,
-        onProgress: (Float, String) -> Unit = { _, _ -> }
-    ): InstalledRuntime = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        accessCoordinator.write {
-            val tempArchive = java.io.File(runtimeDirectory, "import.tar.gz.tmp")
-            try {
-                input.use { it.copyTo(tempArchive.outputStream()) }
+        onProgress: (Float, String) -> Unit = { _, _ -> },
+    ): InstalledRuntime =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            accessCoordinator.write {
+                val tempArchive = java.io.File(runtimeDirectory, "import.tar.gz.tmp")
+                try {
+                    input.use { it.copyTo(tempArchive.outputStream()) }
 
-                var metadata: LocalRuntimeMetadata? = null
-                tempArchive.inputStream().use { archiveStream ->
-                    org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream(archiveStream.buffered()).use { gzip ->
-                        org.apache.commons.compress.archivers.tar.TarArchiveInputStream(gzip).use { tar ->
-                            var entry = tar.nextEntry
-                            while (entry != null) {
-                                if (entry.name == "metadata.json" || entry.name == "./metadata.json") {
-                                    val content = tar.readBytes().decodeToString()
-                                    metadata = json.decodeFromString<LocalRuntimeMetadata>(content)
-                                    break
+                    var metadata: LocalRuntimeMetadata? = null
+                    tempArchive.inputStream().use { archiveStream ->
+                        org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream(archiveStream.buffered()).use { gzip ->
+                            org.apache.commons.compress.archivers.tar.TarArchiveInputStream(gzip).use { tar ->
+                                var entry = tar.nextEntry
+                                while (entry != null) {
+                                    if (entry.name == "metadata.json" || entry.name == "./metadata.json") {
+                                        val content = tar.readBytes().decodeToString()
+                                        metadata = json.decodeFromString<LocalRuntimeMetadata>(content)
+                                        break
+                                    }
+                                    entry = tar.nextEntry
                                 }
-                                entry = tar.nextEntry
                             }
                         }
                     }
-                }
 
-                val verifiedMetadata = requireNotNull(metadata) { "Invalid archive: metadata.json is missing" }
-                require(verifiedMetadata.abi == abi) { "ABI mismatch: archive is for ${verifiedMetadata.abi}, but this device uses $abi" }
+                    val verifiedMetadata = requireNotNull(metadata) { "Invalid archive: metadata.json is missing" }
+                    require(
+                        verifiedMetadata.abi == abi,
+                    ) { "ABI mismatch: archive is for ${verifiedMetadata.abi}, but this device uses $abi" }
 
-                val staging = java.io.File(runtimeDirectory, "environment.staging")
-                val active = java.io.File(runtimeDirectory, "environment")
-                val rollback = java.io.File(runtimeDirectory, "environment.rollback")
+                    val staging = java.io.File(runtimeDirectory, "environment.staging")
+                    val active = java.io.File(runtimeDirectory, "environment")
+                    val rollback = java.io.File(runtimeDirectory, "environment.rollback")
 
-                recoverInterruptedRuntimeEnvironment(active, rollback, java.io.File(runtimeDirectory, METADATA_FILE))
+                    recoverInterruptedRuntimeEnvironment(active, rollback, java.io.File(runtimeDirectory, METADATA_FILE))
 
-                staging.deleteRecursively()
-                staging.mkdirs()
+                    staging.deleteRecursively()
+                    staging.mkdirs()
 
-                onProgress(0.1f, "Extracting imported environment")
-                tempArchive.inputStream().use { archiveStream ->
-                    RuntimeArchive.extractTarGz(archiveStream, staging)
-                }
-
-                val extractedEnv = java.io.File(staging, "environment")
-                if (extractedEnv.isDirectory) {
-                    extractedEnv.listFiles()?.forEach { it.renameTo(java.io.File(staging, it.name)) }
-                    extractedEnv.deleteRecursively()
-                }
-
-                onProgress(0.9f, "Activating imported environment")
-
-                activateRuntimeEnvironment(
-                    active = active,
-                    staging = staging,
-                    rollback = rollback,
-                    finalizeActivation = { activated ->
-                        val importedMetadata = java.io.File(activated, METADATA_FILE)
-                        if (importedMetadata.exists()) {
-                            replaceFileAtomically(
-                                source = importedMetadata,
-                                destination = java.io.File(runtimeDirectory, METADATA_FILE),
-                            )
-                        }
+                    onProgress(0.1f, "Extracting imported environment")
+                    tempArchive.inputStream().use { archiveStream ->
+                        RuntimeArchive.extractTarGz(archiveStream, staging)
                     }
-                )
 
-                onProgress(1.0f, "Import complete")
+                    val extractedEnv = java.io.File(staging, "environment")
+                    if (extractedEnv.isDirectory) {
+                        extractedEnv.listFiles()?.forEach { it.renameTo(java.io.File(staging, it.name)) }
+                        extractedEnv.deleteRecursively()
+                    }
 
-                val commandSuite = EmbeddedCommandSuite(context, runtimeDirectory, abi).ensureInstalled()
+                    onProgress(0.9f, "Activating imported environment")
 
-                InstalledRuntime(
-                    verifiedMetadata,
-                    commandSuite,
-                    java.io.File(active, "rootfs"),
-                    java.io.File(active, "rootfs/usr/local/bin/opencode").takeIf { verifiedMetadata.has(LocalAgent.OPEN_CODE) && it.isFile },
-                    java.io.File(active, "antigravity-rootfs").takeIf { verifiedMetadata.has(LocalAgent.ANTIGRAVITY) && it.isDirectory }
-                )
-            } finally {
-                tempArchive.delete()
-                java.io.File(runtimeDirectory, "environment.staging").deleteRecursively()
+                    activateRuntimeEnvironment(
+                        active = active,
+                        staging = staging,
+                        rollback = rollback,
+                        finalizeActivation = { activated ->
+                            val importedMetadata = java.io.File(activated, METADATA_FILE)
+                            if (importedMetadata.exists()) {
+                                replaceFileAtomically(
+                                    source = importedMetadata,
+                                    destination = java.io.File(runtimeDirectory, METADATA_FILE),
+                                )
+                            }
+                        },
+                    )
+
+                    onProgress(1.0f, "Import complete")
+
+                    val commandSuite = EmbeddedCommandSuite(context, runtimeDirectory, abi).ensureInstalled()
+
+                    InstalledRuntime(
+                        verifiedMetadata,
+                        commandSuite,
+                        java.io.File(active, "rootfs"),
+                        java.io.File(
+                            active,
+                            "rootfs/usr/local/bin/opencode",
+                        ).takeIf { verifiedMetadata.has(LocalAgent.OPEN_CODE) && it.isFile },
+                        java.io.File(
+                            active,
+                            "antigravity-rootfs",
+                        ).takeIf { verifiedMetadata.has(LocalAgent.ANTIGRAVITY) && it.isDirectory },
+                    )
+                } finally {
+                    tempArchive.delete()
+                    java.io.File(runtimeDirectory, "environment.staging").deleteRecursively()
+                }
             }
         }
-    }
 
     fun recoverInterruptedActivation(): Boolean =
         accessCoordinator.write {

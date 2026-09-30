@@ -2,18 +2,18 @@ package com.yugahashimoto.andcode.runtime.local
 
 import android.system.Os
 import org.apache.commons.compress.archivers.ar.ArArchiveInputStream
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
 import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.InputStream
-import java.security.MessageDigest
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry
-import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
-import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
 import java.io.OutputStream
 import java.nio.file.Files
+import java.security.MessageDigest
 
 object RuntimeArchive {
     /** Extracts the data member of a Debian .deb without invoking a guest package manager. */
@@ -58,7 +58,6 @@ object RuntimeArchive {
             "SHA-256 mismatch for ${file.name}: expected $expected, got $actual"
         }
     }
-
 
     fun createTarGz(
         output: OutputStream,

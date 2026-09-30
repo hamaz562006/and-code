@@ -2,9 +2,8 @@ package com.yugahashimoto.andcode.ui.navigation
 
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import android.content.Context
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
@@ -126,8 +125,7 @@ fun NavGraphBuilder.workspaceNavGraph(
                                     app.antigravityController.refresh()
                                     app.codexController.refresh()
                                 }
-                            }
-
+                            },
                         )
                     },
             )
@@ -155,7 +153,6 @@ fun NavGraphBuilder.workspaceNavGraph(
             onAdbDisconnect = managementViewModel::adbDisconnect,
             onExportRuntime = managementViewModel::exportRuntime,
             onImportRuntime = managementViewModel::importRuntime,
-
         )
     }
 
