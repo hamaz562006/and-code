@@ -1,7 +1,5 @@
 package com.yugahashimoto.andcode.feature.workspace
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,10 +18,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -77,23 +73,10 @@ fun LocalRuntimeManagementScreen(
     onAdbPair: (Int, String) -> Unit = { _, _ -> },
     onAdbConnect: (Int) -> Unit = {},
     onAdbDisconnect: () -> Unit = {},
-    onExportRuntime: (android.net.Uri) -> Unit = {},
-    onImportRuntime: (android.net.Uri) -> Unit = {},
+    onExportRuntime: (java.io.OutputStream) -> Unit = {},
+    onImportRuntime: (java.io.InputStream, () -> Unit) -> Unit = { _, _ -> },
 ) {
-    val busy = state.runtimeStatus.isBusy() || state.isDeleting || state.isExporting || state.isImporting
-    val exportLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/gzip")) { uri ->
-            if (uri != null) {
-                onExportRuntime(uri)
-            }
-        }
-
-    val importLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri != null) {
-                onImportRuntime(uri)
-            }
-        }
+    val busy = state.runtimeStatus.isBusy() || state.isDeleting
     Scaffold(
         topBar = {
             TopAppBar(
@@ -163,17 +146,6 @@ fun LocalRuntimeManagementScreen(
                         onRequestDelete = onRequestDelete,
                     )
                 }
-
-                RuntimeBackupCard(
-                    busy = busy,
-                    isInstalled = diagnostics.status.isInstalled(),
-                    isExporting = state.isExporting,
-                    exportProgress = state.exportProgress,
-                    exportStep = state.exportStep,
-                    isImporting = state.isImporting,
-                    onExport = { exportLauncher.launch("andcode-runtime-export.tar.gz") },
-                    onImport = { importLauncher.launch(arrayOf("application/gzip", "application/x-gzip", "*/*")) },
-                )
             }
 
             state.error?.let { error ->
@@ -607,60 +579,4 @@ private fun AdbPairDialog(
             }
         },
     )
-}
-
-@Composable
-private fun RuntimeBackupCard(
-    busy: Boolean,
-    isInstalled: Boolean,
-    isExporting: Boolean,
-    exportProgress: Float? = null,
-    exportStep: String? = null,
-    isImporting: Boolean,
-    onExport: () -> Unit,
-    onImport: () -> Unit,
-) {
-    SectionCard {
-        Text("Backup & Restore", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(10.dp))
-        OutlinedButton(
-            onClick = onExport,
-            enabled = isInstalled && !busy,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            if (isExporting) {
-                if (exportProgress != null) {
-                    CircularProgressIndicator(
-                        progress = { exportProgress.coerceIn(0f, 1f) },
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                    )
-                    Spacer(Modifier.padding(horizontal = 4.dp))
-                    Text(exportStep ?: "Exporting...")
-                } else {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.padding(horizontal = 4.dp))
-                    Text("Exporting...")
-                }
-            } else {
-                Icon(Icons.Default.Upload, contentDescription = "Export runtime")
-                Spacer(Modifier.padding(horizontal = 4.dp))
-                Text("Export runtime")
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = onImport,
-            enabled = !busy,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            if (isImporting) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                Icon(Icons.Default.Download, contentDescription = "Import runtime")
-            }
-            Spacer(Modifier.padding(horizontal = 4.dp))
-            Text(if (isImporting) "Importing..." else "Import runtime")
-        }
-    }
 }

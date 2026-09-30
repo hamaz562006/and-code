@@ -934,15 +934,7 @@ fun AndCodeApp(
                     composable(ROUTE_ANDROID_SETUP) {
                         val localRuntimeStatus by app.localRuntimeManager.state.collectAsState()
                         val localRuntimeLastOperation by app.localRuntimeManager.lastOperation.collectAsState()
-                        val scope = rememberCoroutineScope()
                         AndroidSetupScreen(
-                            onImportRuntime = { uri ->
-                                scope.launch {
-                                    context.contentResolver.openInputStream(uri)?.use { input ->
-                                        app.localRuntimeManager.importRuntime(input)
-                                    }
-                                }
-                            },
                             runtimeStatus = localRuntimeStatus,
                             claude = workspaceState.claude,
                             antigravity = antigravityState,
@@ -950,6 +942,12 @@ fun AndCodeApp(
                             fullDevelopmentToolsInstallFailed =
                                 (localRuntimeLastOperation as? LocalRuntimeOperationResult.Failed)?.operation ==
                                     "development-tools-install",
+                            onImportRuntime = { stream, onComplete ->
+                                app.applicationScope.launch {
+                                    app.localRuntimeManager.importRuntime(stream) { msg, _ -> }
+                                    onComplete()
+                                }
+                            },
                             onStartSetup = { agents, installFullDevelopmentTools ->
                                 // Ticking Claude Code or Antigravity next to OpenCode used to install
                                 // neither of them: the two branches below were guarded on OpenCode

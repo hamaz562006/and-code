@@ -13,6 +13,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
+import java.io.OutputStream
+
 class LocalRuntimeInstaller(
     private val context: Context,
     private val runtimeDirectory: File,
@@ -46,6 +48,102 @@ class LocalRuntimeInstaller(
      * removes another. The OpenCode binary — by far the largest download — is fetched only when
      * OpenCode is actually among the resulting agents.
      */
+
+    suspend fun exportRuntime(
+        outputStream: OutputStream,
+        onProgress: (String, Float) -> Unit
+    ): Result<Unit> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching {
+            coordinator.write {
+                val metadataFile = java.io.File(runtimeDir, "metadata.json")
+                if (!metadataFile.exists()) {
+                    throw IllegalStateException("No runtime installed to export")
+                }
+
+                onProgress("Compressing runtime environment...", 0f)
+
+                RuntimeArchive.createTarGz(
+                    sourceDir = runtimeDir,
+                    targetArchiveOrStream = outputStream,
+                    includedFiles = listOf("environment", "metadata.json"), // skip cache
+                    onProgress = { bytesWritten ->
+                        // Can't give an accurate percentage without knowing uncompressed size of all files,
+                        // so we just report the bytes written as indeterminate progress string
+                        val mbWritten = bytesWritten / (1024 * 1024)
+                        onProgress("Compressing runtime... ${mbWritten}MB", -1f)
+                    }
+                )
+            }
+        }
+    }
+
+    suspend fun importRuntime(
+        inputStream: java.io.InputStream,
+        onProgress: (String, Float) -> Unit
+    ): Result<InstalledRuntime> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching {
+            coordinator.write {
+                onProgress("Reading archive metadata...", 0f)
+
+                // We need to read the metadata file first without fully extracting to a staging dir,
+                // but since it's a stream, we just extract it to staging directly, validate, and then swap.
+                val stagingDir = java.io.File(runtimeDir.parentFile, runtimeDir.name + "_import_staging")
+                if (stagingDir.exists()) stagingDir.deleteRecursively()
+                stagingDir.mkdirs()
+
+                try {
+                    onProgress("Extracting imported environment...", -1f)
+
+                    // We must copy the input stream to a temporary file first because extractTarGz
+                    // expects a File, not an InputStream, to be able to reset/read properly,
+                    // or we can write a stream-based extractor. The current extractTarGz takes a File.
+                    val tempArchive = java.io.File(stagingDir, "import.tar.gz")
+                    tempArchive.outputStream().use { out ->
+                        inputStream.copyTo(out)
+                    }
+
+                    RuntimeArchive.extractTarGz(
+                        archive = tempArchive,
+                        targetDir = stagingDir,
+                        onProgress = { extracted, total ->
+                            if (total > 0) {
+                                onProgress("Extracting imported environment...", extracted.toFloat() / total.toFloat())
+                            }
+                        }
+                    )
+
+                    tempArchive.delete()
+
+                    val stagedMetadataFile = java.io.File(stagingDir, "metadata.json")
+                    if (!stagedMetadataFile.exists()) {
+                        throw IllegalStateException("Archive is missing metadata.json. Not a valid AndCode export.")
+                    }
+
+                    val metadataText = stagedMetadataFile.readText()
+                    val metadata = json.decodeFromString<LocalRuntimeMetadata>(metadataText)
+
+                    val deviceAbi = Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"
+                    if (metadata.abi != deviceAbi) {
+                        throw IllegalStateException(
+                            "ABI mismatch: Archive is for ${metadata.abi}, but this device is $deviceAbi."
+                        )
+                    }
+
+                    onProgress("Activating imported environment...", 1f)
+                    activateRuntimeEnvironment(stagingDir)
+
+                    InstalledRuntime(
+                        metadata = metadata,
+                        environmentDir = java.io.File(runtimeDir, "environment")
+                    )
+                } catch (e: Exception) {
+                    stagingDir.deleteRecursively()
+                    throw e
+                }
+            }
+        }
+    }
+
     suspend fun install(
         agents: Set<LocalAgent> = setOf(LocalAgent.OPEN_CODE),
         installFullDevelopmentTools: Boolean = false,
@@ -249,112 +347,6 @@ class LocalRuntimeInstaller(
             } catch (error: Throwable) {
                 staging.deleteRecursively()
                 throw error
-            }
-        }
-
-    suspend fun export(
-        output: java.io.OutputStream,
-        onProgress: (Float, String) -> Unit = { _, _ -> },
-    ): Unit =
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            accessCoordinator.write {
-                val active = java.io.File(runtimeDirectory, "environment")
-                require(active.isDirectory) { "Runtime environment is not installed" }
-                RuntimeArchive.createTarGz(output, runtimeDirectory, onProgress)
-                Unit
-            }
-        }
-
-    suspend fun import(
-        input: java.io.InputStream,
-        onProgress: (Float, String) -> Unit = { _, _ -> },
-    ): InstalledRuntime =
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            accessCoordinator.write {
-                val tempArchive = java.io.File(runtimeDirectory, "import.tar.gz.tmp")
-                try {
-                    input.use { it.copyTo(tempArchive.outputStream()) }
-
-                    var metadata: LocalRuntimeMetadata? = null
-                    tempArchive.inputStream().use { archiveStream ->
-                        org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream(archiveStream.buffered()).use { gzip ->
-                            org.apache.commons.compress.archivers.tar.TarArchiveInputStream(gzip).use { tar ->
-                                var entry = tar.nextEntry
-                                while (entry != null) {
-                                    if (entry.name == "metadata.json" || entry.name == "./metadata.json") {
-                                        val content = tar.readBytes().decodeToString()
-                                        metadata = json.decodeFromString<LocalRuntimeMetadata>(content)
-                                        break
-                                    }
-                                    entry = tar.nextEntry
-                                }
-                            }
-                        }
-                    }
-
-                    val verifiedMetadata = requireNotNull(metadata) { "Invalid archive: metadata.json is missing" }
-                    require(
-                        verifiedMetadata.abi == abi,
-                    ) { "ABI mismatch: archive is for ${verifiedMetadata.abi}, but this device uses $abi" }
-
-                    val staging = java.io.File(runtimeDirectory, "environment.staging")
-                    val active = java.io.File(runtimeDirectory, "environment")
-                    val rollback = java.io.File(runtimeDirectory, "environment.rollback")
-
-                    recoverInterruptedRuntimeEnvironment(active, rollback, java.io.File(runtimeDirectory, METADATA_FILE))
-
-                    staging.deleteRecursively()
-                    staging.mkdirs()
-
-                    onProgress(0.1f, "Extracting imported environment")
-                    tempArchive.inputStream().use { archiveStream ->
-                        RuntimeArchive.extractTarGz(archiveStream, staging)
-                    }
-
-                    val extractedEnv = java.io.File(staging, "environment")
-                    if (extractedEnv.isDirectory) {
-                        extractedEnv.listFiles()?.forEach { it.renameTo(java.io.File(staging, it.name)) }
-                        extractedEnv.deleteRecursively()
-                    }
-
-                    onProgress(0.9f, "Activating imported environment")
-
-                    activateRuntimeEnvironment(
-                        active = active,
-                        staging = staging,
-                        rollback = rollback,
-                        finalizeActivation = { activated ->
-                            val importedMetadata = java.io.File(activated, METADATA_FILE)
-                            if (importedMetadata.exists()) {
-                                replaceFileAtomically(
-                                    source = importedMetadata,
-                                    destination = java.io.File(runtimeDirectory, METADATA_FILE),
-                                )
-                            }
-                        },
-                    )
-
-                    onProgress(1.0f, "Import complete")
-
-                    val commandSuite = EmbeddedCommandSuite(context, runtimeDirectory, abi).ensureInstalled()
-
-                    InstalledRuntime(
-                        verifiedMetadata,
-                        commandSuite,
-                        java.io.File(active, "rootfs"),
-                        java.io.File(
-                            active,
-                            "rootfs/usr/local/bin/opencode",
-                        ).takeIf { verifiedMetadata.has(LocalAgent.OPEN_CODE) && it.isFile },
-                        java.io.File(
-                            active,
-                            "antigravity-rootfs",
-                        ).takeIf { verifiedMetadata.has(LocalAgent.ANTIGRAVITY) && it.isDirectory },
-                    )
-                } finally {
-                    tempArchive.delete()
-                    java.io.File(runtimeDirectory, "environment.staging").deleteRecursively()
-                }
             }
         }
 

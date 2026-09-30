@@ -1,7 +1,5 @@
 package com.yugahashimoto.andcode.feature.onboarding
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,7 +57,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.yugahashimoto.andcode.AndCodeApplication
@@ -103,13 +100,13 @@ internal fun shouldStartRuntimeInstall(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AndroidSetupScreen(
-    onImportRuntime: (android.net.Uri) -> Unit = {},
     runtimeStatus: LocalRuntimeStatus,
     claude: ClaudeCodeUiState,
     antigravity: AntigravityControllerState = AntigravityControllerState(),
     fullDevelopmentToolsInstalled: Boolean = false,
     fullDevelopmentToolsInstallFailed: Boolean = false,
     onStartSetup: (Set<LocalAgent>, Boolean) -> Unit,
+    onImportRuntime: (java.io.InputStream, () -> Unit) -> Unit,
     onSelectClaudePermissionMode: (ClaudePermissionMode) -> Unit,
     onBeginClaudeSignIn: () -> Unit,
     onSubmitClaudeSignInCode: (String) -> Unit,
@@ -189,12 +186,6 @@ fun AndroidSetupScreen(
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
-    val importLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri != null) {
-                onImportRuntime(uri)
-            }
-        }
 
     var currentStep by rememberSaveable { mutableIntStateOf(1) }
     var installFullDevelopmentTools by rememberSaveable { mutableStateOf(false) }
@@ -405,13 +396,12 @@ fun AndroidSetupScreen(
                         claude = claude,
                         antigravity = antigravity,
                         codex = codex,
-                        pi = pi,
-                        openCodeSelected = openCodeSelected,
+                        pi = pi,                        openCodeSelected = openCodeSelected,
                         claudeSelected = claudeSelected,
                         antigravitySelected = antigravitySelected,
                         codexSelected = codexSelected,
                         piSelected = piSelected,
-                        onImportClick = { importLauncher.launch(arrayOf("application/gzip", "application/x-gzip", "*/*")) },
+                        onImportRuntime = onImportRuntime,
                     )
                 4 ->
                     SignInStep(
@@ -787,7 +777,7 @@ private fun RuntimeDownloadStep(
     antigravitySelected: Boolean,
     codexSelected: Boolean,
     piSelected: Boolean,
-    onImportClick: () -> Unit = {},
+    onImportRuntime: (java.io.InputStream, () -> Unit) -> Unit,
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
     // each step is shown under the agent it names. Without this the OpenCode panel displayed
@@ -796,11 +786,47 @@ private fun RuntimeDownloadStep(
     val sharedStep = installing?.takeIf { it.agent == null }
     val stepFor = { agent: LocalAgent -> installing?.takeIf { it.agent == agent } }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var isImporting by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var importMessage by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            context.contentResolver.openInputStream(uri)?.let { stream ->
+                isImporting = true
+                importMessage = "Importing runtime..."
+                onImportRuntime(stream) {
+                    isImporting = false
+                    importMessage = null
+                    val app = context.applicationContext as com.yugahashimoto.andcode.AndCodeApplication
+                    app.piController.refresh()
+                    app.codexController.refresh()
+                    app.claudeCodeController.refresh()
+                    app.antigravityController.refresh()
+                }
+            }
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         StepHeader(
-            title = stringResource(R.string.setup_step_download),
-            description = stringResource(R.string.setup_download_agents_description),
+            title = stringResource(R.string.setup_step_download),            description = stringResource(R.string.setup_download_agents_description),
         )
+
+        // Ensure no other step is running to allow import.
+        if (installing == null && !isImporting) {
+            androidx.compose.material3.TextButton(
+                onClick = { importLauncher.launch(arrayOf("application/gzip", "application/x-gzip", "*/*")) },
+                modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+            ) {
+                androidx.compose.material3.Text("Already have a backup? Import instead")
+            }
+        } else if (isImporting) {
+            SetupPanel {
+                androidx.compose.material3.Text(importMessage ?: "Importing...", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                androidx.compose.material3.LinearProgressIndicator(modifier = androidx.compose.ui.Modifier.fillMaxWidth())
+            }
+        }
         if (openCodeSelected) {
             SetupPanel {
                 Text(stringResource(R.string.agent_opencode_name), fontWeight = FontWeight.SemiBold)
@@ -863,15 +889,6 @@ private fun RuntimeDownloadStep(
                     // Nothing is installing: do not claim "Installing Pi" for something that is not.
                     else -> Text(stringResource(R.string.setup_runtime_not_installed), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-            }
-        }
-        if (runtimeStatus is LocalRuntimeStatus.NotInstalled || runtimeStatus is LocalRuntimeStatus.Broken) {
-            TextButton(onClick = onImportClick, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                Text(
-                    "Already have a backup? Import instead",
-                    textDecoration = TextDecoration.Underline,
-                    style = MaterialTheme.typography.labelLarge,
-                )
             }
         }
     }
@@ -1434,10 +1451,10 @@ private fun SetupBottomBar(
 private fun AndroidSetupScreenPreview() {
     AndCodeTheme {
         AndroidSetupScreen(
-            onImportRuntime = {},
             runtimeStatus = LocalRuntimeStatus.Installing(0.68f, "Downloading runtime"),
             claude = ClaudeCodeUiState(),
             onStartSetup = { _, _ -> },
+            onImportRuntime = { _, _ -> },
             onBeginClaudeSignIn = {},
             onSubmitClaudeSignInCode = {},
             onCancelClaudeSignIn = {},
@@ -1468,10 +1485,10 @@ private fun AndroidSetupScreenPreview() {
 private fun AndroidSetupProviderStepPreview() {
     AndCodeTheme {
         AndroidSetupScreen(
-            onImportRuntime = {},
             runtimeStatus = LocalRuntimeStatus.Ready("1.0.0", 4097),
             claude = ClaudeCodeUiState(installed = true, version = "2.1.212"),
             onStartSetup = { _, _ -> },
+            onImportRuntime = { _, _ -> },
             onBeginClaudeSignIn = {},
             onSubmitClaudeSignInCode = {},
             onCancelClaudeSignIn = {},

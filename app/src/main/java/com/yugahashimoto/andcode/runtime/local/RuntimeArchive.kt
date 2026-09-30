@@ -5,14 +5,12 @@ import org.apache.commons.compress.archivers.ar.ArArchiveInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.InputStream
-import java.io.OutputStream
-import java.nio.file.Files
 import java.security.MessageDigest
 
 object RuntimeArchive {
@@ -58,59 +56,73 @@ object RuntimeArchive {
             "SHA-256 mismatch for ${file.name}: expected $expected, got $actual"
         }
     }
-
+    @Suppress("LongMethod", "NestedBlockDepth")
     fun createTarGz(
-        output: OutputStream,
-        sourceDirectory: File,
-        onProgress: (Float, String) -> Unit = { _, _ -> },
+        sourceDir: java.io.File,
+        targetArchiveOrStream: java.io.OutputStream,
+        includedFiles: List<String> = emptyList(), // e.g. ["environment", "metadata.json"]
+        onProgress: ((bytesWritten: Long) -> Unit)? = null,
     ) {
-        GzipCompressorOutputStream(output.buffered()).use { gzip ->
-            TarArchiveOutputStream(gzip).use { tar ->
-                tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
-                val allFiles = mutableListOf<File>()
+        GzipCompressorOutputStream(targetArchiveOrStream.buffered()).use { gzipOut ->
+            TarArchiveOutputStream(gzipOut).use { tarOut ->
+                tarOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
+                tarOut.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_POSIX)
 
-                val metadata = File(sourceDirectory, "metadata.json")
-                if (metadata.exists()) {
-                    allFiles.add(metadata)
-                }
+                var totalBytesWritten = 0L
 
-                val envDir = File(sourceDirectory, "environment")
-                if (envDir.exists()) {
-                    envDir.walkTopDown().forEach { file ->
-                        allFiles.add(file)
+                fun addFileToTar(file: java.io.File, entryName: String) {
+                    if (file.name == "cache" && file.isDirectory) {
+                        return // Skip the download cache entirely to save massive space
+                    }
+
+                    val isSymlink = java.nio.file.Files.isSymbolicLink(file.toPath())
+                    val entry = TarArchiveEntry(file, entryName)
+
+                    if (isSymlink) {
+                        entry.linkName = java.nio.file.Files.readSymbolicLink(file.toPath()).toString()
+                    } else if (file.canExecute() && !file.isDirectory) {
+                        entry.mode = entry.mode or 0x49 // Add executable bits (0111 octal)
+                    }
+
+                    tarOut.putArchiveEntry(entry)
+
+                    if (file.isFile && !isSymlink) {
+                        file.inputStream().use { input ->
+                            val buffer = ByteArray(8192)
+                            var bytesRead: Int
+                            while (input.read(buffer).also { bytesRead = it } != -1) {
+                                tarOut.write(buffer, 0, bytesRead)
+                                totalBytesWritten += bytesRead
+                                onProgress?.invoke(totalBytesWritten)
+                            }
+                        }
+                    }
+
+                    tarOut.closeArchiveEntry()
+
+                    if (file.isDirectory) {
+                        val children = file.listFiles()
+                        if (children != null) {
+                            for (child in children) {
+                                addFileToTar(child, entryName + "/" + child.name)
+                            }
+                        }
                     }
                 }
 
-                val totalFiles = allFiles.size.coerceAtLeast(1)
-                var processedFiles = 0
-
-                for (file in allFiles) {
-                    val relativePath = file.relativeTo(sourceDirectory).path.replace('\\', '/')
-                    val entry = TarArchiveEntry(file, relativePath)
-
-                    if (Files.isSymbolicLink(file.toPath())) {
-                        val linkTarget = Files.readSymbolicLink(file.toPath()).toString()
-                        entry.linkName = linkTarget
-                        tar.putArchiveEntry(entry)
-                        tar.closeArchiveEntry()
-                    } else if (file.isDirectory) {
-                        tar.putArchiveEntry(entry)
-                        tar.closeArchiveEntry()
-                    } else if (file.isFile) {
-                        if (file.canExecute()) {
-                            entry.mode = entry.mode or 0b001_001_001
+                if (includedFiles.isNotEmpty()) {
+                    for (name in includedFiles) {
+                        val file = java.io.File(sourceDir, name)
+                        if (file.exists()) {
+                            addFileToTar(file, file.name)
                         }
-
-                        tar.putArchiveEntry(entry)
-                        file.inputStream().buffered().use { input ->
-                            input.copyTo(tar)
-                        }
-                        tar.closeArchiveEntry()
                     }
-
-                    processedFiles++
-                    if (processedFiles % 100 == 0 || processedFiles == totalFiles) {
-                        onProgress(processedFiles.toFloat() / totalFiles, relativePath)
+                } else {
+                    val children = sourceDir.listFiles()
+                    if (children != null) {
+                        for (child in children) {
+                            addFileToTar(child, child.name)
+                        }
                     }
                 }
             }

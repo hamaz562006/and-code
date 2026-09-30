@@ -106,51 +106,6 @@ class LocalRuntimeManager(
 
     fun restartCount(): Int = processLauncher?.restartCount() ?: 0
 
-    suspend fun exportRuntime(
-        output: java.io.OutputStream,
-        onProgress: (Float, String) -> Unit = { _, _ -> },
-    ): Result<Unit> =
-        operationMutex.withLock {
-            val configuredInstaller =
-                installer ?: return@withLock Result.failure(
-                    IllegalStateException("Local runtime installer is not configured"),
-                )
-            runCatching {
-                configuredInstaller.export(output, onProgress)
-                Unit
-            }.onFailure { error ->
-                mutableLastOperation.value =
-                    LocalRuntimeOperationResult.Failed(
-                        operation = "export-runtime",
-                        message = error.message ?: messages.installFailed,
-                    )
-            }
-        }
-
-    suspend fun importRuntime(
-        input: java.io.InputStream,
-        onProgress: (Float, String) -> Unit = { _, _ -> },
-    ): Result<LocalRuntimeStatus.Ready> =
-        operationMutex.withLock {
-            val configuredInstaller =
-                installer ?: return@withLock Result.failure(
-                    IllegalStateException("Local runtime installer is not configured"),
-                )
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { processLauncher?.stop() }
-            runCatching {
-                val installed =
-                    configuredInstaller.import(input) { progress, step ->
-                        mutableState.value = LocalRuntimeStatus.Installing(progress, step, null)
-                    }
-                startInstalled(installed)
-            }.onFailure { error ->
-                mutableState.value =
-                    LocalRuntimeStatus.Broken(
-                        error.message ?: messages.installFailed,
-                    )
-            }
-        }
-
     suspend fun installAndStart(
         agents: Set<LocalAgent> = setOf(LocalAgent.OPEN_CODE),
         installFullDevelopmentTools: Boolean = false,
@@ -349,6 +304,18 @@ class LocalRuntimeManager(
                         )
                 }
         }
+
+    suspend fun exportRuntime(outputStream: java.io.OutputStream, onProgress: (String, Float) -> Unit): Result<Unit> {
+        return installer.exportRuntime(outputStream, onProgress)
+    }
+
+    suspend fun importRuntime(inputStream: java.io.InputStream, onProgress: (String, Float) -> Unit): Result<InstalledRuntime> {
+        val result = installer.importRuntime(inputStream, onProgress)
+        if (result.isSuccess) {
+            _state.value = computeStatus()
+        }
+        return result
+    }
 
     suspend fun rollbackVersion(): String? =
         operationMutex.withLock {
