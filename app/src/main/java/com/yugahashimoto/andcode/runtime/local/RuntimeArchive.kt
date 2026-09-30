@@ -9,6 +9,11 @@ import java.io.BufferedInputStream
 import java.io.File
 import java.io.InputStream
 import java.security.MessageDigest
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
+import java.io.OutputStream
+import java.nio.file.Files
 
 object RuntimeArchive {
     /** Extracts the data member of a Debian .deb without invoking a guest package manager. */
@@ -51,6 +56,65 @@ object RuntimeArchive {
         val actual = sha256(file)
         require(actual.equals(expected, ignoreCase = true)) {
             "SHA-256 mismatch for ${file.name}: expected $expected, got $actual"
+        }
+    }
+
+
+    fun createTarGz(
+        output: OutputStream,
+        sourceDirectory: File,
+        onProgress: (Float, String) -> Unit = { _, _ -> },
+    ) {
+        GzipCompressorOutputStream(output.buffered()).use { gzip ->
+            TarArchiveOutputStream(gzip).use { tar ->
+                tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
+                val allFiles = mutableListOf<File>()
+
+                val metadata = File(sourceDirectory, "metadata.json")
+                if (metadata.exists()) {
+                    allFiles.add(metadata)
+                }
+
+                val envDir = File(sourceDirectory, "environment")
+                if (envDir.exists()) {
+                    envDir.walkTopDown().forEach { file ->
+                        allFiles.add(file)
+                    }
+                }
+
+                val totalFiles = allFiles.size.coerceAtLeast(1)
+                var processedFiles = 0
+
+                for (file in allFiles) {
+                    val relativePath = file.relativeTo(sourceDirectory).path.replace('\\', '/')
+                    val entry = TarArchiveEntry(file, relativePath)
+
+                    if (Files.isSymbolicLink(file.toPath())) {
+                        val linkTarget = Files.readSymbolicLink(file.toPath()).toString()
+                        entry.linkName = linkTarget
+                        tar.putArchiveEntry(entry)
+                        tar.closeArchiveEntry()
+                    } else if (file.isDirectory) {
+                        tar.putArchiveEntry(entry)
+                        tar.closeArchiveEntry()
+                    } else if (file.isFile) {
+                        if (file.canExecute()) {
+                            entry.mode = entry.mode or 0b001_001_001
+                        }
+
+                        tar.putArchiveEntry(entry)
+                        file.inputStream().buffered().use { input ->
+                            input.copyTo(tar)
+                        }
+                        tar.closeArchiveEntry()
+                    }
+
+                    processedFiles++
+                    if (processedFiles % 100 == 0 || processedFiles == totalFiles) {
+                        onProgress(processedFiles.toFloat() / totalFiles, relativePath)
+                    }
+                }
+            }
         }
     }
 

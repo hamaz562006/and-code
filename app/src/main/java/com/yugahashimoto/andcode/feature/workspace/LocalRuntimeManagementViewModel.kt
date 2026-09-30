@@ -30,6 +30,10 @@ data class LocalRuntimeManagementUiState(
     val showAdbPairDialog: Boolean = false,
     val isAdbPairing: Boolean = false,
     val isAdbConnecting: Boolean = false,
+    val isExporting: Boolean = false,
+    val exportProgress: Float? = null,
+    val exportStep: String? = null,
+    val isImporting: Boolean = false,
 )
 
 class LocalRuntimeManagementViewModel(
@@ -48,6 +52,8 @@ class LocalRuntimeManagementViewModel(
     private val adbConnectAction: (suspend (Int) -> Result<Unit>)? = null,
     private val adbDisconnectAction: (suspend () -> Result<Unit>)? = null,
     private val adbStartDiscovery: (() -> Unit)? = null,
+    private val exportAction: (suspend (android.net.Uri, (Float, String) -> Unit) -> Unit)? = null,
+    private val importAction: (suspend (android.net.Uri) -> Unit)? = null,
 ) : ViewModel() {
     init {
         require(deleteTimeoutMillis > 0L)
@@ -155,6 +161,43 @@ class LocalRuntimeManagementViewModel(
             getString(R.string.runtime_full_development_tools_start_failed),
             installFullDevelopmentToolsAction,
         )
+    }
+
+
+    fun exportRuntime(uri: android.net.Uri) {
+        val action = exportAction ?: return
+        mutableState.update { it.copy(isExporting = true, exportProgress = null, exportStep = null, error = null) }
+        viewModelScope.launch {
+            runCatching {
+                action(uri) { progress, step ->
+                    mutableState.update { it.copy(exportProgress = progress, exportStep = step) }
+                }
+            }
+                .onFailure { error ->
+                    mutableState.update {
+                        it.copy(
+                            error = error.message?.takeIf(String::isNotBlank) ?: getString(R.string.operation_failed_title)
+                        )
+                    }
+                }
+            mutableState.update { it.copy(isExporting = false, exportProgress = null, exportStep = null) }
+        }
+    }
+
+    fun importRuntime(uri: android.net.Uri) {
+        val action = importAction ?: return
+        mutableState.update { it.copy(isImporting = true, error = null) }
+        viewModelScope.launch {
+            runCatching { action(uri) }
+                .onFailure { error ->
+                    mutableState.update {
+                        it.copy(
+                            error = error.message?.takeIf(String::isNotBlank) ?: getString(R.string.runtime_repair_start_failed)
+                        )
+                    }
+                }
+            mutableState.update { it.copy(isImporting = false) }
+        }
     }
 
     fun requestDelete() {

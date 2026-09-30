@@ -42,6 +42,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -100,6 +103,7 @@ internal fun shouldStartRuntimeInstall(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AndroidSetupScreen(
+    onImportRuntime: (android.net.Uri) -> Unit = {},
     runtimeStatus: LocalRuntimeStatus,
     claude: ClaudeCodeUiState,
     antigravity: AntigravityControllerState = AntigravityControllerState(),
@@ -185,6 +189,11 @@ fun AndroidSetupScreen(
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            onImportRuntime(uri)
+        }
+    }
 
     var currentStep by rememberSaveable { mutableIntStateOf(1) }
     var installFullDevelopmentTools by rememberSaveable { mutableStateOf(false) }
@@ -401,6 +410,7 @@ fun AndroidSetupScreen(
                         antigravitySelected = antigravitySelected,
                         codexSelected = codexSelected,
                         piSelected = piSelected,
+                        onImportClick = { importLauncher.launch(arrayOf("application/gzip", "application/x-gzip", "*/*")) },
                     )
                 4 ->
                     SignInStep(
@@ -776,6 +786,7 @@ private fun RuntimeDownloadStep(
     antigravitySelected: Boolean,
     codexSelected: Boolean,
     piSelected: Boolean,
+    onImportClick: () -> Unit = {},
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
     // each step is shown under the agent it names. Without this the OpenCode panel displayed
@@ -851,6 +862,15 @@ private fun RuntimeDownloadStep(
                     // Nothing is installing: do not claim "Installing Pi" for something that is not.
                     else -> Text(stringResource(R.string.setup_runtime_not_installed), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            }
+        }
+        if (runtimeStatus is LocalRuntimeStatus.NotInstalled || runtimeStatus is LocalRuntimeStatus.Broken) {
+            TextButton(onClick = onImportClick, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                Text(
+                    "Already have a backup? Import instead",
+                    textDecoration = TextDecoration.Underline,
+                    style = MaterialTheme.typography.labelLarge
+                )
             }
         }
     }
@@ -1413,6 +1433,7 @@ private fun SetupBottomBar(
 private fun AndroidSetupScreenPreview() {
     AndCodeTheme {
         AndroidSetupScreen(
+            onImportRuntime = {},
             runtimeStatus = LocalRuntimeStatus.Installing(0.68f, "Downloading runtime"),
             claude = ClaudeCodeUiState(),
             onStartSetup = { _, _ -> },
@@ -1446,6 +1467,7 @@ private fun AndroidSetupScreenPreview() {
 private fun AndroidSetupProviderStepPreview() {
     AndCodeTheme {
         AndroidSetupScreen(
+            onImportRuntime = {},
             runtimeStatus = LocalRuntimeStatus.Ready("1.0.0", 4097),
             claude = ClaudeCodeUiState(installed = true, version = "2.1.212"),
             onStartSetup = { _, _ -> },

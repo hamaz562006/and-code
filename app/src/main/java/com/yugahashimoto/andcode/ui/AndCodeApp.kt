@@ -934,7 +934,18 @@ fun AndCodeApp(
                     composable(ROUTE_ANDROID_SETUP) {
                         val localRuntimeStatus by app.localRuntimeManager.state.collectAsState()
                         val localRuntimeLastOperation by app.localRuntimeManager.lastOperation.collectAsState()
+                        val scope = rememberCoroutineScope()
                         AndroidSetupScreen(
+                            onImportRuntime = { uri ->
+                                scope.launch {
+                                    context.contentResolver.openInputStream(uri)?.use { input ->
+                                        app.localRuntimeManager.importRuntime(input)
+                                        app.piController.refresh()
+                                        app.antigravityController.refresh()
+                                        app.codexController.refresh()
+                                    }
+                                }
+                            },
                             runtimeStatus = localRuntimeStatus,
                             claude = workspaceState.claude,
                             antigravity = antigravityState,

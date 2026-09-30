@@ -2,6 +2,8 @@ package com.yugahashimoto.andcode.ui.navigation
 
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -86,6 +88,7 @@ fun NavGraphBuilder.workspaceNavGraph(
     }
 
     composable(LOCAL_RUNTIME_MANAGEMENT_ROUTE) {
+        val context = LocalContext.current
         val managementViewModel: LocalRuntimeManagementViewModel =
             viewModel(
                 key = "local-runtime-management",
@@ -110,6 +113,21 @@ fun NavGraphBuilder.workspaceNavGraph(
                             adbConnectAction = app.adbConnectionManager::connect,
                             adbDisconnectAction = app.adbConnectionManager::disconnect,
                             adbStartDiscovery = app.adbConnectionManager::startDiscovery,
+                            exportAction = { uri, onProgress ->
+                                context.contentResolver.openOutputStream(uri)?.use { output ->
+                                    app.localRuntimeManager.exportRuntime(output, onProgress)
+                                }
+                            },
+                            importAction = { uri ->
+                                context.contentResolver.openInputStream(uri)?.use { input ->
+                                    app.localRuntimeManager.importRuntime(input)
+                                    // Refresh controller state after successful import
+                                    app.piController.refresh()
+                                    app.antigravityController.refresh()
+                                    app.codexController.refresh()
+                                }
+                            }
+
                         )
                     },
             )
@@ -135,6 +153,9 @@ fun NavGraphBuilder.workspaceNavGraph(
             onAdbPair = managementViewModel::adbPair,
             onAdbConnect = managementViewModel::adbConnect,
             onAdbDisconnect = managementViewModel::adbDisconnect,
+            onExportRuntime = managementViewModel::exportRuntime,
+            onImportRuntime = managementViewModel::importRuntime,
+
         )
     }
 
