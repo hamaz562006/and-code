@@ -83,7 +83,7 @@ import com.yugahashimoto.andcode.runtime.local.PiUiState
 import com.yugahashimoto.andcode.ui.theme.AndCodeTheme
 import kotlinx.coroutines.delay
 
-private const val TOTAL_STEPS = 5
+private const val TOTAL_STEPS = 4
 
 internal fun shouldStartRuntimeInstall(
     installComplete: Boolean,
@@ -320,7 +320,7 @@ fun AndroidSetupScreen(
             // visited yet.
             4 ->
                 SetupPrimaryAction(stringResource(R.string.setup_next_action), true) {
-                    if (signInIndex < signInAgents.lastIndex) signInIndex++ else currentStep = 5
+                    if (signInIndex < signInAgents.lastIndex) signInIndex++ else onFinish()
                 }
             else -> SetupPrimaryAction(stringResource(R.string.setup_complete_button), true, onFinish)
         }
@@ -427,13 +427,7 @@ fun AndroidSetupScreen(
                         onOpenProviderAuth = onOpenProviderAuth,
                         onDisconnectProvider = onDisconnectProvider,
                     )
-                else ->
-                    GitHubConnectionStep(
-                        settingsState = settingsState,
-                        onConnect = onConnectGitHub,
-                        onDisconnect = onDisconnectGitHub,
-                        onOpenVerification = onOpenGitHubVerification,
-                    )
+                else -> Unit
             }
         }
     }

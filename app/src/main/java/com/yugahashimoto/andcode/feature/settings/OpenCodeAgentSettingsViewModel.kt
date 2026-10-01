@@ -111,10 +111,13 @@ class OpenCodeAgentSettingsViewModel(
                 it.copy(rollbackVersion = rollbackVersion, freeBytes = freeBytes.coerceAtLeast(0L))
             }
         }
-        checkForUpdate()
+        if (mutableState.value.installed) {
+            checkForUpdate()
+        }
     }
 
     fun checkForUpdate() {
+        if (!mutableState.value.installed) return
         if (mutableState.value.isCheckingUpdate) return
         mutableState.update { it.copy(isCheckingUpdate = true, updateError = null) }
         viewModelScope.launch {

@@ -186,7 +186,13 @@ fun NavGraphBuilder.workspaceNavGraph(
                 key = "terminal",
                 factory =
                     ViewModelFactory {
-                        TerminalViewModel(app.commandRunner, app.runtimeWork)
+                        TerminalViewModel(
+                            app.commandRunner,
+                            app.runtimeWork,
+                            agentLabel = {
+                                app.runtimeRegistry.selected.value?.displayName ?: "OpenCode"
+                            },
+                        )
                     },
             )
         val terminalState by terminalViewModel.state.collectAsState()

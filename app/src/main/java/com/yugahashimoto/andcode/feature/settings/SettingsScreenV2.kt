@@ -81,6 +81,10 @@ fun SettingsScreenV2(
     onOpenGitHubSettings: () -> Unit = {},
     onOpenLocalRuntime: () -> Unit,
     onOpenGuestBrowser: () -> Unit = {},
+    /** False when GITHUB_CLIENT_ID is empty — OAuth cannot work. */
+    showGitHubSettings: Boolean = true,
+    /** False for agents that do not host a local HTTP UI (e.g. Pi). */
+    showGuestBrowser: Boolean = true,
     onOpenRemoteConnection: () -> Unit,
     onOpenWorkspaces: () -> Unit,
     onOpenDiagnostics: () -> Unit,
@@ -299,12 +303,12 @@ fun SettingsScreenV2(
                     title = stringResource(R.string.settings_agents_row),
                     onClick = onOpenAgentSettings,
                 )
-                SettingsDivider()
+                if (showGitHubSettings) { SettingsDivider()
                 SettingsRow(
                     icon = Icons.Default.Code,
                     title = "GitHub / Git Operations",
                     onClick = onOpenGitHubSettings,
-                )
+                ) }
                 SettingsDivider()
                 if (supportsServerInfo) {
                     SettingsRow(
@@ -320,12 +324,12 @@ fun SettingsScreenV2(
                     onClick = onOpenLocalRuntime,
                 )
                 if (supportsGuestBrowser) {
-                    SettingsDivider()
+                    if (showGuestBrowser) { SettingsDivider()
                     SettingsRow(
                         icon = Icons.Default.OpenInBrowser,
                         title = stringResource(R.string.guest_browser_row),
                         onClick = onOpenGuestBrowser,
-                    )
+                    ) }
                 }
                 SettingsDivider()
                 SettingsRow(
