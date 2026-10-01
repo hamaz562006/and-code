@@ -190,7 +190,7 @@ class LocalRuntimeInstaller(
                     CodexInstaller.install(rootfs, abi, runtimeDirectory, accessCoordinator, httpClient)
                 }
                 if (LocalAgent.PI in requestedAgents) {
-                    onPi(0.92f, context.getString(R.string.install_step_installing_pi_requirements))
+                    onPi(0.92f, context.getString(R.string.install_step_installing_runtime_tools))
                     installPackages(
                         rootfs = rootfs,
                         suite = commandSuite,

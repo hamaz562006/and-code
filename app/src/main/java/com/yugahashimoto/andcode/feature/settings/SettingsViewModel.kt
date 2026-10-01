@@ -204,8 +204,8 @@ class SettingsViewModel(
                 core.providerCatalog
                     ?: if (
                         core.selected?.agent == LocalAgent.OPEN_CODE ||
-                            core.selected?.agent == LocalAgent.PI ||
-                            core.selected?.agent == null
+                        core.selected?.agent == LocalAgent.PI ||
+                        core.selected?.agent == null
                     ) {
                         core.runtime.providers
                     } else {
@@ -840,5 +840,17 @@ class SettingsViewModel(
         const val TAG = "SettingsVM"
         const val AUTO_OAUTH_TIMEOUT_MS = 6 * 60 * 1000L
         const val AUTO_OAUTH_POLL_MS = 3000L
+
+        val PI_SEED_PROVIDERS =
+            listOf(
+                OpenCodeProvider("anthropic", "Anthropic"),
+                OpenCodeProvider("openai", "OpenAI"),
+                OpenCodeProvider("google", "Google"),
+                OpenCodeProvider("openrouter", "OpenRouter"),
+                OpenCodeProvider("groq", "Groq"),
+                OpenCodeProvider("deepseek", "DeepSeek"),
+                OpenCodeProvider("mistral", "Mistral"),
+                OpenCodeProvider("xai", "xAI"),
+            )
     }
 }
