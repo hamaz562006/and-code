@@ -200,7 +200,6 @@ class LocalRuntimeInstaller(
                     )
                     onPi(0.938f, context.getString(R.string.install_step_installing_pi))
                     PiInstaller.install(
-
                         rootfs = rootfs,
                         abi = abi,
                         runtimeDirectory = runtimeDirectory,

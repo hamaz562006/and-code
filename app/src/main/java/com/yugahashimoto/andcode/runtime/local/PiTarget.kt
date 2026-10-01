@@ -107,7 +107,6 @@ class PiTarget(
             true
         }
 
-
     override suspend fun listAgents(): List<OpenCodeAgent> =
         listOf(OpenCodeAgent(name = "pi", description = "Pi", mode = "primary", native = true))
 

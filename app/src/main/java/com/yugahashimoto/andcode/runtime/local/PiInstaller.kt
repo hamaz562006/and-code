@@ -35,7 +35,7 @@ object PiInstaller {
             File(rootfs, "$BIN_DIR/.$PI_BINARY-version").takeIf { it.isFile }?.readText()?.trim()?.ifBlank { null }
         }.getOrNull() ?: if (isInstalledIn(rootfs)) PI_VERSION else null
 
-    private fun writeInstalledVersion(
+    internal fun writeInstalledVersion(
         rootfs: File,
         version: String,
     ) {

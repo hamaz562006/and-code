@@ -119,7 +119,6 @@ class PiRuntime(
         }.getOrDefault(PiInstaller.PI_VERSION)
     }
 
-
     private val authJson =
         Json {
             ignoreUnknownKeys = true
