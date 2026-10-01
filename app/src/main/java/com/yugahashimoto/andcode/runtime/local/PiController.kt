@@ -195,7 +195,21 @@ class PiController(
                         runtimeDirectory = runtime.runtimeDirectory,
                         accessCoordinator = LocalRuntimeAccessCoordinator(),
                         version = targetVersion,
+                        onProgress = { fraction ->
+                            mutableState.update {
+                                it.copy(
+                                    install =
+                                        PiInstallStatus.Installing(
+                                            progress = fraction.coerceIn(0f, 1f),
+                                            step = "Updating Pi to $targetVersion",
+                                        ),
+                                )
+                            }
+                        },
                     )
+                    mutableState.update {
+                        it.copy(install = PiInstallStatus.Installing(progress = 0.95f, step = "Updating Pi to $targetVersion"))
+                    }
                     installer.installPiNpmDependencies()
                     installer.recordAgent(LocalAgent.PI)
                     mutableState.update {

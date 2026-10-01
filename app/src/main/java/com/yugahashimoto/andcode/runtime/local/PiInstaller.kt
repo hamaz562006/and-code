@@ -50,6 +50,7 @@ object PiInstaller {
      * `/usr/local/bin/pi` shim that invokes Alpine's `node` on the bundled CLI.
      *
      * [LocalRuntimeInstaller] must install the `nodejs` package into [rootfs] before this runs.
+     * [onProgress] reports 0f..1f for this install step (download ~0–0.7, extract ~0.7–1).
      */
     suspend fun install(
         rootfs: File,
@@ -68,15 +69,19 @@ object PiInstaller {
             val archive = File(cache, "pi-coding-agent-$version.tgz")
             val tarball =
                 "https://registry.npmjs.org/$NPM_PACKAGE/-/pi-coding-agent-$version.tgz"
-            onProgress(0.05f)
+            onProgress(0.02f)
             if (!archive.isFile || archive.length() < 1_000_000L) {
-                download(httpClient, tarball, archive)
+                download(httpClient, tarball, archive) { fraction ->
+                    // Map download 0..1 → overall 0.02..0.70
+                    onProgress(0.02f + fraction.coerceIn(0f, 1f) * 0.68f)
+                }
             }
-            onProgress(0.4f)
+            onProgress(0.72f)
             accessCoordinator.write {
                 val extraction = File(runtimeDirectory, "pi-npm-extract-${System.nanoTime()}").apply { mkdirs() }
                 try {
                     archive.inputStream().use { RuntimeArchive.extractTarGz(it, extraction) }
+                    onProgress(0.85f)
                     // npm packs as package/...
                     val packageRoot =
                         File(extraction, "package").takeIf { it.isDirectory }
@@ -88,6 +93,7 @@ object PiInstaller {
                     libDir.deleteRecursively()
                     libDir.parentFile?.mkdirs()
                     packageRoot.copyRecursively(libDir, overwrite = true)
+                    onProgress(0.93f)
                     val cli = File(libDir, NPM_CLI_REL)
                     require(cli.isFile) { "Extracted Pi package is missing $NPM_CLI_REL" }
 
@@ -115,6 +121,7 @@ object PiInstaller {
         httpClient: OkHttpClient,
         url: String,
         destination: File,
+        onProgress: (Float) -> Unit = {},
     ) {
         destination.parentFile?.mkdirs()
         val tmp = File(destination.parentFile, "${destination.name}.partial")
@@ -123,11 +130,31 @@ object PiInstaller {
         httpClient.newCall(request).execute().use { response ->
             require(response.isSuccessful) { "Failed to download Pi npm package: HTTP ${response.code}" }
             val body = response.body ?: error("Empty body downloading Pi npm package")
+            val contentLength = body.contentLength()
             body.byteStream().use { input ->
-                FileOutputStream(tmp).use { output -> input.copyTo(output) }
+                FileOutputStream(tmp).use { output ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    var readTotal = 0L
+                    var lastReported = -1
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        output.write(buffer, 0, n)
+                        readTotal += n
+                        if (contentLength > 0L) {
+                            val pct = ((readTotal * 100) / contentLength).toInt().coerceIn(0, 100)
+                            // Throttle UI updates to whole-percent steps.
+                            if (pct != lastReported) {
+                                lastReported = pct
+                                onProgress(pct / 100f)
+                            }
+                        }
+                    }
+                }
             }
         }
         if (destination.exists()) destination.delete()
         require(tmp.renameTo(destination)) { "Unable to finalize Pi npm package download" }
+        onProgress(1f)
     }
 }
