@@ -1170,10 +1170,11 @@ private fun SignInStep(
                         onSignOut = onSignOutCodex,
                     )
                 LocalAgent.PI ->
-                    Text(
-                        text = stringResource(R.string.setup_agent_pi_desc),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ProviderConnectionStep(
+                        settingsState = settingsState,
+                        onOpenProviderAuth = onOpenProviderAuth,
+                        onDisconnectProvider = onDisconnectProvider,
+                        header = false,
                     )
             }
         }

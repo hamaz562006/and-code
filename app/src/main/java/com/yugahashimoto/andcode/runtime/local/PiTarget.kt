@@ -10,6 +10,7 @@ import com.yugahashimoto.andcode.core.api.OpenCodeMessage
 import com.yugahashimoto.andcode.core.api.OpenCodeSearchMatch
 import com.yugahashimoto.andcode.core.api.OpenCodeSession
 import com.yugahashimoto.andcode.core.api.PromptRequest
+import com.yugahashimoto.andcode.core.api.ProviderAuthMethod
 import com.yugahashimoto.andcode.core.api.ProviderCatalog
 import com.yugahashimoto.andcode.runtime.BackendKind
 import com.yugahashimoto.andcode.runtime.LocalAgent
@@ -82,7 +83,30 @@ class PiTarget(
 
     override suspend fun health(): OpenCodeHealth = connect().getOrElse { OpenCodeHealth(false, "") }
 
-    override suspend fun listProviders(): ProviderCatalog = PiModels.catalog()
+    override suspend fun listProviders(): ProviderCatalog =
+        PiModels.catalog(connectedIds = runtime.connectedProviderIds())
+
+    override suspend fun providerAuthMethods(): Map<String, List<ProviderAuthMethod>> =
+        PiModels.SEED_PROVIDERS.associate { seed ->
+            seed.id to listOf(ProviderAuthMethod(type = "api", label = "API key"))
+        }
+
+    override suspend fun setProviderApiKey(
+        providerId: String,
+        apiKey: String,
+        metadata: Map<String, String>,
+    ): Boolean =
+        withContext(Dispatchers.IO) {
+            runtime.setApiKey(providerId, apiKey)
+            true
+        }
+
+    override suspend fun removeProviderAuth(providerId: String): Boolean =
+        withContext(Dispatchers.IO) {
+            runtime.setApiKey(providerId, null)
+            true
+        }
+
 
     override suspend fun listAgents(): List<OpenCodeAgent> =
         listOf(OpenCodeAgent(name = "pi", description = "Pi", mode = "primary", native = true))
