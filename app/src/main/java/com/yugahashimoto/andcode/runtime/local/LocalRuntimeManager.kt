@@ -610,10 +610,16 @@ class LocalRuntimeManager(
             }.getOrElse { error ->
                 return LocalRuntimeStatus.Broken("Runtime metadata is invalid: ${error.message}")
             }
-        // A sandbox provisioned for Claude Code only is not a broken OpenCode install: OpenCode was
-        // never asked for, so it is simply not installed and the UI should offer to add it.
-        if (!metadata.has(LocalAgent.OPEN_CODE)) return LocalRuntimeStatus.NotInstalled
         val rootfs = File(runtimeDirectory, "environment/rootfs")
+        // Non-OpenCode sandboxes (Pi / Claude / Codex / Antigravity) still own a provisioned rootfs.
+        if (!metadata.has(LocalAgent.OPEN_CODE)) {
+            if (!rootfs.isDirectory) {
+                return LocalRuntimeStatus.Broken(messages.missingFiles)
+            }
+            val version = metadata.version.ifBlank { "sandbox" }
+            val port = metadata.port.takeIf { it in 1..65535 } ?: 0
+            return LocalRuntimeStatus.Ready(version, port)
+        }
         val openCode = File(rootfs, "usr/local/bin/opencode")
         if (!rootfs.isDirectory || !openCode.isFile) {
             return LocalRuntimeStatus.Broken(messages.missingFiles)

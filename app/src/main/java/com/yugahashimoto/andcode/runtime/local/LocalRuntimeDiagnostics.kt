@@ -74,8 +74,33 @@ class LocalRuntimeDiagnosticsCollector(
                 status is LocalRuntimeStatus.Ready ||
                 status is LocalRuntimeStatus.Stopped ||
                 (metadataFile.isFile && rootfs.isDirectory)
+        val agentTools =
+            buildList {
+                if (File(rootfs, "usr/local/bin/pi").isFile) {
+                    add(LocalRuntimeToolDefinition("pi", "Pi", "/usr/local/bin/pi --version"))
+                }
+                if (File(rootfs, "usr/local/bin/opencode").isFile) {
+                    add(
+                        LocalRuntimeToolDefinition(
+                            "opencode",
+                            "OpenCode",
+                            "/usr/local/bin/opencode --version",
+                        ),
+                    )
+                }
+                if (File(rootfs, "usr/local/bin/codex").isFile) {
+                    add(LocalRuntimeToolDefinition("codex", "Codex", "/usr/local/bin/codex --version"))
+                }
+                if (File(rootfs, "usr/bin/claude").isFile) {
+                    add(LocalRuntimeToolDefinition("claude", "Claude Code", "/usr/bin/claude --version"))
+                }
+                if (File(rootfs, "usr/local/bin/agy").isFile) {
+                    add(LocalRuntimeToolDefinition("agy", "Antigravity", "/usr/local/bin/agy --version"))
+                }
+            }
         val definitions =
-            REQUIRED_TOOLS +
+            agentTools +
+                REQUIRED_TOOLS +
                 OPTIONAL_TOOLS.takeIf { fullDevelopmentToolsInstalledProvider() }.orEmpty()
         val tools =
             if (environmentProvisioned) {
@@ -175,7 +200,6 @@ class LocalRuntimeDiagnosticsCollector(
 
         val REQUIRED_TOOLS =
             listOf(
-                LocalRuntimeToolDefinition("opencode", "OpenCode", "/usr/local/bin/opencode --version"),
                 LocalRuntimeToolDefinition("git", "Git", "git --version"),
                 LocalRuntimeToolDefinition("bash", "Bash", "bash --version | head -n 1"),
                 LocalRuntimeToolDefinition("curl", "curl", "curl --version | head -n 1"),

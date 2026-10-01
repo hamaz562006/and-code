@@ -84,6 +84,21 @@ object PiInstaller {
                         if (!destination.exists() && backup.exists()) backup.renameTo(destination)
                         throw error
                     }
+                    val realBinary = File(destination.parentFile, "$PI_BINARY.real")
+                    if (realBinary.exists()) realBinary.delete()
+                    require(destination.renameTo(realBinary)) { "Unable to stage pi.real" }
+                    destination.writeText(
+                        "#!/bin/sh\n" +
+                            "if [ -x /lib/ld-linux-aarch64.so.1 ]; then\n" +
+                            "  exec /lib/ld-linux-aarch64.so.1 /usr/local/bin/pi.real \"\$@\"\n" +
+                            "elif [ -x /lib/ld-linux-x86-64.so.2 ]; then\n" +
+                            "  exec /lib/ld-linux-x86-64.so.2 /usr/local/bin/pi.real \"\$@\"\n" +
+                            "fi\n" +
+                            "exec /usr/local/bin/pi.real \"\$@\"\n",
+                    )
+                    require(destination.setExecutable(true, false) || destination.canExecute()) {
+                        "Unable to mark pi wrapper executable"
+                    }
                     writeInstalledVersion(rootfs, PiManifest.VERSION)
                     onProgress(1f)
                     archive.delete()
