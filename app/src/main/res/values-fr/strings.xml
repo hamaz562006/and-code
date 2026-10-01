@@ -296,6 +296,7 @@
     <string name="agent_status_install_failed">Échec de l’installation</string>
     <string name="opencode_not_installed_note">OpenCode n’est pas encore installé sur cet appareil. Lancez la configuration pour l’installer.</string>
     <string name="opencode_open_setup_button">Ouvrir la configuration</string>
+    <string name="opencode_install_button">Install OpenCode</string>
     <string name="local_runtime_shared_note">L’environnement Linux partagé par tous les agents locaux Android. La version et les mises à jour de chaque agent se trouvent dans ses propres paramètres.</string>
     <string name="check_update_source_note">Vérifie la dernière version depuis la Release GitHub officielle.</string>
     <string name="check_for_update_button">Vérifier les mises à jour</string>

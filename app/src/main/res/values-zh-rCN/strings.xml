@@ -294,6 +294,7 @@
     <string name="agent_status_install_failed">安装失败</string>
     <string name="opencode_not_installed_note">此设备尚未安装 OpenCode。请运行安装程序进行安装。</string>
     <string name="opencode_open_setup_button">打开安装向导</string>
+    <string name="opencode_install_button">Install OpenCode</string>
     <string name="local_runtime_shared_note">所有 Android 本地智能体共用的 Linux 环境。各智能体的版本与更新在其各自的设置中。</string>
     <string name="check_update_source_note">从官方 GitHub Release 检查最新版本。</string>
     <string name="check_for_update_button">检查更新</string>

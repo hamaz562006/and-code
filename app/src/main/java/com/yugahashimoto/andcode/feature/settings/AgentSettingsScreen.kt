@@ -366,6 +366,7 @@ fun OpenCodeAgentSettingsScreen(
     onDismissRollback: () -> Unit,
     onConfirmRollback: () -> Unit,
     onOpenSetup: () -> Unit,
+    onInstall: () -> Unit = onOpenSetup,
     onOpenProviderSettings: () -> Unit,
     onOpenModelVisibility: () -> Unit,
     onOpenSystemPrompt: () -> Unit,
@@ -391,10 +392,10 @@ fun OpenCodeAgentSettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Button(onClick = onOpenSetup, modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Default.Build, contentDescription = null)
                         Spacer(Modifier.padding(horizontal = 4.dp))
-                        Text(stringResource(R.string.opencode_open_setup_button))
+                        Text(stringResource(R.string.opencode_install_button))
                     }
                 }
             }
