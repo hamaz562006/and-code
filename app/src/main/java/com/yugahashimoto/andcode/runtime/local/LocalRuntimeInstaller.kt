@@ -198,15 +198,20 @@ class LocalRuntimeInstaller(
                         suite = commandSuite,
                         packages = listOf("nodejs", "npm", "icu-data-full"),
                     )
-                    onPi(0.938f, context.getString(R.string.install_step_installing_pi))
+                    // Download + extract (0.93→0.97) reports real byte progress like OpenCode's archive step.
+                    val piDownloadLabel = context.getString(R.string.install_step_installing_pi)
+                    onPi(0.93f, piDownloadLabel)
                     PiInstaller.install(
                         rootfs = rootfs,
                         abi = abi,
                         runtimeDirectory = runtimeDirectory,
                         accessCoordinator = accessCoordinator,
                         httpClient = httpClient,
+                        onProgress = { fraction ->
+                            onPi(0.93f + fraction.coerceIn(0f, 1f) * 0.04f, piDownloadLabel)
+                        },
                     )
-                    onPi(0.97f, context.getString(R.string.install_step_installing_pi))
+                    onPi(0.975f, piDownloadLabel)
                     runShellInRootfs(
                         rootfs = rootfs,
                         suite = commandSuite,
@@ -217,6 +222,7 @@ class LocalRuntimeInstaller(
                                 "npm install --omit=dev --ignore-scripts --no-audit --no-fund",
                         logName = "pi-npm-deps.log",
                     )
+                    onPi(0.99f, piDownloadLabel)
                 }
                 if (LocalAgent.ANTIGRAVITY in requestedAgents) {
                     onAntigravity(0.94f, context.getString(R.string.install_step_downloading_antigravity))
