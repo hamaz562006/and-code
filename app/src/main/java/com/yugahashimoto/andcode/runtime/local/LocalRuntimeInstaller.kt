@@ -196,7 +196,7 @@ class LocalRuntimeInstaller(
                     installPackages(
                         rootfs = rootfs,
                         suite = commandSuite,
-                        packages = listOf("nodejs", "npm"),
+                        packages = listOf("nodejs", "npm", "icu-data-full"),
                     )
                     onPi(0.938f, context.getString(R.string.install_step_installing_pi))
                     PiInstaller.install(
@@ -844,6 +844,7 @@ class LocalRuntimeInstaller(
                 "py3-pip",
                 "nodejs",
                 "npm",
+                "icu-data-full",
                 "make",
                 "cmake",
                 "gcc",
