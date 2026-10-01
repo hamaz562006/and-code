@@ -108,6 +108,8 @@ fun PiAgentSettingsScreen(
     onInstall: () -> Unit,
     onRestart: (() -> Unit)? = null,
     onStop: (() -> Unit)? = null,
+    onCheckForUpdate: (() -> Unit)? = null,
+    onUpdate: (() -> Unit)? = null,
     onOpenMcp: () -> Unit = {},
     onBack: () -> Unit,
 ) {
