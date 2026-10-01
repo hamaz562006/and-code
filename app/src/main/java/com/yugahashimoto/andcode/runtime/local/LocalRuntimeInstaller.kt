@@ -190,8 +190,13 @@ class LocalRuntimeInstaller(
                     CodexInstaller.install(rootfs, abi, runtimeDirectory, accessCoordinator, httpClient)
                 }
                 if (LocalAgent.PI in requestedAgents) {
+                    onPi(0.92f, context.getString(R.string.install_step_installing_pi_requirements))
+                    installPackages(
+                        rootfs = rootfs,
+                        suite = commandSuite,
+                        packages = listOf("gcompat", "libgcc", "libstdc++"),
+                    )
                     onPi(0.938f, context.getString(R.string.install_step_installing_pi))
-                    runCatching { installPackages(rootfs, commandSuite, listOf("gcompat")) }
                     PiInstaller.install(
                         rootfs = rootfs,
                         abi = abi,
