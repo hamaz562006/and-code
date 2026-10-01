@@ -190,7 +190,14 @@ class LocalRuntimeInstaller(
                     CodexInstaller.install(rootfs, abi, runtimeDirectory, accessCoordinator, httpClient)
                 }
                 if (LocalAgent.PI in requestedAgents) {
-                    onPi(0.92f, context.getString(R.string.install_step_installing_runtime_tools))
+                    // Without OpenCode the mid-band (0.24–0.72) is free — use it so the Pi download
+                    // bar moves like OpenCode's, instead of sitting at 93–97%.
+                    val piToolsAt = if (!withOpenCode) 0.22f else 0.92f
+                    val piDownloadStart = if (!withOpenCode) 0.24f else 0.93f
+                    val piDownloadEnd = if (!withOpenCode) 0.88f else 0.97f
+                    val piDepsAt = if (!withOpenCode) 0.90f else 0.975f
+                    val piDoneAt = if (!withOpenCode) 0.94f else 0.99f
+                    onPi(piToolsAt, context.getString(R.string.install_step_installing_runtime_tools))
                     // Pi's official CLI is a Node entrypoint (npm package). Alpine node is musl-native;
                     // the GitHub glibc binary does not run under this PRoot rootfs.
                     installPackages(
@@ -198,9 +205,8 @@ class LocalRuntimeInstaller(
                         suite = commandSuite,
                         packages = listOf("nodejs", "npm", "icu-data-full"),
                     )
-                    // Download + extract (0.93→0.97) reports real byte progress like OpenCode's archive step.
                     val piDownloadLabel = context.getString(R.string.install_step_installing_pi)
-                    onPi(0.93f, piDownloadLabel)
+                    onPi(piDownloadStart, piDownloadLabel)
                     PiInstaller.install(
                         rootfs = rootfs,
                         abi = abi,
@@ -208,10 +214,11 @@ class LocalRuntimeInstaller(
                         accessCoordinator = accessCoordinator,
                         httpClient = httpClient,
                         onProgress = { fraction ->
-                            onPi(0.93f + fraction.coerceIn(0f, 1f) * 0.04f, piDownloadLabel)
+                            val span = piDownloadEnd - piDownloadStart
+                            onPi(piDownloadStart + fraction.coerceIn(0f, 1f) * span, piDownloadLabel)
                         },
                     )
-                    onPi(0.975f, piDownloadLabel)
+                    onPi(piDepsAt, piDownloadLabel)
                     runShellInRootfs(
                         rootfs = rootfs,
                         suite = commandSuite,
@@ -222,7 +229,7 @@ class LocalRuntimeInstaller(
                                 "npm install --omit=dev --ignore-scripts --no-audit --no-fund",
                         logName = "pi-npm-deps.log",
                     )
-                    onPi(0.99f, piDownloadLabel)
+                    onPi(piDoneAt, piDownloadLabel)
                 }
                 if (LocalAgent.ANTIGRAVITY in requestedAgents) {
                     onAntigravity(0.94f, context.getString(R.string.install_step_downloading_antigravity))

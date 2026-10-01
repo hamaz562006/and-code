@@ -830,6 +830,11 @@ private fun RuntimeDownloadStep(
                         val progress = inst.progress
                         if (progress != null) {
                             LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                            Text(
+                                text = "${(progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         } else {
                             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                         }
@@ -884,6 +889,11 @@ private fun SharedInstallProgress(status: LocalRuntimeStatus.Installing) {
     Text(status.step, fontWeight = FontWeight.Medium)
     if (status.progress != null) {
         LinearProgressIndicator(progress = { status.progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+        Text(
+            text = "${(status.progress * 100).toInt()}%",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     } else {
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
     }
