@@ -468,9 +468,6 @@ class LocalRuntimeInstaller(
         onProgress(endProgress, label)
     }
 
-    /**
-     * Runs a shell command inside the Alpine rootfs via PRoot (same mounts as [installPackages]).
-     */
     /** Installs npm dependencies for an already-extracted Pi package in the active rootfs. */
     fun installPiNpmDependencies() {
         val installed = installedRuntime() ?: return
@@ -486,6 +483,7 @@ class LocalRuntimeInstaller(
         )
     }
 
+    /** Runs a shell command inside the Alpine rootfs via PRoot (same mounts as [installPackages]). */
     private fun runShellInRootfs(
         rootfs: File,
         suite: EmbeddedCommandSuite.Paths,
