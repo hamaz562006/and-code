@@ -143,6 +143,8 @@ fun PiAgentSettingsScreen(
                     onInstall = onInstall,
                     onRestart = onRestart,
                     onStop = onStop,
+                    onCheckForUpdate = onCheckForUpdate,
+                    onUpdate = onUpdate,
                 )
             }
         }

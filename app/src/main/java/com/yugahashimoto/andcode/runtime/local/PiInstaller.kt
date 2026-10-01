@@ -21,13 +21,13 @@ object PiInstaller {
     private const val BIN_DIR = "usr/local/bin"
     private const val LIB_DIR = "usr/local/lib/pi-coding-agent"
     private const val NPM_CLI_REL = "dist/bundle/cli.js"
-    private const val NPM_TARBALL =
-        "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-${PiManifest.VERSION}.tgz"
+    const val NPM_PACKAGE = "@earendil-works/pi-coding-agent"
 
     fun isInstalledIn(rootfs: File): Boolean {
         val binary = File(rootfs, "$BIN_DIR/$PI_BINARY")
         val cli = File(rootfs, "$LIB_DIR/$NPM_CLI_REL")
-        return binary.isFile && cli.isFile
+        val deps = File(rootfs, "$LIB_DIR/node_modules")
+        return binary.isFile && cli.isFile && deps.isDirectory
     }
 
     fun installedVersion(rootfs: File): String? =
@@ -57,6 +57,7 @@ object PiInstaller {
         runtimeDirectory: File,
         accessCoordinator: LocalRuntimeAccessCoordinator,
         httpClient: OkHttpClient = OkHttpClient(),
+        version: String = PiManifest.VERSION,
         onProgress: (Float) -> Unit = {},
     ): String =
         withContext(Dispatchers.IO) {
@@ -64,10 +65,12 @@ object PiInstaller {
             @Suppress("UNUSED_PARAMETER")
             val ignoredAbi = abi
             val cache = File(runtimeDirectory, "cache").apply { mkdirs() }
-            val archive = File(cache, "pi-coding-agent-${PiManifest.VERSION}.tgz")
+            val archive = File(cache, "pi-coding-agent-$version.tgz")
+            val tarball =
+                "https://registry.npmjs.org/$NPM_PACKAGE/-/pi-coding-agent-$version.tgz"
             onProgress(0.05f)
             if (!archive.isFile || archive.length() < 1_000_000L) {
-                download(httpClient, NPM_TARBALL, archive)
+                download(httpClient, tarball, archive)
             }
             onProgress(0.4f)
             accessCoordinator.write {
@@ -99,13 +102,13 @@ object PiInstaller {
                     require(destination.setExecutable(true, false) || destination.canExecute()) {
                         "Unable to mark pi shim executable"
                     }
-                    writeInstalledVersion(rootfs, PiManifest.VERSION)
+                    writeInstalledVersion(rootfs, version)
                     onProgress(1f)
                 } finally {
                     extraction.deleteRecursively()
                 }
             }
-            PiManifest.VERSION
+            version
         }
 
     private fun download(

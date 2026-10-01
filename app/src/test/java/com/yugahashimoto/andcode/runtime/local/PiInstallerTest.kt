@@ -22,6 +22,7 @@ class PiInstallerTest {
         val cli = File(rootfs, "usr/local/lib/pi-coding-agent/dist/bundle/cli.js")
         cli.parentFile?.mkdirs()
         cli.writeText("console.log('pi')\n")
+        File(rootfs, "usr/local/lib/pi-coding-agent/node_modules").mkdirs()
     }
 
     @Test

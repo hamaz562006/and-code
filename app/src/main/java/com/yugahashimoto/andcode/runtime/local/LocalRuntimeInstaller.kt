@@ -196,7 +196,7 @@ class LocalRuntimeInstaller(
                     installPackages(
                         rootfs = rootfs,
                         suite = commandSuite,
-                        packages = listOf("nodejs"),
+                        packages = listOf("nodejs", "npm"),
                     )
                     onPi(0.938f, context.getString(R.string.install_step_installing_pi))
                     PiInstaller.install(
@@ -205,6 +205,17 @@ class LocalRuntimeInstaller(
                         runtimeDirectory = runtimeDirectory,
                         accessCoordinator = accessCoordinator,
                         httpClient = httpClient,
+                    )
+                    onPi(0.97f, context.getString(R.string.install_step_installing_pi))
+                    runShellInRootfs(
+                        rootfs = rootfs,
+                        suite = commandSuite,
+                        shell =
+                            "export NODE_OPTIONS=--max-old-space-size=256 " +
+                                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin && " +
+                                "cd /usr/local/lib/pi-coding-agent && " +
+                                "npm install --omit=dev --ignore-scripts --no-audit --no-fund",
+                        logName = "pi-npm-deps.log",
                     )
                 }
                 if (LocalAgent.ANTIGRAVITY in requestedAgents) {
@@ -455,6 +466,77 @@ class LocalRuntimeInstaller(
             },
         )
         onProgress(endProgress, label)
+    }
+
+    /**
+     * Runs a shell command inside the Alpine rootfs via PRoot (same mounts as [installPackages]).
+     */
+    /** Installs npm dependencies for an already-extracted Pi package in the active rootfs. */
+    fun installPiNpmDependencies() {
+        val installed = installedRuntime() ?: return
+        runShellInRootfs(
+            rootfs = installed.rootfs,
+            suite = installed.commandSuite,
+            shell =
+                "export NODE_OPTIONS=--max-old-space-size=256 " +
+                    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin && " +
+                    "cd /usr/local/lib/pi-coding-agent && " +
+                    "npm install --omit=dev --ignore-scripts --no-audit --no-fund",
+            logName = "pi-npm-deps.log",
+        )
+    }
+
+    private fun runShellInRootfs(
+        rootfs: File,
+        suite: EmbeddedCommandSuite.Paths,
+        shell: String,
+        logName: String,
+    ) {
+        val prootTmp = File(runtimeDirectory, "proot-tmp").apply { mkdirs() }
+        val command =
+            listOf(
+                suite.proot.absolutePath,
+                "--kill-on-exit",
+                "--link2symlink",
+                "-0",
+                "-r",
+                rootfs.absolutePath,
+                "-b",
+                "/dev",
+                "-b",
+                "/proc",
+                "-b",
+                "/sys",
+                "-b",
+                "/system",
+                "-w",
+                "/root",
+                "/bin/sh",
+                "-lc",
+                shell,
+            )
+        val installLog =
+            File(runtimeDirectory, "logs/$logName").apply {
+                parentFile?.mkdirs()
+                delete()
+            }
+        val process =
+            ProcessBuilder(command)
+                .redirectErrorStream(true)
+                .redirectOutput(ProcessBuilder.Redirect.to(installLog))
+                .apply {
+                    environment().putAll(suite.environment())
+                    environment()["PROOT_TMP_DIR"] = prootTmp.absolutePath
+                }
+                .start()
+        val completed = process.waitFor(20, java.util.concurrent.TimeUnit.MINUTES)
+        if (!completed) {
+            process.destroyForcibly()
+            error("Command timed out ($logName).\n${installLog.readText().takeLast(4000)}")
+        }
+        require(process.exitValue() == 0) {
+            "Command failed ($logName).\n${installLog.readText().takeLast(4000)}"
+        }
     }
 
     private fun installPackages(
