@@ -224,8 +224,7 @@ class PiController(
             latest: String,
             current: String,
         ): Boolean {
-            fun parts(v: String) =
-                v.trim().removePrefix("v").split('.', '-').mapNotNull { it.toIntOrNull() }
+            fun parts(v: String) = v.trim().removePrefix("v").split('.', '-').mapNotNull { it.toIntOrNull() }
             val a = parts(latest)
             val b = parts(current)
             val n = maxOf(a.size, b.size)
