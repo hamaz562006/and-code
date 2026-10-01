@@ -119,6 +119,65 @@ class PiRuntime(
         }.getOrDefault(PiInstaller.PI_VERSION)
     }
 
+
+    private val authJson =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
+
+    /** Provider ids that currently have a non-blank key in `~/.pi/agent/auth.json`. */
+    fun connectedProviderIds(): Set<String> {
+        val rootfs = installedRuntime()?.rootfs ?: return emptySet()
+        val file = File(rootfs, "root/.pi/agent/auth.json")
+        if (!file.isFile) return emptySet()
+        return runCatching {
+            val obj = authJson.parseToJsonElement(file.readText()).jsonObject
+            obj.mapNotNull { (id, value) ->
+                val key = value.jsonObject["key"]?.toString()?.trim('"')
+                id.takeIf { !key.isNullOrBlank() }
+            }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    /**
+     * Writes or removes an API key in the Pi auth file (`~/.pi/agent/auth.json` inside the rootfs).
+     * Format matches earendil-works/pi: `{ "openai": { "type": "api_key", "key": "..." } }`.
+     */
+    fun setApiKey(
+        providerId: String,
+        apiKey: String?,
+    ) {
+        val rootfs = installedRuntime()?.rootfs ?: error("Pi environment is not installed")
+        val dir = File(rootfs, "root/.pi/agent").apply { mkdirs() }
+        val file = File(dir, "auth.json")
+        val existing =
+            if (file.isFile) {
+                runCatching { authJson.parseToJsonElement(file.readText()).jsonObject }.getOrDefault(
+                    buildJsonObject {},
+                )
+            } else {
+                buildJsonObject {}
+            }
+        val updated =
+            buildJsonObject {
+                existing.forEach { (k, v) ->
+                    if (k != providerId) put(k, v)
+                }
+                val trimmed = apiKey?.trim().orEmpty()
+                if (trimmed.isNotEmpty()) {
+                    put(
+                        providerId,
+                        buildJsonObject {
+                            put("type", "api_key")
+                            put("key", trimmed)
+                        },
+                    )
+                }
+            }
+        file.writeText(authJson.encodeToString(JsonObject.serializer(), updated))
+    }
+
     suspend fun install(abi: String): String {
         val runtime = installedRuntime() ?: error("The Linux environment is not installed yet")
         return PiInstaller.install(

@@ -3,109 +3,128 @@ package com.yugahashimoto.andcode.runtime.local
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.File
+import java.io.FileOutputStream
 
 /**
- * Downloads and installs the Pi coding agent into the shared Alpine rootfs,
- * backed by the official earendil-works/pi standalone release archive.
+ * Installs the official Pi coding agent as the npm-published JS CLI under Alpine/musl.
+ *
+ * The GitHub "standalone" Linux archives are glibc-linked and do not run under this app's PRoot
+ * Alpine rootfs (gcompat's ld-linux stub rejects being used as an explicit interpreter). The npm
+ * package ships a Node entrypoint ([NPM_CLI_REL]) that runs on Alpine's native Node package.
  */
 object PiInstaller {
-    const val PI_VERSION = PiManifest.VERSION
     const val PI_BINARY = PiManifest.BINARY_NAME
+    const val PI_VERSION = PiManifest.VERSION
+
     private const val BIN_DIR = "usr/local/bin"
-    private const val VERSION_MARKER = "usr/local/share/and-code/pi-version"
+    private const val LIB_DIR = "usr/local/lib/pi-coding-agent"
+    private const val NPM_CLI_REL = "dist/bundle/cli.js"
+    private const val NPM_TARBALL =
+        "https://registry.npmjs.org/@earendil-works/pi-coding-agent/-/pi-coding-agent-${PiManifest.VERSION}.tgz"
 
     fun isInstalledIn(rootfs: File): Boolean {
         val binary = File(rootfs, "$BIN_DIR/$PI_BINARY")
-        return binary.isFile && (binary.canExecute() || binary.canRead())
+        val cli = File(rootfs, "$LIB_DIR/$NPM_CLI_REL")
+        return binary.isFile && cli.isFile
     }
 
     fun installedVersion(rootfs: File): String? =
         runCatching {
-            File(rootfs, VERSION_MARKER).readText().trim().takeIf(String::isNotEmpty)
+            File(rootfs, "$BIN_DIR/.$PI_BINARY-version").takeIf { it.isFile }?.readText()?.trim()?.ifBlank { null }
         }.getOrNull() ?: if (isInstalledIn(rootfs)) PI_VERSION else null
 
-    internal fun writeInstalledVersion(
+    private fun writeInstalledVersion(
         rootfs: File,
         version: String,
     ) {
-        runCatching {
-            File(rootfs, VERSION_MARKER).apply {
-                parentFile?.mkdirs()
-                writeText("$version\n")
-            }
+        File(rootfs, "$BIN_DIR/.$PI_BINARY-version").apply {
+            parentFile?.mkdirs()
+            writeText("$version\n")
         }
     }
 
+    /**
+     * Downloads the npm tarball on the Android host, extracts it into the rootfs, and writes a
+     * `/usr/local/bin/pi` shim that invokes Alpine's `node` on the bundled CLI.
+     *
+     * [LocalRuntimeInstaller] must install the `nodejs` package into [rootfs] before this runs.
+     */
     suspend fun install(
         rootfs: File,
         abi: String,
         runtimeDirectory: File,
         accessCoordinator: LocalRuntimeAccessCoordinator,
         httpClient: OkHttpClient = OkHttpClient(),
-        downloader: VerifiedRuntimeDownloader = VerifiedRuntimeDownloader(httpClient),
         onProgress: (Float) -> Unit = {},
     ): String =
         withContext(Dispatchers.IO) {
-            require(runtimeDirectory.usableSpace >= PiManifest.MIN_FREE_BYTES) {
-                "Pi needs at least 150 MB free space (available ${runtimeDirectory.usableSpace} bytes)"
-            }
-            val asset = PiManifest.assetFor(abi)
+            // abi is unused: the npm package is pure JS. Kept for call-site symmetry with Codex.
+            @Suppress("UNUSED_PARAMETER")
+            val ignoredAbi = abi
             val cache = File(runtimeDirectory, "cache").apply { mkdirs() }
-            val archive = File(cache, "pi-${PiManifest.VERSION}-${asset.name}")
-            downloader.download(asset.url, archive, asset.sha256, asset.sizeBytes) { progress ->
-                progress?.let { onProgress(it * 0.75f) }
+            val archive = File(cache, "pi-coding-agent-${PiManifest.VERSION}.tgz")
+            onProgress(0.05f)
+            if (!archive.isFile || archive.length() < 1_000_000L) {
+                download(httpClient, NPM_TARBALL, archive)
             }
+            onProgress(0.4f)
             accessCoordinator.write {
-                val extraction = File(runtimeDirectory, "pi-extract-${System.nanoTime()}").apply { mkdirs() }
+                val extraction = File(runtimeDirectory, "pi-npm-extract-${System.nanoTime()}").apply { mkdirs() }
                 try {
                     archive.inputStream().use { RuntimeArchive.extractTarGz(it, extraction) }
-                    val source =
-                        extraction.walkTopDown().firstOrNull { it.isFile && (it.name == PI_BINARY || it.name == PiManifest.BINARY_NAME) }
-                            ?: error("Official Pi standalone release archive did not contain a pi binary")
+                    // npm packs as package/...
+                    val packageRoot =
+                        File(extraction, "package").takeIf { it.isDirectory }
+                            ?: extraction.walkTopDown().firstOrNull {
+                                it.isDirectory && File(it, NPM_CLI_REL).isFile
+                            }
+                            ?: error("pi-coding-agent tarball missing $NPM_CLI_REL")
+                    val libDir = File(rootfs, LIB_DIR)
+                    libDir.deleteRecursively()
+                    libDir.parentFile?.mkdirs()
+                    packageRoot.copyRecursively(libDir, overwrite = true)
+                    val cli = File(libDir, NPM_CLI_REL)
+                    require(cli.isFile) { "Extracted Pi package is missing $NPM_CLI_REL" }
+
                     val destination = File(rootfs, "$BIN_DIR/$PI_BINARY")
                     destination.parentFile?.mkdirs()
-                    val candidate = File(destination.parentFile, "$PI_BINARY.new-${System.nanoTime()}")
-                    val backup = File(destination.parentFile, "$PI_BINARY.rollback")
-                    runCatching {
-                        source.copyTo(candidate, overwrite = true)
-                        require(candidate.setExecutable(true, false) || candidate.canExecute()) {
-                            "Unable to mark pi executable"
-                        }
-                        candidate.setReadable(true, false)
-                        backup.delete()
-                        if (destination.exists()) {
-                            require(destination.renameTo(backup)) { "Unable to stage previous pi binary" }
-                        }
-                        require(candidate.renameTo(destination)) { "Unable to activate verified pi binary" }
-                        backup.delete()
-                    }.onFailure { error ->
-                        candidate.delete()
-                        if (!destination.exists() && backup.exists()) backup.renameTo(destination)
-                        throw error
-                    }
-                    val realBinary = File(destination.parentFile, "$PI_BINARY.real")
-                    if (realBinary.exists()) realBinary.delete()
-                    require(destination.renameTo(realBinary)) { "Unable to stage pi.real" }
+                    // Drop any previous glibc binary / broken gcompat wrapper.
+                    File(destination.parentFile, "$PI_BINARY.real").delete()
                     destination.writeText(
                         "#!/bin/sh\n" +
-                            "if [ -x /lib/ld-linux-aarch64.so.1 ]; then\n" +
-                            "  exec /lib/ld-linux-aarch64.so.1 /usr/local/bin/pi.real \"\$@\"\n" +
-                            "elif [ -x /lib/ld-linux-x86-64.so.2 ]; then\n" +
-                            "  exec /lib/ld-linux-x86-64.so.2 /usr/local/bin/pi.real \"\$@\"\n" +
-                            "fi\n" +
-                            "exec /usr/local/bin/pi.real \"\$@\"\n",
+                            "exec node /usr/local/lib/pi-coding-agent/$NPM_CLI_REL \"\$@\"\n",
                     )
                     require(destination.setExecutable(true, false) || destination.canExecute()) {
-                        "Unable to mark pi wrapper executable"
+                        "Unable to mark pi shim executable"
                     }
                     writeInstalledVersion(rootfs, PiManifest.VERSION)
                     onProgress(1f)
-                    archive.delete()
                 } finally {
                     extraction.deleteRecursively()
                 }
             }
             PiManifest.VERSION
         }
+
+    private fun download(
+        httpClient: OkHttpClient,
+        url: String,
+        destination: File,
+    ) {
+        destination.parentFile?.mkdirs()
+        val tmp = File(destination.parentFile, "${destination.name}.partial")
+        tmp.delete()
+        val request = Request.Builder().url(url).get().build()
+        httpClient.newCall(request).execute().use { response ->
+            require(response.isSuccessful) { "Failed to download Pi npm package: HTTP ${response.code}" }
+            val body = response.body ?: error("Empty body downloading Pi npm package")
+            body.byteStream().use { input ->
+                FileOutputStream(tmp).use { output -> input.copyTo(output) }
+            }
+        }
+        if (destination.exists()) destination.delete()
+        require(tmp.renameTo(destination)) { "Unable to finalize Pi npm package download" }
+    }
 }

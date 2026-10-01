@@ -842,15 +842,6 @@ class SettingsViewModel(
         const val AUTO_OAUTH_POLL_MS = 3000L
 
         val PI_SEED_PROVIDERS =
-            listOf(
-                OpenCodeProvider("anthropic", "Anthropic"),
-                OpenCodeProvider("openai", "OpenAI"),
-                OpenCodeProvider("google", "Google"),
-                OpenCodeProvider("openrouter", "OpenRouter"),
-                OpenCodeProvider("groq", "Groq"),
-                OpenCodeProvider("deepseek", "DeepSeek"),
-                OpenCodeProvider("mistral", "Mistral"),
-                OpenCodeProvider("xai", "xAI"),
-            )
+            com.yugahashimoto.andcode.runtime.local.PiModels.catalog().all
     }
 }

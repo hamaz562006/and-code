@@ -191,13 +191,16 @@ class LocalRuntimeInstaller(
                 }
                 if (LocalAgent.PI in requestedAgents) {
                     onPi(0.92f, context.getString(R.string.install_step_installing_runtime_tools))
+                    // Pi's official CLI is a Node entrypoint (npm package). Alpine node is musl-native;
+                    // the GitHub glibc binary does not run under this PRoot rootfs.
                     installPackages(
                         rootfs = rootfs,
                         suite = commandSuite,
-                        packages = listOf("gcompat", "libgcc", "libstdc++"),
+                        packages = listOf("nodejs"),
                     )
                     onPi(0.938f, context.getString(R.string.install_step_installing_pi))
                     PiInstaller.install(
+
                         rootfs = rootfs,
                         abi = abi,
                         runtimeDirectory = runtimeDirectory,
