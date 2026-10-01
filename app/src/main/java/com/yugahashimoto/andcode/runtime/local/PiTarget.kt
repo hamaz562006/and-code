@@ -83,8 +83,7 @@ class PiTarget(
 
     override suspend fun health(): OpenCodeHealth = connect().getOrElse { OpenCodeHealth(false, "") }
 
-    override suspend fun listProviders(): ProviderCatalog =
-        PiModels.catalog(connectedIds = runtime.connectedProviderIds())
+    override suspend fun listProviders(): ProviderCatalog = PiModels.catalog(connectedIds = runtime.connectedProviderIds())
 
     override suspend fun providerAuthMethods(): Map<String, List<ProviderAuthMethod>> =
         PiModels.SEED_PROVIDERS.associate { seed ->
