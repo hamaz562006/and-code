@@ -124,7 +124,7 @@ class PiController(
                         }
                     } else {
                         if (installFullDevelopmentTools) installer.installFullDevelopmentTools()
-                        runCatching { installer.installPackagesIntoActive(listOf("nodejs", "npm")) }
+                        runCatching { installer.installPackagesIntoActive(listOf("nodejs", "npm", "icu-data-full")) }
                         runtime.install(abi)
                         installer.recordAgent(LocalAgent.PI)
                     }
@@ -187,7 +187,7 @@ class PiController(
         scope.launch {
             runtimeWork.withLease(INSTALL_LEASE_TAG) {
                 try {
-                    runCatching { installer.installPackagesIntoActive(listOf("nodejs", "npm")) }
+                    runCatching { installer.installPackagesIntoActive(listOf("nodejs", "npm", "icu-data-full")) }
                     val installed = installer.installedRuntime() ?: error("Linux environment is not installed")
                     PiInstaller.install(
                         rootfs = installed.rootfs,
