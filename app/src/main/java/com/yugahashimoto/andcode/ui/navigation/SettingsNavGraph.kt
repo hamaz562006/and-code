@@ -300,6 +300,8 @@ fun NavGraphBuilder.settingsNavGraph(
             onInstall = { app.piController.install() },
             onRestart = { app.piRuntime.stopAll() },
             onStop = { app.piRuntime.stopAll() },
+            onCheckForUpdate = { app.piController.checkForUpdate() },
+            onUpdate = { app.piController.updateToLatest() },
             onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_PI) },
             onBack = { navController.popBackStack() },
         )
