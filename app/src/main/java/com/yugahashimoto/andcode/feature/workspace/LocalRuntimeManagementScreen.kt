@@ -290,67 +290,6 @@ private fun DevelopmentToolsCard(
     }
 }
 
-
-private fun DevelopmentToolsCard(
-    installed: Boolean,
-    busy: Boolean,
-    onInstall: () -> Unit,
-) {
-    SectionCard {
-        Text(
-            stringResource(R.string.full_development_tools_title),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            stringResource(R.string.full_development_tools_description),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(10.dp))
-        DevelopmentToolGroup.entries.forEach { group ->
-            Text(
-                text =
-                    stringResource(group.displayNameRes) +
-                        " · " +
-                        group.approxSizeLabel +
-                        if (installed) {
-                            " · " + stringResource(R.string.development_tools_group_installed)
-                        } else {
-                            ""
-                        },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Spacer(Modifier.height(10.dp))
-        if (installed) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-                Text(stringResource(R.string.full_development_tools_installed))
-            }
-        } else {
-            Button(
-                onClick = onInstall,
-                enabled = !busy,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(Icons.Default.Build, contentDescription = null)
-                Spacer(Modifier.padding(horizontal = 4.dp))
-                Text(stringResource(R.string.install_full_development_tools_button))
-            }
-        }
-    }
-}
-
 @Composable
 private fun RuntimeSummaryCard(diagnostics: LocalRuntimeDiagnostics) {
     SectionCard {
