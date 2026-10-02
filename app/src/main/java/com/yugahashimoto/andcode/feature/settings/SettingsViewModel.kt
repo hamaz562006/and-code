@@ -3,6 +3,7 @@ package com.yugahashimoto.andcode.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.yugahashimoto.andcode.core.api.OpenCodeAgent
+import com.yugahashimoto.andcode.core.api.OpenCodeModel
 import com.yugahashimoto.andcode.core.api.OpenCodeProvider
 import com.yugahashimoto.andcode.core.api.ProviderAuthMethod
 import com.yugahashimoto.andcode.core.api.ProviderCatalog
@@ -217,10 +218,24 @@ class SettingsViewModel(
                 } else {
                     emptyList()
                 }
+            val customAsProviders =
+                customProviders.definitions().map { def ->
+                    OpenCodeProvider(
+                        id = def.id,
+                        name = def.name,
+                        models =
+                            def.models.associateWith { mid ->
+                                OpenCodeModel(id = mid, providerId = def.id, name = mid)
+                            },
+                    )
+                }
+            val baseAvailable = managed.all.ifEmpty { piSeed }
+            val mergedAvailable =
+                (baseAvailable + customAsProviders).distinctBy { it.id }
             SettingsUiState(
                 providers =
                     (core.runtime.providers.all.ifEmpty { piSeed }).filter { it.id in chatConnected },
-                availableProviders = managed.all.ifEmpty { piSeed },
+                availableProviders = mergedAvailable,
                 connectedProviderIds = (managed.connected.toSet() + oauth.locallyConnected) - oauth.locallyDisconnected,
                 agents = core.runtime.agents.filter { it.mode == null || it.mode == "primary" },
                 providerId = core.preferences.providerId,

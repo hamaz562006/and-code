@@ -27,6 +27,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import java.io.File
@@ -105,6 +108,32 @@ class PiTarget(
             runtime.setApiKey(providerId, null)
             true
         }
+
+
+    /**
+     * Accepts the same OpenCode-shaped custom-provider patch the Providers UI sends, and stores it
+     * in Pi's `models.json` instead of calling an OpenCode HTTP config API.
+     */
+    override suspend fun updateConfig(patch: JsonObject): kotlinx.serialization.json.JsonElement =
+        withContext(Dispatchers.IO) {
+            val providers = patch["provider"]?.jsonObject
+                ?: error("Pi config update expects a provider object")
+            providers.forEach { (providerId, value) ->
+                val obj = value.jsonObject
+                val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: providerId
+                val baseUrl =
+                    obj["options"]?.jsonObject?.get("baseURL")?.jsonPrimitive?.contentOrNull
+                        ?: obj["baseUrl"]?.jsonPrimitive?.contentOrNull
+                        ?: error("Custom provider needs a base URL")
+                val modelIds =
+                    obj["models"]?.jsonObject?.keys?.toList().orEmpty().ifEmpty {
+                        error("Custom provider needs at least one model id")
+                    }
+                runtime.registerCustomProvider(providerId, name, baseUrl, modelIds)
+            }
+            patch
+        }
+
 
     override suspend fun listAgents(): List<OpenCodeAgent> =
         listOf(OpenCodeAgent(name = "pi", description = "Pi", mode = "primary", native = true))

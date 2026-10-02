@@ -143,6 +143,71 @@ class PiRuntime(
      * Writes or removes an API key in the Pi auth file (`~/.pi/agent/auth.json` inside the rootfs).
      * Format matches earendil-works/pi: `{ "openai": { "type": "api_key", "key": "..." } }`.
      */
+
+    /**
+     * Writes an OpenAI-compatible custom provider into `~/.pi/agent/models.json` (Pi format).
+     * Base URL should be the API root (e.g. `http://host:port/v1`), not `.../chat/completions`.
+     */
+    fun registerCustomProvider(
+        id: String,
+        name: String,
+        baseUrl: String,
+        modelIds: List<String>,
+    ) {
+        val rootfs = installedRuntime()?.rootfs ?: error("Pi environment is not installed")
+        val dir = File(rootfs, "root/.pi/agent").apply { mkdirs() }
+        val file = File(dir, "models.json")
+        val existing =
+            if (file.isFile) {
+                runCatching { authJson.parseToJsonElement(file.readText()).jsonObject }.getOrDefault(buildJsonObject {})
+            } else {
+                buildJsonObject {}
+            }
+        val existingProviders =
+            existing["providers"]?.jsonObject ?: buildJsonObject {}
+        var normalizedBase = baseUrl.trim().trimEnd('/')
+        // Users often paste the full chat completions path; Pi expects the API root.
+        for (suffix in listOf("/chat/completions", "/completions")) {
+            if (normalizedBase.endsWith(suffix)) {
+                normalizedBase = normalizedBase.removeSuffix(suffix)
+                break
+            }
+        }
+        val modelsArray =
+            kotlinx.serialization.json.buildJsonArray {
+                modelIds.forEach { mid ->
+                    add(
+                        buildJsonObject {
+                            put("id", mid)
+                            put("name", mid)
+                        },
+                    )
+                }
+            }
+        val providerEntry =
+            buildJsonObject {
+                put("baseUrl", normalizedBase)
+                put("api", "openai-completions")
+                put("apiKey", id) // placeholder; real key goes in auth.json via setApiKey
+                put("models", modelsArray)
+            }
+        val updatedProviders =
+            buildJsonObject {
+                existingProviders.forEach { (k, v) ->
+                    if (k != id) put(k, v)
+                }
+                put(id, providerEntry)
+            }
+        val updated =
+            buildJsonObject {
+                existing.forEach { (k, v) ->
+                    if (k != "providers") put(k, v)
+                }
+                put("providers", updatedProviders)
+            }
+        file.writeText(authJson.encodeToString(JsonObject.serializer(), updated))
+    }
+
     fun setApiKey(
         providerId: String,
         apiKey: String?,
