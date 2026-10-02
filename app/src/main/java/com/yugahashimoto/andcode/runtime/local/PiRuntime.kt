@@ -23,6 +23,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -143,6 +144,37 @@ class PiRuntime(
      * Writes an OpenAI-compatible custom provider into `~/.pi/agent/models.json` (Pi format).
      * Base URL should be the API root (e.g. `http://host:port/v1`), not `.../chat/completions`.
      */
+
+    data class CustomProviderEntry(
+        val id: String,
+        val name: String,
+        val modelIds: List<String>,
+    )
+
+    /** Reads user-defined providers from `~/.pi/agent/models.json`. */
+    fun listCustomProviders(): List<CustomProviderEntry> {
+        val rootfs = installedRuntime()?.rootfs ?: return emptyList()
+        val file = File(rootfs, "root/.pi/agent/models.json")
+        if (!file.isFile) return emptyList()
+        return runCatching {
+            val root = authJson.parseToJsonElement(file.readText()).jsonObject
+            val providers = root["providers"]?.jsonObject ?: return emptyList()
+            providers.mapNotNull { (id, value) ->
+                val obj = value.jsonObject
+                val models =
+                    obj["models"]?.jsonArray?.mapNotNull { el ->
+                        el.jsonObject["id"]?.jsonPrimitive?.contentOrNull
+                    }.orEmpty()
+                if (models.isEmpty()) return@mapNotNull null
+                CustomProviderEntry(
+                    id = id,
+                    name = obj["name"]?.jsonPrimitive?.contentOrNull ?: id,
+                    modelIds = models,
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
     fun registerCustomProvider(
         id: String,
         name: String,
@@ -184,6 +216,7 @@ class PiRuntime(
                 put("baseUrl", normalizedBase)
                 put("api", "openai-completions")
                 put("apiKey", id) // placeholder; real key goes in auth.json via setApiKey
+                put("name", name)
                 put("models", modelsArray)
             }
         val updatedProviders =

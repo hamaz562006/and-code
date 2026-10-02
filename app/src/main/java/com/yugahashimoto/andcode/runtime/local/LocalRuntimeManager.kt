@@ -245,6 +245,8 @@ class LocalRuntimeManager(
         return File(runtimeDirectory, "environment/rootfs/usr/local/bin/opencode").isFile
     }
 
+    fun hasAgent(agent: LocalAgent): Boolean = readMetadata()?.has(agent) == true
+
     suspend fun installFullDevelopmentTools(): Result<Unit> =
         operationMutex.withLock {
             val configuredInstaller =
