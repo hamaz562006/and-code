@@ -83,7 +83,7 @@ class LocalRuntimeTarget(
 
     override suspend fun connect(): Result<OpenCodeHealth> {
         val localStatus = runtimeManager.status()
-        if (localStatus !is LocalRuntimeStatus.Ready) {
+        if (localStatus !is LocalRuntimeStatus.Ready || !runtimeManager.hasOpenCode()) {
             val state = mapStatus(localStatus)
             mutableState.value = state
             return Result.failure(IllegalStateException(state.describe()))
@@ -323,9 +323,20 @@ class LocalRuntimeTarget(
             is LocalRuntimeStatus.Installing -> RuntimeState.Connecting
             is LocalRuntimeStatus.Starting -> RuntimeState.Connecting
             is LocalRuntimeStatus.Updating -> RuntimeState.Connecting
-            is LocalRuntimeStatus.Stopped -> RuntimeState.Disconnected
+            is LocalRuntimeStatus.Stopped ->
+                if (runtimeManager.hasOpenCode()) {
+                    RuntimeState.Disconnected
+                } else {
+                    RuntimeState.Unavailable(messages.notInstalled)
+                }
             is LocalRuntimeStatus.Broken -> RuntimeState.Failed(status.reason)
-            is LocalRuntimeStatus.Ready -> RuntimeState.Connected(status.version)
+            // Shared rootfs Ready does not mean OpenCode is installed (Pi-/Codex-only sandboxes).
+            is LocalRuntimeStatus.Ready ->
+                if (runtimeManager.hasOpenCode()) {
+                    RuntimeState.Connected(status.version)
+                } else {
+                    RuntimeState.Unavailable(messages.notInstalled)
+                }
         }
 
     private fun RuntimeState.describe(): String =

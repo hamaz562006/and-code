@@ -234,6 +234,17 @@ class LocalRuntimeManager(
 
     fun runtimeEnvironmentInstalled(): Boolean = readMetadata() != null && File(runtimeDirectory, "environment/rootfs").isDirectory
 
+    /**
+     * True only when OpenCode itself was provisioned into the shared rootfs.
+     * A Pi-/Codex-only sandbox still reports [LocalRuntimeStatus.Ready] for the environment, but
+     * the OpenCode drawer entry must stay hidden until this is true.
+     */
+    fun hasOpenCode(): Boolean {
+        val metadata = readMetadata() ?: return false
+        if (!metadata.has(LocalAgent.OPEN_CODE)) return false
+        return File(runtimeDirectory, "environment/rootfs/usr/local/bin/opencode").isFile
+    }
+
     suspend fun installFullDevelopmentTools(): Result<Unit> =
         operationMutex.withLock {
             val configuredInstaller =
