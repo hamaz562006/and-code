@@ -263,8 +263,7 @@ class LocalRuntimeManager(
     // UI readers must not wait on the installer's write lock during a long package download.
     fun fullDevelopmentToolsInstalled(): Boolean = readMetadata()?.hasFullDevelopmentTools() == true
 
-    fun installedDevelopmentGroups(): Set<DevelopmentToolGroup> =
-        readMetadata()?.installedDevelopmentGroups() ?: emptySet()
+    fun installedDevelopmentGroups(): Set<DevelopmentToolGroup> = readMetadata()?.installedDevelopmentGroups() ?: emptySet()
 
     fun runtimeEnvironmentInstalled(): Boolean = readMetadata() != null && File(runtimeDirectory, "environment/rootfs").isDirectory
 
