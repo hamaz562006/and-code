@@ -140,11 +140,6 @@ class PiRuntime(
     }
 
     /**
-     * Writes or removes an API key in the Pi auth file (`~/.pi/agent/auth.json` inside the rootfs).
-     * Format matches earendil-works/pi: `{ "openai": { "type": "api_key", "key": "..." } }`.
-     */
-
-    /**
      * Writes an OpenAI-compatible custom provider into `~/.pi/agent/models.json` (Pi format).
      * Base URL should be the API root (e.g. `http://host:port/v1`), not `.../chat/completions`.
      */
@@ -208,6 +203,10 @@ class PiRuntime(
         file.writeText(authJson.encodeToString(JsonObject.serializer(), updated))
     }
 
+    /**
+     * Writes or removes an API key in the Pi auth file (`~/.pi/agent/auth.json` inside the rootfs).
+     * Format matches earendil-works/pi: `{ "openai": { "type": "api_key", "key": "..." } }`.
+     */
     fun setApiKey(
         providerId: String,
         apiKey: String?,
