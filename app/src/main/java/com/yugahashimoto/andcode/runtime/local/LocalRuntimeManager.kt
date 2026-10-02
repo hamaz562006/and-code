@@ -281,8 +281,7 @@ class LocalRuntimeManager(
 
     fun hasAgent(agent: LocalAgent): Boolean = readMetadata()?.has(agent) == true
 
-    suspend fun installFullDevelopmentTools(): Result<Unit> =
-        installDevelopmentToolGroups(DevelopmentToolGroup.ALL)
+    suspend fun installFullDevelopmentTools(): Result<Unit> = installDevelopmentToolGroups(DevelopmentToolGroup.ALL)
 
     suspend fun installDevelopmentToolGroups(groups: Set<DevelopmentToolGroup>): Result<Unit> =
         operationMutex.withLock {

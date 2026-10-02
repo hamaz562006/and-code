@@ -348,7 +348,8 @@ class WorkspaceViewModel(
 
     fun reinstallLocalRuntime() = localRuntimeController.reinstall()
 
-    fun installClaudeCode(developmentToolGroups: Set<DevelopmentToolGroup> = emptySet()) = claudeCode?.install(developmentToolGroups) ?: Unit
+    fun installClaudeCode(developmentToolGroups: Set<DevelopmentToolGroup> = emptySet()) =
+        claudeCode?.install(developmentToolGroups) ?: Unit
 
     fun updateClaudeCode() = claudeCode?.update() ?: Unit
 

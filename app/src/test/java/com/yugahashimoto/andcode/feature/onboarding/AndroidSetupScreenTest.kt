@@ -7,13 +7,13 @@ import org.junit.Test
 class AndroidSetupScreenTest {
     @Test
     fun `minimal install is skipped only when the selected agents are already installed`() {
-        assertTrue(shouldStartRuntimeInstall(installComplete = false, installFullDevelopmentTools = false))
-        assertFalse(shouldStartRuntimeInstall(installComplete = true, installFullDevelopmentTools = false))
+        assertTrue(shouldStartRuntimeInstall(installComplete = false, selectedDevelopmentTools = false))
+        assertFalse(shouldStartRuntimeInstall(installComplete = true, selectedDevelopmentTools = false))
     }
 
     @Test
     fun `full toolchain option runs even when the selected agents are already installed`() {
-        assertTrue(shouldStartRuntimeInstall(installComplete = true, installFullDevelopmentTools = true))
+        assertTrue(shouldStartRuntimeInstall(installComplete = true, selectedDevelopmentTools = true))
     }
 
     @Test
@@ -21,7 +21,7 @@ class AndroidSetupScreenTest {
         assertFalse(
             shouldStartRuntimeInstall(
                 installComplete = true,
-                installFullDevelopmentTools = true,
+                selectedDevelopmentTools = true,
                 fullDevelopmentToolsInstalled = true,
             ),
         )
