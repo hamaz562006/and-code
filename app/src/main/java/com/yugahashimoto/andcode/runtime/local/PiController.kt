@@ -73,6 +73,11 @@ class PiController(
     }
 
     private suspend fun rehydrate() {
+        // Repair npm deps without flipping the UI to "not installed" first.
+        val rootfs = installer.installedRuntime()?.rootfs
+        if (rootfs != null && PiInstaller.isInstalledIn(rootfs) && !PiInstaller.hasNpmDependencies(rootfs)) {
+            runCatching { installer.installPiNpmDependencies() }
+        }
         target.connect()
         val version =
             (target.state.value as? RuntimeState.Connected)?.version
