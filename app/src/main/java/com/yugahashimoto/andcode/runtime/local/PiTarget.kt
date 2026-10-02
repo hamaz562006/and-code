@@ -27,11 +27,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 
 /**
@@ -109,15 +108,15 @@ class PiTarget(
             true
         }
 
-
     /**
      * Accepts the same OpenCode-shaped custom-provider patch the Providers UI sends, and stores it
      * in Pi's `models.json` instead of calling an OpenCode HTTP config API.
      */
     override suspend fun updateConfig(patch: JsonObject): kotlinx.serialization.json.JsonElement =
         withContext(Dispatchers.IO) {
-            val providers = patch["provider"]?.jsonObject
-                ?: error("Pi config update expects a provider object")
+            val providers =
+                patch["provider"]?.jsonObject
+                    ?: error("Pi config update expects a provider object")
             providers.forEach { (providerId, value) ->
                 val obj = value.jsonObject
                 val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: providerId
@@ -133,7 +132,6 @@ class PiTarget(
             }
             patch
         }
-
 
     override suspend fun listAgents(): List<OpenCodeAgent> =
         listOf(OpenCodeAgent(name = "pi", description = "Pi", mode = "primary", native = true))
