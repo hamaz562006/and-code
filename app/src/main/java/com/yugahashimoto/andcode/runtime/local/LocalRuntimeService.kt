@@ -383,8 +383,13 @@ class LocalRuntimeService : Service() {
             }
             LocalRuntimeServiceCommand.InstallFullDevelopmentTools -> {
                 val runtimeWasRunning = manager.status() is LocalRuntimeStatus.Ready
+                val groups = developmentToolGroupsFrom(intent)
                 launchOperation {
-                    manager.installFullDevelopmentTools()
+                    if (groups.isEmpty() || groups.containsAll(DevelopmentToolGroup.ALL)) {
+                        manager.installFullDevelopmentTools()
+                    } else {
+                        manager.installDevelopmentToolGroups(groups)
+                    }
                     if (!runtimeWasRunning) {
                         stopForeground(STOP_FOREGROUND_REMOVE)
                         stopSelf()
@@ -798,6 +803,13 @@ class LocalRuntimeServiceController(private val context: Context) {
     )
 
     fun installFullDevelopmentTools() = LocalRuntimeService.send(context, LocalRuntimeService.ACTION_INSTALL_FULL_DEVELOPMENT_TOOLS)
+
+    fun installDevelopmentToolGroups(groups: Set<DevelopmentToolGroup>) =
+        LocalRuntimeService.send(
+            context,
+            LocalRuntimeService.ACTION_INSTALL_FULL_DEVELOPMENT_TOOLS,
+            developmentToolGroups = groups,
+        )
 
     fun start() = LocalRuntimeService.send(context, LocalRuntimeService.ACTION_START)
 

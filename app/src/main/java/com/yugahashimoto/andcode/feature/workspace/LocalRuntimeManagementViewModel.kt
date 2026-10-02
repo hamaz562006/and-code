@@ -3,6 +3,7 @@ package com.yugahashimoto.andcode.feature.workspace
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.yugahashimoto.andcode.R
+import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import com.yugahashimoto.andcode.runtime.local.AdbConnectionState
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeDiagnostics
@@ -23,6 +24,8 @@ data class LocalRuntimeManagementUiState(
     val isDeleting: Boolean = false,
     val runtimeEnvironmentInstalled: Boolean = false,
     val fullDevelopmentToolsInstalled: Boolean = false,
+    val installedDevelopmentGroups: Set<DevelopmentToolGroup> = emptySet(),
+    val selectedDevelopmentGroupIds: Set<String> = emptySet(),
     val showDeleteConfirmation: Boolean = false,
     val deleteCompleted: Boolean = false,
     val error: String? = null,
@@ -40,6 +43,8 @@ class LocalRuntimeManagementViewModel(
     private val installFullDevelopmentToolsAction: () -> Unit = {},
     private val runtimeEnvironmentInstalledProvider: () -> Boolean = { false },
     private val fullDevelopmentToolsInstalledProvider: () -> Boolean = { false },
+    private val installedDevelopmentGroupsProvider: () -> Set<DevelopmentToolGroup> = { emptySet() },
+    private val installDevelopmentToolGroupsAction: (Set<DevelopmentToolGroup>) -> Unit = {},
     private val deleteAction: () -> Unit,
     private val getString: (Int) -> String,
     private val deleteTimeoutMillis: Long = 30_000L,
@@ -127,6 +132,7 @@ class LocalRuntimeManagementViewModel(
                             runtimeStatus = diagnostics.status,
                             runtimeEnvironmentInstalled = runtimeEnvironmentInstalledProvider(),
                             fullDevelopmentToolsInstalled = fullDevelopmentToolsInstalledProvider(),
+                            installedDevelopmentGroups = installedDevelopmentGroupsProvider(),
                             isLoading = false,
                             error = null,
                         )
@@ -155,6 +161,39 @@ class LocalRuntimeManagementViewModel(
             getString(R.string.runtime_full_development_tools_start_failed),
             installFullDevelopmentToolsAction,
         )
+    }
+
+    fun toggleDevelopmentToolGroup(groupId: String) {
+        mutableState.update { state ->
+            val next =
+                if (groupId in state.selectedDevelopmentGroupIds) {
+                    state.selectedDevelopmentGroupIds - groupId
+                } else {
+                    state.selectedDevelopmentGroupIds + groupId
+                }
+            state.copy(selectedDevelopmentGroupIds = next)
+        }
+    }
+
+    fun selectAllDevelopmentToolGroups() {
+        mutableState.update {
+            it.copy(selectedDevelopmentGroupIds = DevelopmentToolGroup.entries.map { g -> g.id }.toSet())
+        }
+    }
+
+    fun clearDevelopmentToolGroupSelection() {
+        mutableState.update { it.copy(selectedDevelopmentGroupIds = emptySet()) }
+    }
+
+    fun installSelectedDevelopmentToolGroups() {
+        val selected =
+            mutableState.value.selectedDevelopmentGroupIds
+                .mapNotNull { DevelopmentToolGroup.fromId(it) }
+                .toSet()
+        if (selected.isEmpty()) return
+        dispatchAction(getString(R.string.runtime_full_development_tools_start_failed)) {
+            installDevelopmentToolGroupsAction(selected)
+        }
     }
 
     fun requestDelete() {

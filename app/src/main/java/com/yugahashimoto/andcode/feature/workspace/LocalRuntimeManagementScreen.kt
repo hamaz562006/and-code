@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -66,6 +67,10 @@ fun LocalRuntimeManagementScreen(
     onRefresh: () -> Unit,
     onRepair: () -> Unit,
     onInstallFullDevelopmentTools: () -> Unit,
+    onToggleDevelopmentToolGroup: (String) -> Unit = {},
+    onSelectAllDevelopmentToolGroups: () -> Unit = {},
+    onClearDevelopmentToolGroupSelection: () -> Unit = {},
+    onInstallSelectedDevelopmentToolGroups: () -> Unit = {},
     onRequestDelete: () -> Unit,
     onDismissDelete: () -> Unit,
     onConfirmDelete: () -> Unit,
@@ -121,9 +126,14 @@ fun LocalRuntimeManagementScreen(
                 RuntimeStorageCard(diagnostics)
                 if (state.runtimeEnvironmentInstalled) {
                     DevelopmentToolsCard(
-                        installed = state.fullDevelopmentToolsInstalled,
+                        installedGroups = state.installedDevelopmentGroups,
+                        selectedGroupIds = state.selectedDevelopmentGroupIds,
                         busy = busy,
-                        onInstall = onInstallFullDevelopmentTools,
+                        onToggleGroup = onToggleDevelopmentToolGroup,
+                        onSelectAll = onSelectAllDevelopmentToolGroups,
+                        onClearSelection = onClearDevelopmentToolGroupSelection,
+                        onInstallSelected = onInstallSelectedDevelopmentToolGroups,
+                        onInstallAll = onInstallFullDevelopmentTools,
                     )
                 }
                 RuntimeToolsCard(diagnostics)
@@ -181,6 +191,106 @@ fun LocalRuntimeManagementScreen(
 }
 
 @Composable
+private fun DevelopmentToolsCard(
+    installedGroups: Set<DevelopmentToolGroup>,
+    selectedGroupIds: Set<String>,
+    busy: Boolean,
+    onToggleGroup: (String) -> Unit,
+    onSelectAll: () -> Unit,
+    onClearSelection: () -> Unit,
+    onInstallSelected: () -> Unit,
+    onInstallAll: () -> Unit,
+) {
+    SectionCard {
+        Text(
+            stringResource(R.string.full_development_tools_title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            stringResource(R.string.full_development_tools_description),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TextButton(onClick = onSelectAll, enabled = !busy) {
+                Text(stringResource(R.string.development_tools_select_all))
+            }
+            TextButton(onClick = onClearSelection, enabled = !busy && selectedGroupIds.isNotEmpty()) {
+                Text("Clear")
+            }
+        }
+        DevelopmentToolGroup.entries.forEach { group ->
+            val already = group in installedGroups
+            val checked = already || group.id in selectedGroupIds
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Checkbox(
+                    checked = checked,
+                    onCheckedChange = { onToggleGroup(group.id) },
+                    enabled = !busy && !already,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(group.displayNameRes) + " · " + group.approxSizeLabel,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        if (already) {
+                            stringResource(R.string.development_tools_group_installed)
+                        } else {
+                            stringResource(group.descriptionRes)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        val missingSelected =
+            selectedGroupIds.mapNotNull { DevelopmentToolGroup.fromId(it) }.any { it !in installedGroups }
+        if (installedGroups.containsAll(DevelopmentToolGroup.ALL)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(stringResource(R.string.full_development_tools_installed))
+            }
+        } else {
+            Button(
+                onClick = onInstallSelected,
+                enabled = !busy && missingSelected,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.development_tools_install_selected))
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = onInstallAll,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.development_tools_install_all))
+            }
+        }
+    }
+}
+
+
 private fun DevelopmentToolsCard(
     installed: Boolean,
     busy: Boolean,
