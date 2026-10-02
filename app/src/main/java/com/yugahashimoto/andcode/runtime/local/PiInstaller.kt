@@ -26,9 +26,13 @@ object PiInstaller {
     fun isInstalledIn(rootfs: File): Boolean {
         val binary = File(rootfs, "$BIN_DIR/$PI_BINARY")
         val cli = File(rootfs, "$LIB_DIR/$NPM_CLI_REL")
-        val deps = File(rootfs, "$LIB_DIR/node_modules")
-        return binary.isFile && cli.isFile && deps.isDirectory
+        // node_modules is repaired on connect when missing; do not treat a partial npm deps
+        // tree as "not installed" or the whole agent disappears from the UI after a mid-install kill.
+        return binary.isFile && cli.isFile
     }
+
+    fun hasNpmDependencies(rootfs: File): Boolean =
+        File(rootfs, "$LIB_DIR/node_modules").isDirectory
 
     fun installedVersion(rootfs: File): String? =
         runCatching {
