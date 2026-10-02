@@ -717,7 +717,7 @@ private fun DevelopmentToolsStep(
                 onClick = { onSelectedGroupIdsChanged(emptySet()) },
                 enabled = !installPending && selectedGroupIds.isNotEmpty(),
             ) {
-                Text(stringResource(R.string.development_tools_install_all).let { /* reuse clear via select none label */ "Clear" })
+                Text("Clear")
             }
         }
         DevelopmentToolGroup.entries.forEach { group ->
