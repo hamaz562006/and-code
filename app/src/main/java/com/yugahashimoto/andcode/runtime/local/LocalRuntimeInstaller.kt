@@ -384,8 +384,10 @@ class LocalRuntimeInstaller(
                     metadata.withDevelopmentGroups(groups).copy(
                         fullDebianDevelopmentToolsInstalled =
                             metadata.has(LocalAgent.ANTIGRAVITY) &&
-                                (metadata.fullDebianDevelopmentToolsInstalled ||
-                                    groups.containsAll(DevelopmentToolGroup.ALL)),
+                                (
+                                    metadata.fullDebianDevelopmentToolsInstalled ||
+                                        groups.containsAll(DevelopmentToolGroup.ALL)
+                                    ),
                     )
                 val encoded = json.encodeToString(updated)
                 File(active, METADATA_FILE).writeText(encoded)

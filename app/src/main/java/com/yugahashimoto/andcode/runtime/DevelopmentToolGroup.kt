@@ -19,8 +19,18 @@ enum class DevelopmentToolGroup(
         approxSizeLabel = "~20 MB",
         packages =
             listOf(
-                "tree", "file", "less", "nano", "vim", "zip", "unzip", "sqlite",
-                "util-linux", "gcompat", "patch", "pkgconf",
+                "tree",
+                "file",
+                "less",
+                "nano",
+                "vim",
+                "zip",
+                "unzip",
+                "sqlite",
+                "util-linux",
+                "gcompat",
+                "patch",
+                "pkgconf",
             ),
     ),
     ANDROID_JAVA(
@@ -73,6 +83,7 @@ enum class DevelopmentToolGroup(
         fun packagesFor(groups: Collection<DevelopmentToolGroup>): List<String> =
             groups.flatMap { it.packages }.distinct()
 
-        val ALL: Set<DevelopmentToolGroup> get() = entries.toSet()
+        val ALL: Set<DevelopmentToolGroup>
+            get() = entries.toSet()
     }
 }
