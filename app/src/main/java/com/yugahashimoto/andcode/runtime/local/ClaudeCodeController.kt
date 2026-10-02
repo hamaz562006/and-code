@@ -146,7 +146,7 @@ class ClaudeCodeController(
      * Safe to call when only OpenCode is installed: the sandbox is shared, so this adds a package
      * rather than reinstalling everything.
      */
-    fun install(installFullDevelopmentTools: Boolean = false) {
+    fun install(developmentToolGroups: Set<DevelopmentToolGroup> = emptySet()) {
         if (installJob?.isActive == true) return
         installJob =
             scope.launch(Dispatchers.IO) {
@@ -156,9 +156,9 @@ class ClaudeCodeController(
                             report(ClaudeInstallStatus.Installing(R.string.claude_step_preparing_runtime))
                             installer.install(
                                 agents = setOf(LocalAgent.CLAUDE_CODE),
-                                developmentToolGroups = installFullDevelopmentTools,
+                                developmentToolGroups = developmentToolGroups,
                             ) { _, _, _ -> }
-                        } else if (developmentToolGroups) {
+                        } else if (developmentToolGroups.isNotEmpty()) {
                             report(ClaudeInstallStatus.Installing(R.string.install_step_installing_dev_tools))
                             installer.installDevelopmentToolGroups(developmentToolGroups)
                         }
