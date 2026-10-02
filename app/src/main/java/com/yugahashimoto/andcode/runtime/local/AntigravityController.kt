@@ -1,6 +1,7 @@
 package com.yugahashimoto.andcode.runtime.local
 
 import com.yugahashimoto.andcode.core.runtime.RuntimeWorkTracker
+import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -141,14 +142,14 @@ class AntigravityController(
      */
     fun install(
         agents: Set<LocalAgent> = setOf(LocalAgent.ANTIGRAVITY),
-        installFullDevelopmentTools: Boolean = false,
+        developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
     ) {
         if (mutableState.value.install is AntigravityInstallStatus.Installing) return
         mutableState.value = mutableState.value.copy(install = AntigravityInstallStatus.Installing(0f, ""))
         scope.launch {
             runtimeWork.withLease(INSTALL_LEASE_TAG) {
                 runCatching {
-                    installer.install(agents + LocalAgent.ANTIGRAVITY, installFullDevelopmentTools) { progress, step, _ ->
+                    installer.install(agents + LocalAgent.ANTIGRAVITY, developmentToolGroups) { progress, step, _ ->
                         mutableState.value = mutableState.value.copy(install = AntigravityInstallStatus.Installing(progress, step))
                     }
                 }

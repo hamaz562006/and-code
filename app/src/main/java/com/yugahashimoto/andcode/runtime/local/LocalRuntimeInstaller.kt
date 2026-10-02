@@ -3,6 +3,7 @@ package com.yugahashimoto.andcode.runtime.local
 import android.content.Context
 import android.system.Os
 import com.yugahashimoto.andcode.R
+import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -48,7 +49,7 @@ class LocalRuntimeInstaller(
      */
     suspend fun install(
         agents: Set<LocalAgent> = setOf(LocalAgent.OPEN_CODE),
-        installFullDevelopmentTools: Boolean = false,
+        developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
         /**
          * Progress, the step to show, and which agent that step belongs to - null for the shared
          * Alpine environment every agent runs in. One install provisions the whole selection, so
@@ -76,8 +77,9 @@ class LocalRuntimeInstaller(
                 )
             // Runtimes created before this option existed already contain the full toolchain, and
             // adding another agent must not silently remove it by rebuilding a smaller rootfs.
-            val includeFullDevelopmentTools =
-                installFullDevelopmentTools || existingMetadata?.fullDevelopmentToolsInstalled == true
+            val groupsToInstall =
+                developmentToolGroups + (existingMetadata?.installedDevelopmentGroups() ?: emptySet())
+            val includeFullDevelopmentTools = groupsToInstall.containsAll(DevelopmentToolGroup.ALL)
             require(requestedAgents.isNotEmpty()) { "At least one agent must be selected" }
             val commandSuite = EmbeddedCommandSuite(context, runtimeDirectory, abi).ensureInstalled()
             val manifest = manifestReader.read()
@@ -172,11 +174,7 @@ class LocalRuntimeInstaller(
                     rootfs = rootfs,
                     suite = commandSuite,
                     packages =
-                        if (includeFullDevelopmentTools) {
-                            REQUIRED_RUNTIME_PACKAGES + OPTIONAL_DEVELOPMENT_PACKAGES
-                        } else {
-                            REQUIRED_RUNTIME_PACKAGES
-                        },
+                        REQUIRED_RUNTIME_PACKAGES + DevelopmentToolGroup.packagesFor(groupsToInstall),
                 )
                 if (LocalAgent.CLAUDE_CODE in requestedAgents) {
                     onClaude(0.93f, context.getString(R.string.install_step_installing_claude_code))
@@ -252,7 +250,9 @@ class LocalRuntimeInstaller(
                         abi = abi,
                         components = requestedAgents.map(LocalAgent::id).toSet(),
                         fullDevelopmentToolsInstalled = includeFullDevelopmentTools,
-                        fullDebianDevelopmentToolsInstalled = includeFullDevelopmentTools && antigravityRootfs != null,
+                        fullDebianDevelopmentToolsInstalled =
+                            includeFullDevelopmentTools && antigravityRootfs != null,
+                        installedDevelopmentToolGroups = groupsToInstall.map { it.id }.toSet(),
                     )
                 File(staging, METADATA_FILE).writeText(json.encodeToString(metadata))
                 onShared(0.96f, context.getString(R.string.install_step_activating_runtime))
@@ -353,7 +353,10 @@ class LocalRuntimeInstaller(
     }
 
     /** Installs the optional toolchain into the active sandbox without rebuilding the runtime. */
-    suspend fun installFullDevelopmentTools(onProgress: (Float?, String, LocalAgent?) -> Unit = { _, _, _ -> }): LocalRuntimeMetadata =
+    suspend fun installDevelopmentToolGroups(
+        groups: Set<DevelopmentToolGroup>,
+        onProgress: (Float?, String, LocalAgent?) -> Unit = { _, _, _ -> },
+    ): LocalRuntimeMetadata =
         withContext(Dispatchers.IO) {
             accessCoordinator.write {
                 val active = File(runtimeDirectory, "environment")
@@ -368,7 +371,8 @@ class LocalRuntimeInstaller(
 
                 val suite = EmbeddedCommandSuite(context, runtimeDirectory, abi).ensureInstalled()
                 onProgress(null, context.getString(R.string.install_step_installing_dev_tools), null)
-                if (!metadata.fullDevelopmentToolsInstalled) installPackages(rootfs, suite, OPTIONAL_DEVELOPMENT_PACKAGES)
+                val missing = groups - metadata.installedDevelopmentGroups()
+                if (missing.isNotEmpty()) installPackages(rootfs, suite, DevelopmentToolGroup.packagesFor(missing))
                 if (metadata.has(LocalAgent.ANTIGRAVITY) && !metadata.fullDebianDevelopmentToolsInstalled) {
                     val antigravityRootfs = File(active, "antigravity-rootfs")
                     require(antigravityRootfs.isDirectory) { "The Antigravity Linux environment is not installed" }
@@ -377,9 +381,11 @@ class LocalRuntimeInstaller(
                 }
 
                 val updated =
-                    metadata.copy(
-                        fullDevelopmentToolsInstalled = true,
-                        fullDebianDevelopmentToolsInstalled = metadata.has(LocalAgent.ANTIGRAVITY),
+                    metadata.withDevelopmentGroups(groups).copy(
+                        fullDebianDevelopmentToolsInstalled =
+                            metadata.has(LocalAgent.ANTIGRAVITY) &&
+                                (metadata.fullDebianDevelopmentToolsInstalled ||
+                                    groups.containsAll(DevelopmentToolGroup.ALL)),
                     )
                 val encoded = json.encodeToString(updated)
                 File(active, METADATA_FILE).writeText(encoded)
@@ -841,8 +847,12 @@ class LocalRuntimeInstaller(
                 "py3-pillow",
             )
 
-        /** Project-specific compilers, language SDKs, editors, and convenience utilities. */
-        val OPTIONAL_DEVELOPMENT_PACKAGES =
+        /** Flattened optional packages (all [DevelopmentToolGroup]s). Prefer group-based install. */
+        val OPTIONAL_DEVELOPMENT_PACKAGES: List<String>
+            get() = DevelopmentToolGroup.packagesFor(DevelopmentToolGroup.ALL)
+
+        @Deprecated("Use DevelopmentToolGroup", replaceWith = ReplaceWith("DevelopmentToolGroup.packagesFor(groups)"))
+        private val OPTIONAL_DEVELOPMENT_PACKAGES_LEGACY =
             listOf(
                 "tree",
                 "file",

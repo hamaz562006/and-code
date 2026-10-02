@@ -942,7 +942,7 @@ fun AndCodeApp(
                             fullDevelopmentToolsInstallFailed =
                                 (localRuntimeLastOperation as? LocalRuntimeOperationResult.Failed)?.operation ==
                                     "development-tools-install",
-                            onStartSetup = { agents, installFullDevelopmentTools ->
+                            onStartSetup = { agents, developmentToolGroups ->
                                 // Ticking Claude Code or Antigravity next to OpenCode used to install
                                 // neither of them: the two branches below were guarded on OpenCode
                                 // *not* being selected, and the OpenCode path never received the
@@ -951,17 +951,17 @@ fun AndCodeApp(
                                 // already knew how to do - and it must stay one install, because a
                                 // second one would race it for the same staging directory.
                                 if (com.yugahashimoto.andcode.runtime.LocalAgent.OPEN_CODE in agents) {
-                                    workspaceViewModel.setupLocalRuntime(agents, installFullDevelopmentTools)
+                                    workspaceViewModel.setupLocalRuntime(agents, developmentToolGroups)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY in agents) {
-                                    app.antigravityController.install(agents, installFullDevelopmentTools)
+                                    app.antigravityController.install(agents, developmentToolGroups)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CODEX in agents) {
                                     // No OpenCode to carry the install: Codex's own install provisions
                                     // the shared environment and every other selected agent with it.
-                                    app.codexController.install(agents, installFullDevelopmentTools)
+                                    app.codexController.install(agents, developmentToolGroups)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.PI in agents) {
-                                    app.piController.install(agents, installFullDevelopmentTools)
+                                    app.piController.install(agents, developmentToolGroups)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE in agents) {
-                                    workspaceViewModel.installClaudeCode(installFullDevelopmentTools)
+                                    workspaceViewModel.installClaudeCode(developmentToolGroups)
                                 }
                             },
                             onSelectClaudePermissionMode = { mode ->

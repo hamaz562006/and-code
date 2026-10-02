@@ -1,6 +1,7 @@
 package com.yugahashimoto.andcode.runtime.local
 
 import com.yugahashimoto.andcode.core.runtime.RuntimeWorkTracker
+import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.RuntimeState
 import kotlinx.coroutines.CancellationException
@@ -114,7 +115,7 @@ class PiController(
      */
     fun install(
         agents: Set<LocalAgent> = setOf(LocalAgent.PI),
-        installFullDevelopmentTools: Boolean = false,
+        developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
     ) {
         if (mutableState.value.install is PiInstallStatus.Installing) return
         mutableState.update { it.copy(install = PiInstallStatus.Installing()) }
@@ -124,11 +125,11 @@ class PiController(
                     val existing = installer.installedMetadata()
                     val othersMissing = (agents - LocalAgent.PI).any { existing?.has(it) != true }
                     if (installer.installedRuntime() == null || othersMissing) {
-                        installer.install(agents + LocalAgent.PI, installFullDevelopmentTools) { progress, step, _ ->
+                        installer.install(agents + LocalAgent.PI, developmentToolGroups) { progress, step, _ ->
                             mutableState.update { it.copy(install = PiInstallStatus.Installing(progress, step)) }
                         }
                     } else {
-                        if (installFullDevelopmentTools) installer.installFullDevelopmentTools()
+                        if (developmentToolGroups.isNotEmpty()) installer.installDevelopmentToolGroups(developmentToolGroups)
                         runCatching { installer.installPackagesIntoActive(listOf("nodejs", "npm", "icu-data-full")) }
                         runtime.install(abi)
                         installer.recordAgent(LocalAgent.PI)

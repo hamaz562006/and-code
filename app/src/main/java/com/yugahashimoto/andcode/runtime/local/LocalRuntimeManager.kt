@@ -1,5 +1,6 @@
 package com.yugahashimoto.andcode.runtime.local
 
+import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import kotlinx.coroutines.CancellationException
@@ -35,15 +36,37 @@ data class LocalRuntimeMetadata(
     /** Legacy runtimes installed the complete Alpine toolchain, but not its Debian equivalent. */
     @SerialName("fullDevelopmentToolsInstalled") val fullDevelopmentToolsInstalled: Boolean = true,
     @SerialName("fullDebianDevelopmentToolsInstalled") val fullDebianDevelopmentToolsInstalled: Boolean = false,
+    /** Optional [DevelopmentToolGroup] ids. Empty + [fullDevelopmentToolsInstalled] true ⇒ legacy "all groups". */
+    @SerialName("installedDevelopmentToolGroups") val installedDevelopmentToolGroups: Set<String> = emptySet(),
 ) {
     fun has(agent: LocalAgent): Boolean = agent.id in components
 
-    fun hasFullDevelopmentTools(): Boolean =
-        fullDevelopmentToolsInstalled && (!has(LocalAgent.ANTIGRAVITY) || fullDebianDevelopmentToolsInstalled)
+    fun installedDevelopmentGroups(): Set<DevelopmentToolGroup> {
+        if (fullDevelopmentToolsInstalled && installedDevelopmentToolGroups.isEmpty()) {
+            return DevelopmentToolGroup.ALL
+        }
+        return installedDevelopmentToolGroups.mapNotNull { DevelopmentToolGroup.fromId(it) }.toSet()
+    }
+
+    fun hasDevelopmentGroup(group: DevelopmentToolGroup): Boolean = group in installedDevelopmentGroups()
+
+    fun hasFullDevelopmentTools(): Boolean {
+        val groups = installedDevelopmentGroups()
+        return groups.containsAll(DevelopmentToolGroup.ALL) &&
+            (!has(LocalAgent.ANTIGRAVITY) || fullDebianDevelopmentToolsInstalled)
+    }
 
     fun with(agent: LocalAgent): LocalRuntimeMetadata = copy(components = components + agent.id)
 
     fun without(agent: LocalAgent): LocalRuntimeMetadata = copy(components = components - agent.id)
+
+    fun withDevelopmentGroups(groups: Set<DevelopmentToolGroup>): LocalRuntimeMetadata {
+        val merged = installedDevelopmentGroups() + groups
+        return copy(
+            installedDevelopmentToolGroups = merged.map { it.id }.toSet(),
+            fullDevelopmentToolsInstalled = merged.containsAll(DevelopmentToolGroup.ALL),
+        )
+    }
 }
 
 class LocalRuntimeManager(
@@ -108,7 +131,7 @@ class LocalRuntimeManager(
 
     suspend fun installAndStart(
         agents: Set<LocalAgent> = setOf(LocalAgent.OPEN_CODE),
-        installFullDevelopmentTools: Boolean = false,
+        developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
     ): Result<LocalRuntimeStatus.Ready> =
         operationMutex.withLock {
             val configuredInstaller =
@@ -116,7 +139,7 @@ class LocalRuntimeManager(
                     ?: return@withLock Result.failure(IllegalStateException("Local runtime installer is not configured"))
             runCatching {
                 val installed =
-                    configuredInstaller.install(agents, installFullDevelopmentTools) { progress, step, agent ->
+                    configuredInstaller.install(agents, developmentToolGroups) { progress, step, agent ->
                         mutableState.value = LocalRuntimeStatus.Installing(progress, step, agent)
                     }
                 mutableState.value = LocalRuntimeStatus.Stopped(installed.metadata.version, installed.metadata.port)
@@ -224,7 +247,7 @@ class LocalRuntimeManager(
                                 ?.toSet()
                                 ?.takeIf(Set<LocalAgent>::isNotEmpty)
                                 ?: setOf(LocalAgent.OPEN_CODE),
-                        installFullDevelopmentTools = previousMetadata?.fullDevelopmentToolsInstalled == true,
+                        developmentToolGroups = previousMetadata?.installedDevelopmentGroups() ?: emptySet(),
                     ) { progress, step, agent ->
                         mutableState.value = LocalRuntimeStatus.Installing(progress, step, agent)
                     }
@@ -239,6 +262,9 @@ class LocalRuntimeManager(
 
     // UI readers must not wait on the installer's write lock during a long package download.
     fun fullDevelopmentToolsInstalled(): Boolean = readMetadata()?.hasFullDevelopmentTools() == true
+
+    fun installedDevelopmentGroups(): Set<DevelopmentToolGroup> =
+        readMetadata()?.installedDevelopmentGroups() ?: emptySet()
 
     fun runtimeEnvironmentInstalled(): Boolean = readMetadata() != null && File(runtimeDirectory, "environment/rootfs").isDirectory
 
@@ -256,18 +282,23 @@ class LocalRuntimeManager(
     fun hasAgent(agent: LocalAgent): Boolean = readMetadata()?.has(agent) == true
 
     suspend fun installFullDevelopmentTools(): Result<Unit> =
+        installDevelopmentToolGroups(DevelopmentToolGroup.ALL)
+
+    suspend fun installDevelopmentToolGroups(groups: Set<DevelopmentToolGroup>): Result<Unit> =
         operationMutex.withLock {
             val configuredInstaller =
                 installer
                     ?: return@withLock Result.failure(IllegalStateException("Local runtime installer is not configured"))
-            if (configuredInstaller.installedMetadata()?.hasFullDevelopmentTools() == true) {
+            val already = configuredInstaller.installedMetadata()?.installedDevelopmentGroups() ?: emptySet()
+            val missing = groups - already
+            if (missing.isEmpty()) {
                 return@withLock Result.success(Unit)
             }
             mutableLastOperation.value = null
             val wasRunning = status() is LocalRuntimeStatus.Ready
             try {
                 if (wasRunning) withContext(Dispatchers.IO) { processLauncher?.stop() }
-                configuredInstaller.installFullDevelopmentTools { progress, step, agent ->
+                configuredInstaller.installDevelopmentToolGroups(missing) { progress, step, agent ->
                     mutableState.value = LocalRuntimeStatus.Installing(progress, step, agent)
                 }
                 val installed = configuredInstaller.installedRuntime() ?: error("Local runtime is not installed")
