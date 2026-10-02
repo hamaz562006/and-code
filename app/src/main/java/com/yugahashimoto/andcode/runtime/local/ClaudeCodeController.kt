@@ -2,6 +2,7 @@ package com.yugahashimoto.andcode.runtime.local
 
 import com.yugahashimoto.andcode.R
 import com.yugahashimoto.andcode.core.runtime.RuntimeWorkTracker
+import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -157,9 +158,9 @@ class ClaudeCodeController(
                                 agents = setOf(LocalAgent.CLAUDE_CODE),
                                 installFullDevelopmentTools = installFullDevelopmentTools,
                             ) { _, _, _ -> }
-                        } else if (installFullDevelopmentTools) {
+                        } else if (developmentToolGroups) {
                             report(ClaudeInstallStatus.Installing(R.string.install_step_installing_dev_tools))
-                            installer.installFullDevelopmentTools()
+                            installer.installDevelopmentToolGroups(developmentToolGroups)
                         }
                         report(ClaudeInstallStatus.Installing(R.string.claude_step_adding_repository))
                         target.install { step ->

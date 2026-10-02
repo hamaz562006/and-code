@@ -1,3 +1,4 @@
+import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 package com.yugahashimoto.andcode.feature.workspace
 
 import androidx.compose.foundation.horizontalScroll
@@ -197,6 +198,22 @@ private fun DevelopmentToolsCard(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Spacer(Modifier.height(10.dp))
+        DevelopmentToolGroup.entries.forEach { group ->
+            Text(
+                text =
+                    stringResource(group.displayNameRes) +
+                        " · " +
+                        group.approxSizeLabel +
+                        if (installed) {
+                            " · " + stringResource(R.string.development_tools_group_installed)
+                        } else {
+                            ""
+                        },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Spacer(Modifier.height(10.dp))
         if (installed) {
             Row(

@@ -1,6 +1,7 @@
 package com.yugahashimoto.andcode.runtime.local
 
 import com.yugahashimoto.andcode.core.runtime.RuntimeWorkTracker
+import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.RuntimeState
 import kotlinx.coroutines.CoroutineScope
@@ -92,7 +93,7 @@ class CodexController(
      */
     fun install(
         agents: Set<LocalAgent> = setOf(LocalAgent.CODEX),
-        installFullDevelopmentTools: Boolean = false,
+        developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
     ) {
         if (mutableState.value.install is CodexInstallStatus.Installing) return
         mutableState.update { it.copy(install = CodexInstallStatus.Installing()) }
@@ -105,11 +106,11 @@ class CodexController(
                     // already there); only adding Codex alone to an existing environment can skip it.
                     val othersMissing = (agents - LocalAgent.CODEX).any { existing?.has(it) != true }
                     if (installer.installedRuntime() == null || othersMissing) {
-                        installer.install(agents + LocalAgent.CODEX, installFullDevelopmentTools) { progress, step, _ ->
+                        installer.install(agents + LocalAgent.CODEX, developmentToolGroups) { progress, step, _ ->
                             mutableState.update { it.copy(install = CodexInstallStatus.Installing(progress, step)) }
                         }
                     } else {
-                        if (installFullDevelopmentTools) installer.installFullDevelopmentTools()
+                        if (developmentToolGroups) installer.installDevelopmentToolGroups(developmentToolGroups)
                         runtime.install(abi)
                         // Recorded so a later install that rebuilds the sandbox keeps Codex.
                         installer.recordAgent(LocalAgent.CODEX)
