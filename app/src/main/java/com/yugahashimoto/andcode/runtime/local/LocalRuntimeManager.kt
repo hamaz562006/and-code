@@ -603,10 +603,10 @@ class LocalRuntimeManager(
      */
     internal suspend fun startInstalled(installed: LocalRuntimeInstaller.InstalledRuntime): LocalRuntimeStatus.Ready =
         withContext(Dispatchers.IO) {
-            // Shared rootfs only (Pi / Codex / … without OpenCode): mark Ready, do not exec opencode.
-            if (!installed.metadata.has(LocalAgent.OPEN_CODE) ||
-                !File(installed.rootfs, "usr/local/bin/opencode").isFile
-            ) {
+            // Shared rootfs only (Pi / Codex / … without OpenCode in metadata): mark Ready, do not
+            // exec opencode. When OPEN_CODE is listed, keep the normal start path (tests and real
+            // OpenCode installs still write the system prompt and launch the process).
+            if (!installed.metadata.has(LocalAgent.OPEN_CODE)) {
                 val version = installed.metadata.version.ifBlank { "sandbox" }
                 val port = installed.metadata.port.takeIf { it in 1..65535 } ?: 0
                 val ready = LocalRuntimeStatus.Ready(version, port)
