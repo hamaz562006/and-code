@@ -604,7 +604,6 @@ class LocalRuntimeService : Service() {
         releaseWakeLock()
     }
 
-
     /** Subtitle under the local-runtime notification: OpenCode host:port, or Pi/sandbox label. */
     private fun runtimeNotificationDetail(
         version: String,
