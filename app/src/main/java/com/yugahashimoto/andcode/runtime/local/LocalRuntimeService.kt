@@ -378,9 +378,7 @@ class LocalRuntimeService : Service() {
             LocalRuntimeServiceCommand.InstallAndStart -> {
                 autoRestartEnabled = true
                 val agents = localRuntimeInstallAgents(intent?.getStringArrayExtra(EXTRA_AGENTS))
-                val installFullDevelopmentTools = intent?.getBooleanExtra(EXTRA_FULL_DEVELOPMENT_TOOLS, false) == true
-                val groups =
-                    if (installFullDevelopmentTools) DevelopmentToolGroup.ALL else emptySet()
+                val groups = developmentToolGroupsFrom(intent)
                 launchOperation { manager.installAndStart(agents, groups) }
             }
             LocalRuntimeServiceCommand.InstallFullDevelopmentTools -> {
@@ -736,6 +734,7 @@ class LocalRuntimeService : Service() {
         /** Ids of the agents an install should provision; see [LocalRuntimeInstaller.install]. */
         const val EXTRA_AGENTS = "com.yugahashimoto.andcode.local.AGENTS"
         const val EXTRA_FULL_DEVELOPMENT_TOOLS = "com.yugahashimoto.andcode.local.FULL_DEVELOPMENT_TOOLS"
+        const val EXTRA_DEVELOPMENT_TOOL_GROUPS = "com.yugahashimoto.andcode.local.DEVELOPMENT_TOOL_GROUPS"
 
         /**
          * Sends a command to the runtime service, starting it when it is not running yet.
@@ -750,13 +749,34 @@ class LocalRuntimeService : Service() {
             context: Context,
             action: String,
             agents: Set<LocalAgent> = emptySet(),
-            installFullDevelopmentTools: Boolean = false,
+            developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
         ) {
             val intent = Intent(context, LocalRuntimeService::class.java).setAction(action)
             if (agents.isNotEmpty()) intent.putExtra(EXTRA_AGENTS, agents.map(LocalAgent::id).toTypedArray())
-            if (installFullDevelopmentTools) intent.putExtra(EXTRA_FULL_DEVELOPMENT_TOOLS, true)
+            if (developmentToolGroups.isNotEmpty()) {
+                intent.putExtra(
+                    EXTRA_DEVELOPMENT_TOOL_GROUPS,
+                    developmentToolGroups.map { it.id }.toTypedArray(),
+                )
+                // Legacy boolean for older listeners that only understand all-or-nothing.
+                if (developmentToolGroups.containsAll(DevelopmentToolGroup.ALL)) {
+                    intent.putExtra(EXTRA_FULL_DEVELOPMENT_TOOLS, true)
+                }
+            }
             runCatching { ContextCompat.startForegroundService(context, intent) }
                 .onFailure { error -> Log.w(TAG, "Foreground start refused for $action", error) }
+        }
+
+        private fun developmentToolGroupsFrom(intent: Intent?): Set<DevelopmentToolGroup> {
+            val ids = intent?.getStringArrayExtra(EXTRA_DEVELOPMENT_TOOL_GROUPS)
+            if (!ids.isNullOrEmpty()) {
+                return ids.mapNotNull { DevelopmentToolGroup.fromId(it) }.toSet()
+            }
+            return if (intent?.getBooleanExtra(EXTRA_FULL_DEVELOPMENT_TOOLS, false) == true) {
+                DevelopmentToolGroup.ALL
+            } else {
+                emptySet()
+            }
         }
     }
 }
@@ -769,12 +789,12 @@ class LocalRuntimeServiceController(private val context: Context) {
      */
     fun installAndStart(
         agents: Set<LocalAgent> = setOf(LocalAgent.OPEN_CODE),
-        installFullDevelopmentTools: Boolean = false,
+        developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
     ) = LocalRuntimeService.send(
         context,
         LocalRuntimeService.ACTION_INSTALL_AND_START,
         agents,
-        installFullDevelopmentTools,
+        developmentToolGroups,
     )
 
     fun installFullDevelopmentTools() = LocalRuntimeService.send(context, LocalRuntimeService.ACTION_INSTALL_FULL_DEVELOPMENT_TOOLS)

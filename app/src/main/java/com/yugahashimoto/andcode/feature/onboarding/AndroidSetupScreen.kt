@@ -311,7 +311,7 @@ fun AndroidSetupScreen(
                             // CodexController.install already installs Codex alone when the rest are
                             // there.
                             if (antigravity.error != null) setOf(LocalAgent.ANTIGRAVITY) else selectedAgents,
-                            selectedDevToolGroupIds.isNotEmpty(),
+                            selectedDevGroups,
                         )
                     }
                 } else {
