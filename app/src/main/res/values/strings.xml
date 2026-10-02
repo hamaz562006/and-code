@@ -405,6 +405,8 @@
     <string name="notification_runtime_stopped">Local runtime is stopped</string>
     <string name="notification_runtime_ready">Local runtime is running</string>
     <string name="notification_runtime_ready_detail">OpenCode %1$s · 127.0.0.1:%2$d</string>
+    <string name="notification_runtime_ready_detail_pi">Pi · local sandbox</string>
+    <string name="notification_runtime_ready_detail_sandbox">Local sandbox ready</string>
     <string name="notification_runtime_broken">Local runtime has a problem</string>
     <string name="notification_runtime_unsupported_device">Not available on this device</string>
     <string name="notification_channel_local_runtime_description">Status of the local runtime on this Android device</string>

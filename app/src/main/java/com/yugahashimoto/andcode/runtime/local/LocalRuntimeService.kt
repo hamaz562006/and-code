@@ -651,11 +651,25 @@ class LocalRuntimeService : Service() {
                         getString(R.string.notification_runtime_stopped),
                         getString(R.string.capability_version, status.version),
                     )
-                is LocalRuntimeStatus.Ready ->
+                is LocalRuntimeStatus.Ready -> {
+                    val detail =
+                        when {
+                            manager.hasOpenCode() ->
+                                getString(
+                                    R.string.notification_runtime_ready_detail,
+                                    status.version,
+                                    status.port,
+                                )
+                            manager.hasAgent(LocalAgent.PI) ->
+                                getString(R.string.notification_runtime_ready_detail_pi)
+                            else ->
+                                getString(R.string.notification_runtime_ready_detail_sandbox)
+                        }
                     NotificationState(
                         getString(R.string.notification_runtime_ready),
-                        getString(R.string.notification_runtime_ready_detail, status.version, status.port),
+                        detail,
                     )
+                }
                 is LocalRuntimeStatus.Broken -> NotificationState(getString(R.string.notification_runtime_broken), status.reason)
                 is LocalRuntimeStatus.UnsupportedAbi ->
                     NotificationState(

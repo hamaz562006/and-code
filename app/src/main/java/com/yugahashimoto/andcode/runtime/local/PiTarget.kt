@@ -2,6 +2,8 @@ package com.yugahashimoto.andcode.runtime.local
 
 import com.yugahashimoto.andcode.core.api.McpServer
 import com.yugahashimoto.andcode.core.api.OpenCodeAgent
+import com.yugahashimoto.andcode.core.api.OpenCodeModel
+import com.yugahashimoto.andcode.core.api.OpenCodeProvider
 import com.yugahashimoto.andcode.core.api.OpenCodeEvent
 import com.yugahashimoto.andcode.core.api.OpenCodeFileContent
 import com.yugahashimoto.andcode.core.api.OpenCodeFileNode
@@ -85,7 +87,32 @@ class PiTarget(
 
     override suspend fun health(): OpenCodeHealth = connect().getOrElse { OpenCodeHealth(false, "") }
 
-    override suspend fun listProviders(): ProviderCatalog = PiModels.catalog(connectedIds = runtime.connectedProviderIds())
+    override suspend fun listProviders(): ProviderCatalog =
+        withContext(Dispatchers.IO) {
+            val connected = runtime.connectedProviderIds()
+            val base = PiModels.catalog(connectedIds = connected)
+            val custom =
+                runtime.listCustomProviders().map { entry ->
+                    OpenCodeProvider(
+                        id = entry.id,
+                        name = entry.name,
+                        models =
+                            entry.modelIds.associateWith { mid ->
+                                OpenCodeModel(
+                                    id = mid,
+                                    providerId = entry.id,
+                                    name = mid,
+                                )
+                            },
+                    )
+                }
+            val merged = (base.all + custom).distinctBy { it.id }
+            ProviderCatalog(
+                all = merged,
+                default = base.default,
+                connected = connected.toList(),
+            )
+        }
 
     override suspend fun providerAuthMethods(): Map<String, List<ProviderAuthMethod>> =
         PiModels.SEED_PROVIDERS.associate { seed ->
