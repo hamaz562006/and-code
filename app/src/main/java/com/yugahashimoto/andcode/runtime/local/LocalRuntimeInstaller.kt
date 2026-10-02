@@ -387,7 +387,7 @@ class LocalRuntimeInstaller(
                                 (
                                     metadata.fullDebianDevelopmentToolsInstalled ||
                                         groups.containsAll(DevelopmentToolGroup.ALL)
-                                    ),
+                                ),
                     )
                 val encoded = json.encodeToString(updated)
                 File(active, METADATA_FILE).writeText(encoded)

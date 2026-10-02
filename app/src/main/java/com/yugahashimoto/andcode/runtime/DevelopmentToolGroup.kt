@@ -80,8 +80,7 @@ enum class DevelopmentToolGroup(
     companion object {
         fun fromId(id: String): DevelopmentToolGroup? = entries.firstOrNull { it.id == id }
 
-        fun packagesFor(groups: Collection<DevelopmentToolGroup>): List<String> =
-            groups.flatMap { it.packages }.distinct()
+        fun packagesFor(groups: Collection<DevelopmentToolGroup>): List<String> = groups.flatMap { it.packages }.distinct()
 
         val ALL: Set<DevelopmentToolGroup>
             get() = entries.toSet()
