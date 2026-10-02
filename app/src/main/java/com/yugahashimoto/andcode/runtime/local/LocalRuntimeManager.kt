@@ -152,6 +152,14 @@ class LocalRuntimeManager(
             ) {
                 return@withLock updateToLatestLocked()
             }
+            // Pi-/Codex-only sandboxes have no OpenCode HTTP server — do not launch opencode.
+            if (!hasOpenCode()) {
+                val version = metadata.version.ifBlank { "sandbox" }
+                val port = metadata.port.takeIf { it in 1..65535 } ?: 0
+                return@withLock Result.success(
+                    LocalRuntimeStatus.Ready(version, port).also { mutableState.value = it },
+                )
+            }
             // Same reasoning as computeStatus(): only restart a server that is genuinely gone. A
             // live process that missed a probe is busy, and stopping it here would end whatever it
             // was busy with.
@@ -301,6 +309,11 @@ class LocalRuntimeManager(
 
     suspend fun checkForUpdate(): Result<LocalRuntimeUpdateCheck> =
         operationMutex.withLock {
+            if (!hasOpenCode()) {
+                // Pi-only (and other non-OpenCode) sandboxes have no OpenCode release to check.
+                // Do not publish Failed("Invalid OpenCode version") into the shared lastOperation.
+                return@withLock Result.failure(IllegalStateException("OpenCode is not installed"))
+            }
             val engine =
                 updateEngine
                     ?: return@withLock Result.failure(IllegalStateException("Local runtime updater is not configured"))
@@ -590,6 +603,16 @@ class LocalRuntimeManager(
      */
     internal suspend fun startInstalled(installed: LocalRuntimeInstaller.InstalledRuntime): LocalRuntimeStatus.Ready =
         withContext(Dispatchers.IO) {
+            // Shared rootfs only (Pi / Codex / … without OpenCode): mark Ready, do not exec opencode.
+            if (!installed.metadata.has(LocalAgent.OPEN_CODE) ||
+                !File(installed.rootfs, "usr/local/bin/opencode").isFile
+            ) {
+                val version = installed.metadata.version.ifBlank { "sandbox" }
+                val port = installed.metadata.port.takeIf { it in 1..65535 } ?: 0
+                val ready = LocalRuntimeStatus.Ready(version, port)
+                mutableState.value = ready
+                return@withContext ready
+            }
             val launcher =
                 processLauncher
                     ?: error("Local runtime process launcher is not configured")

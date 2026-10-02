@@ -32,7 +32,18 @@ data class OpenCodeAgentUiState(
                 status is LocalRuntimeStatus.Updating
 
     val installed: Boolean
-        get() = status !is LocalRuntimeStatus.NotInstalled && status !is LocalRuntimeStatus.UnsupportedAbi
+        get() {
+            // Shared sandbox Ready with version "sandbox" means Pi/Codex-only — not OpenCode.
+            val ver =
+                when (val current = status) {
+                    is LocalRuntimeStatus.Ready -> current.version
+                    is LocalRuntimeStatus.Starting -> current.version
+                    is LocalRuntimeStatus.Stopped -> current.version
+                    is LocalRuntimeStatus.Updating -> current.version
+                    else -> return false
+                }
+            return ver.isNotBlank() && ver != "sandbox"
+        }
 
     val version: String?
         get() =
