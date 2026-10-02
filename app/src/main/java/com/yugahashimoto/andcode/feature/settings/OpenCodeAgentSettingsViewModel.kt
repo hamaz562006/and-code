@@ -39,7 +39,7 @@ data class OpenCodeAgentUiState(
                     is LocalRuntimeStatus.Ready -> current.version
                     is LocalRuntimeStatus.Starting -> current.version
                     is LocalRuntimeStatus.Stopped -> current.version
-                    is LocalRuntimeStatus.Updating -> current.version
+                    is LocalRuntimeStatus.Updating -> current.currentVersion
                     else -> return false
                 }
             return ver.isNotBlank() && ver != "sandbox"
