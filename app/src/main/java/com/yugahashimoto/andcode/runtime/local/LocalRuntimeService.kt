@@ -604,6 +604,21 @@ class LocalRuntimeService : Service() {
         releaseWakeLock()
     }
 
+
+    /** Subtitle under the local-runtime notification: OpenCode host:port, or Pi/sandbox label. */
+    private fun runtimeNotificationDetail(
+        version: String,
+        port: Int,
+    ): String =
+        when {
+            manager.hasOpenCode() ->
+                getString(R.string.notification_runtime_ready_detail, version, port)
+            manager.hasAgent(LocalAgent.PI) ->
+                getString(R.string.notification_runtime_ready_detail_pi)
+            else ->
+                getString(R.string.notification_runtime_ready_detail_sandbox)
+        }
+
     private fun notification(status: LocalRuntimeStatus): android.app.Notification {
         val openIntent =
             PendingIntent.getActivity(
@@ -636,7 +651,7 @@ class LocalRuntimeService : Service() {
                 is LocalRuntimeStatus.Starting ->
                     NotificationState(
                         getString(R.string.notification_runtime_starting),
-                        getString(R.string.capability_version, status.version),
+                        runtimeNotificationDetail(status.version, status.port),
                         true,
                     )
                 is LocalRuntimeStatus.Updating ->
@@ -649,27 +664,13 @@ class LocalRuntimeService : Service() {
                 is LocalRuntimeStatus.Stopped ->
                     NotificationState(
                         getString(R.string.notification_runtime_stopped),
-                        getString(R.string.capability_version, status.version),
+                        runtimeNotificationDetail(status.version, status.port),
                     )
-                is LocalRuntimeStatus.Ready -> {
-                    val detail =
-                        when {
-                            manager.hasOpenCode() ->
-                                getString(
-                                    R.string.notification_runtime_ready_detail,
-                                    status.version,
-                                    status.port,
-                                )
-                            manager.hasAgent(LocalAgent.PI) ->
-                                getString(R.string.notification_runtime_ready_detail_pi)
-                            else ->
-                                getString(R.string.notification_runtime_ready_detail_sandbox)
-                        }
+                is LocalRuntimeStatus.Ready ->
                     NotificationState(
                         getString(R.string.notification_runtime_ready),
-                        detail,
+                        runtimeNotificationDetail(status.version, status.port),
                     )
-                }
                 is LocalRuntimeStatus.Broken -> NotificationState(getString(R.string.notification_runtime_broken), status.reason)
                 is LocalRuntimeStatus.UnsupportedAbi ->
                     NotificationState(
