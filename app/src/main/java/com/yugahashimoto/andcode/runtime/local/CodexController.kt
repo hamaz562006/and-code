@@ -110,7 +110,7 @@ class CodexController(
                             mutableState.update { it.copy(install = CodexInstallStatus.Installing(progress, step)) }
                         }
                     } else {
-                        if (developmentToolGroups) installer.installDevelopmentToolGroups(developmentToolGroups)
+                        if (developmentToolGroups.isNotEmpty()) installer.installDevelopmentToolGroups(developmentToolGroups)
                         runtime.install(abi)
                         // Recorded so a later install that rebuilds the sandbox keeps Codex.
                         installer.recordAgent(LocalAgent.CODEX)

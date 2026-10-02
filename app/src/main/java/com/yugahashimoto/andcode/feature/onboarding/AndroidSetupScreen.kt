@@ -88,9 +88,9 @@ private const val TOTAL_STEPS = 4
 
 internal fun shouldStartRuntimeInstall(
     installComplete: Boolean,
-    installFullDevelopmentTools: Boolean,
+    selectedDevelopmentTools: Boolean,
     fullDevelopmentToolsInstalled: Boolean = false,
-): Boolean = !installComplete || (selectedDevToolGroupIds.isNotEmpty() && !fullDevelopmentToolsInstalled)
+): Boolean = !installComplete || (selectedDevelopmentTools && !fullDevelopmentToolsInstalled)
 
 /**
  * Guided setup: choose agents, install them, sign in, then connect GitHub.
@@ -282,7 +282,7 @@ fun AndroidSetupScreen(
                     if (
                         shouldStartRuntimeInstall(
                             agentsInstallComplete,
-                            installFullDevelopmentTools,
+                            selectedDevToolGroupIds.isNotEmpty(),
                             fullDevelopmentToolsInstalled,
                         )
                     ) {
@@ -311,7 +311,7 @@ fun AndroidSetupScreen(
                             // CodexController.install already installs Codex alone when the rest are
                             // there.
                             if (antigravity.error != null) setOf(LocalAgent.ANTIGRAVITY) else selectedAgents,
-                            installFullDevelopmentTools,
+                            selectedDevToolGroupIds.isNotEmpty(),
                         )
                     }
                 } else {

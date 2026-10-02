@@ -156,7 +156,7 @@ class ClaudeCodeController(
                             report(ClaudeInstallStatus.Installing(R.string.claude_step_preparing_runtime))
                             installer.install(
                                 agents = setOf(LocalAgent.CLAUDE_CODE),
-                                installFullDevelopmentTools = installFullDevelopmentTools,
+                                developmentToolGroups = installFullDevelopmentTools,
                             ) { _, _, _ -> }
                         } else if (developmentToolGroups) {
                             report(ClaudeInstallStatus.Installing(R.string.install_step_installing_dev_tools))

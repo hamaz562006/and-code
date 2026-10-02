@@ -17,6 +17,7 @@ import com.yugahashimoto.andcode.MainActivity
 import com.yugahashimoto.andcode.R
 import com.yugahashimoto.andcode.core.lifecycle.AppForeground
 import com.yugahashimoto.andcode.core.runtime.RuntimeWorkTracker
+import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import kotlinx.coroutines.CoroutineScope
@@ -378,7 +379,9 @@ class LocalRuntimeService : Service() {
                 autoRestartEnabled = true
                 val agents = localRuntimeInstallAgents(intent?.getStringArrayExtra(EXTRA_AGENTS))
                 val installFullDevelopmentTools = intent?.getBooleanExtra(EXTRA_FULL_DEVELOPMENT_TOOLS, false) == true
-                launchOperation { manager.installAndStart(agents, installFullDevelopmentTools) }
+                val groups =
+                    if (installFullDevelopmentTools) DevelopmentToolGroup.ALL else emptySet()
+                launchOperation { manager.installAndStart(agents, groups) }
             }
             LocalRuntimeServiceCommand.InstallFullDevelopmentTools -> {
                 val runtimeWasRunning = manager.status() is LocalRuntimeStatus.Ready

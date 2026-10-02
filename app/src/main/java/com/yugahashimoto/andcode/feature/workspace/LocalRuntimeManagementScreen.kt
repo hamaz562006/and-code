@@ -1,7 +1,5 @@
 package com.yugahashimoto.andcode.feature.workspace
 
-import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
-
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.yugahashimoto.andcode.R
+import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import com.yugahashimoto.andcode.runtime.local.AdbConnectionState
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeDiagnostics
