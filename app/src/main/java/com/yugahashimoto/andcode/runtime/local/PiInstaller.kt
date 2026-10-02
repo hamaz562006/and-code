@@ -31,8 +31,7 @@ object PiInstaller {
         return binary.isFile && cli.isFile
     }
 
-    fun hasNpmDependencies(rootfs: File): Boolean =
-        File(rootfs, "$LIB_DIR/node_modules").isDirectory
+    fun hasNpmDependencies(rootfs: File): Boolean = File(rootfs, "$LIB_DIR/node_modules").isDirectory
 
     fun installedVersion(rootfs: File): String? =
         runCatching {
