@@ -423,6 +423,8 @@
     <string name="notification_runtime_stopped">OpenCode المحلي متوقف</string>
     <string name="notification_runtime_ready">OpenCode المحلي قيد التشغيل</string>
     <string name="notification_runtime_ready_detail">OpenCode %1$s · 127.0.0.1:%2$d</string>
+    <string name="notification_runtime_ready_detail_pi">Pi · بيئة محلية</string>
+    <string name="notification_runtime_ready_detail_sandbox">بيئة محلية جاهزة</string>
     <string name="notification_runtime_broken">OpenCode المحلي به مشكلة</string>
     <string name="notification_runtime_unsupported_device">غير متاح على هذا الجهاز</string>
     <string name="notification_channel_local_runtime_description">حالة OpenCode الذي يعمل على جهاز Android هذا</string>
