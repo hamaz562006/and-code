@@ -420,6 +420,8 @@
     <string name="notification_runtime_stopped">OpenCode local está parado</string>
     <string name="notification_runtime_ready">OpenCode local está em execução</string>
     <string name="notification_runtime_ready_detail">OpenCode %1$s · 127.0.0.1:%2$d</string>
+    <string name="notification_runtime_ready_detail_pi">Pi · sandbox local</string>
+    <string name="notification_runtime_ready_detail_sandbox">Sandbox local pronto</string>
     <string name="notification_runtime_broken">OpenCode local tem um problema</string>
     <string name="notification_runtime_unsupported_device">Não disponível neste dispositivo</string>
     <string name="notification_channel_local_runtime_description">Status do OpenCode em execução neste dispositivo Android</string>

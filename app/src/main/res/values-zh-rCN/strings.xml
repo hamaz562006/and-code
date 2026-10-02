@@ -418,6 +418,8 @@
     <string name="notification_runtime_stopped">本地 OpenCode 已停止</string>
     <string name="notification_runtime_ready">本地 OpenCode 正在运行</string>
     <string name="notification_runtime_ready_detail">OpenCode %1$s · 127.0.0.1:%2$d</string>
+    <string name="notification_runtime_ready_detail_pi">Pi · 本地沙箱</string>
+    <string name="notification_runtime_ready_detail_sandbox">本地沙箱已就绪</string>
     <string name="notification_runtime_broken">本地 OpenCode 出现问题</string>
     <string name="notification_runtime_unsupported_device">此设备不可用</string>
     <string name="notification_channel_local_runtime_description">在此 Android 设备上运行的 OpenCode 的状态</string>

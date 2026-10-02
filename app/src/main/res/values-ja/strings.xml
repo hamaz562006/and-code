@@ -418,6 +418,8 @@
     <string name="notification_runtime_stopped">ローカルランタイムは停止中</string>
     <string name="notification_runtime_ready">ローカルランタイムが稼働中</string>
     <string name="notification_runtime_ready_detail">OpenCode %1$s · 127.0.0.1:%2$d</string>
+    <string name="notification_runtime_ready_detail_pi">Pi · ローカルサンドボックス</string>
+    <string name="notification_runtime_ready_detail_sandbox">ローカルサンドボックス準備完了</string>
     <string name="notification_runtime_broken">ローカルランタイムで問題が発生</string>
     <string name="notification_runtime_unsupported_device">この端末では利用できません</string>
     <string name="notification_channel_local_runtime_description">Android端末内で実行するローカルランタイムの状態</string>

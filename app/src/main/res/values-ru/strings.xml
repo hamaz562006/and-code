@@ -421,6 +421,8 @@
     <string name="notification_runtime_stopped">Локальный OpenCode остановлен</string>
     <string name="notification_runtime_ready">Локальный OpenCode работает</string>
     <string name="notification_runtime_ready_detail">OpenCode %1$s · 127.0.0.1:%2$d</string>
+    <string name="notification_runtime_ready_detail_pi">Pi · локальная песочница</string>
+    <string name="notification_runtime_ready_detail_sandbox">Локальная песочница готова</string>
     <string name="notification_runtime_broken">У локального OpenCode проблема</string>
     <string name="notification_runtime_unsupported_device">Недоступно на этом устройстве</string>
     <string name="notification_channel_local_runtime_description">Статус OpenCode, работающего на этом устройстве Android</string>

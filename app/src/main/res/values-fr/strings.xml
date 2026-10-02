@@ -420,6 +420,8 @@
     <string name="notification_runtime_stopped">OpenCode local est arrêté</string>
     <string name="notification_runtime_ready">OpenCode local est en cours d\'exécution</string>
     <string name="notification_runtime_ready_detail">OpenCode %1$s · 127.0.0.1:%2$d</string>
+    <string name="notification_runtime_ready_detail_pi">Pi · bac à sable local</string>
+    <string name="notification_runtime_ready_detail_sandbox">Bac à sable local prêt</string>
     <string name="notification_runtime_broken">OpenCode local a un problème</string>
     <string name="notification_runtime_unsupported_device">Non disponible sur cet appareil</string>
     <string name="notification_channel_local_runtime_description">État d\'OpenCode s\'exécutant sur cet appareil Android</string>
