@@ -1,5 +1,23 @@
 package com.yugahashimoto.andcode.ui.navigation
 
+import java.io.File
+
+import kotlinx.coroutines.withContext
+
+import kotlinx.coroutines.launch
+
+import kotlinx.coroutines.Dispatchers
+
+import androidx.compose.ui.platform.LocalContext
+
+import androidx.compose.material3.SnackbarHostState
+
+import androidx.compose.material3.SnackbarHost
+
+import androidx.activity.result.contract.ActivityResultContracts
+
+import androidx.activity.compose.rememberLauncherForActivityResult
+
 import android.content.Context
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -28,6 +46,8 @@ import com.yugahashimoto.andcode.feature.settings.ModelVisibilityScreen
 import com.yugahashimoto.andcode.feature.settings.OpenCodeAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.OpenCodeAgentSettingsViewModel
 import com.yugahashimoto.andcode.feature.settings.PiAgentSettingsScreen
+import com.yugahashimoto.andcode.runtime.local.RuntimeAgentPackage
+import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.feature.settings.ProviderSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.SettingsScreenV2
 import com.yugahashimoto.andcode.feature.settings.SettingsViewModel
@@ -295,16 +315,112 @@ fun NavGraphBuilder.settingsNavGraph(
         val app = context.applicationContext as com.yugahashimoto.andcode.AndCodeApplication
         val pi by app.piController.state.collectAsState()
         androidx.compose.runtime.LaunchedEffect(Unit) { app.piController.refresh() }
-        PiAgentSettingsScreen(
-            pi = pi,
-            onInstall = { app.piController.install() },
-            onRestart = { app.piRuntime.stopAll() },
-            onStop = { app.piRuntime.stopAll() },
-            onCheckForUpdate = { app.piController.checkForUpdate() },
-            onUpdate = { app.piController.updateToLatest() },
-            onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_PI) },
-            onBack = { navController.popBackStack() },
-        )
+        val scope = rememberCoroutineScope()
+        val snackbar = remember { SnackbarHostState() }
+        var pendingExportFile by remember { mutableStateOf<File?>(null) }
+        val createDocument =
+            rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+                val src = pendingExportFile
+                pendingExportFile = null
+                if (uri == null || src == null) return@rememberLauncherForActivityResult
+                scope.launch {
+                    runCatching {
+                        withContext(Dispatchers.IO) {
+                            context.contentResolver.openOutputStream(uri)?.use { out ->
+                                src.inputStream().use { it.copyTo(out) }
+                            } ?: error("Unable to write package")
+                        }
+                        snackbar.showSnackbar(context.getString(R.string.agent_export_success, src.name))
+                    }.onFailure {
+                        snackbar.showSnackbar(
+                            context.getString(R.string.agent_export_failed, it.message ?: "error"),
+                        )
+                    }
+                    runCatching { src.delete() }
+                }
+            }
+        val openDocument =
+            rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                if (uri == null) return@rememberLauncherForActivityResult
+                scope.launch {
+                    runCatching {
+                        val result =
+                            withContext(Dispatchers.IO) {
+                                val rootfs =
+                                    app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                        ?: error(context.getString(R.string.agent_import_need_runtime))
+                                val tmp = File(app.cacheDir, "import-${System.currentTimeMillis()}.andcode.zip")
+                                context.contentResolver.openInputStream(uri)?.use { input ->
+                                    tmp.outputStream().use { input.copyTo(it) }
+                                } ?: error("Unable to read package")
+                                try {
+                                    val imported = RuntimeAgentPackage.import(tmp, rootfs)
+                                    app.localRuntimeInstaller.recordAgent(imported.agent)
+                                    imported
+                                } finally {
+                                    tmp.delete()
+                                }
+                            }
+                        app.piController.refresh()
+                        snackbar.showSnackbar(
+                            context.getString(
+                                R.string.agent_import_success,
+                                result.manifest.agentId,
+                                result.filesWritten,
+                            ),
+                        )
+                    }.onFailure {
+                        snackbar.showSnackbar(
+                            context.getString(R.string.agent_import_failed, it.message ?: "error"),
+                        )
+                    }
+                }
+            }
+        androidx.compose.foundation.layout.Box {
+            PiAgentSettingsScreen(
+                pi = pi,
+                onInstall = { app.piController.install() },
+                onRestart = { app.piRuntime.stopAll() },
+                onStop = { app.piRuntime.stopAll() },
+                onCheckForUpdate = { app.piController.checkForUpdate() },
+                onUpdate = { app.piController.updateToLatest() },
+                onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_PI) },
+                onExportPackage = {
+                    scope.launch {
+                        runCatching {
+                            val (file, name) =
+                                withContext(Dispatchers.IO) {
+                                    if (!pi.installed) error(context.getString(R.string.agent_export_not_installed))
+                                    val rootfs =
+                                        app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                            ?: error(context.getString(R.string.agent_import_need_runtime))
+                                    val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
+                                    val exported =
+                                        RuntimeAgentPackage.export(
+                                            agent = LocalAgent.PI,
+                                            rootfs = rootfs,
+                                            abi = abi,
+                                            outputDir = File(app.cacheDir, "agent-export"),
+                                            includeConfig = true,
+                                        )
+                                    exported.file to exported.suggestedName
+                                }
+                            pendingExportFile = file
+                            createDocument.launch(name)
+                        }.onFailure {
+                            snackbar.showSnackbar(
+                                context.getString(R.string.agent_export_failed, it.message ?: "error"),
+                            )
+                        }
+                    }
+                },
+                onImportPackage = {
+                    openDocument.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+                },
+                onBack = { navController.popBackStack() },
+            )
+            SnackbarHost(hostState = snackbar)
+        }
     }
 
     composable(ROUTE_SETTINGS_AGENT_OPENCODE) {
