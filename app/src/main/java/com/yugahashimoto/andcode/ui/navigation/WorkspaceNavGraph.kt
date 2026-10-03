@@ -137,43 +137,6 @@ fun NavGraphBuilder.workspaceNavGraph(
         }
         val scope = rememberCoroutineScope()
         val snackbar = remember { SnackbarHostState() }
-        val openDocument =
-            rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-                if (uri == null) return@rememberLauncherForActivityResult
-                scope.launch {
-                    runCatching {
-                        val result =
-                            withContext(Dispatchers.IO) {
-                                val rootfs =
-                                    app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                        ?: error(app.getString(R.string.agent_import_need_runtime))
-                                val tmp = File(app.cacheDir, "import-${System.currentTimeMillis()}.andcode.zip")
-                                app.contentResolver.openInputStream(uri)?.use { input ->
-                                    tmp.outputStream().use { input.copyTo(it) }
-                                } ?: error("Unable to read package")
-                                try {
-                                    val imported = RuntimeAgentPackage.import(tmp, rootfs)
-                                    app.localRuntimeInstaller.recordAgent(imported.agent)
-                                    imported
-                                } finally {
-                                    tmp.delete()
-                                }
-                            }
-                        runCatching { app.piController.refresh() }
-                        snackbar.showSnackbar(
-                            app.getString(
-                                R.string.agent_import_success,
-                                result.manifest.agentId,
-                                result.filesWritten,
-                            ),
-                        )
-                    }.onFailure {
-                        snackbar.showSnackbar(
-                            app.getString(R.string.agent_import_failed, it.message ?: "error"),
-                        )
-                    }
-                }
-            }
         var pendingExportFile by remember { mutableStateOf<java.io.File?>(null) }
         val createDocument =
             rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
@@ -212,9 +175,6 @@ fun NavGraphBuilder.workspaceNavGraph(
                 onSelectAllDevelopmentToolGroups = managementViewModel::selectAllDevelopmentToolGroups,
                 onClearDevelopmentToolGroupSelection = managementViewModel::clearDevelopmentToolGroupSelection,
                 onInstallSelectedDevelopmentToolGroups = managementViewModel::installSelectedDevelopmentToolGroups,
-                onImportAgentPackage = {
-                    openDocument.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
-                },
                 canExportAgentPackage = canExportAgent,
                 onExportAgentPackage = {
                     scope.launch {

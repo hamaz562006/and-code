@@ -40,6 +40,17 @@ import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.RuntimeRegistry
 import com.yugahashimoto.andcode.ui.components.systemPromptPresetLabel
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
+import com.yugahashimoto.andcode.AndCodeApplication
+import com.yugahashimoto.andcode.runtime.local.RuntimeAgentPackage
+import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
 fun NavGraphBuilder.settingsNavGraph(
     navController: NavController,
     settingsViewModel: SettingsViewModel,
@@ -296,9 +307,11 @@ fun NavGraphBuilder.settingsNavGraph(
         val app = context.applicationContext as com.yugahashimoto.andcode.AndCodeApplication
         val pi by app.piController.state.collectAsState()
         androidx.compose.runtime.LaunchedEffect(Unit) { app.piController.refresh() }
+        val importPackage = rememberAgentPackageImporter()
         PiAgentSettingsScreen(
             pi = pi,
             onInstall = { app.piController.install() },
+            onImportPackage = importPackage,
             onRestart = { app.piRuntime.stopAll() },
             onStop = { app.piRuntime.stopAll() },
             onCheckForUpdate = { app.piController.checkForUpdate() },
@@ -332,8 +345,10 @@ fun NavGraphBuilder.settingsNavGraph(
                     },
             )
         val openCodeState by openCodeViewModel.state.collectAsState()
+        val importPackage = rememberAgentPackageImporter()
         OpenCodeAgentSettingsScreen(
             state = openCodeState,
+            onImportPackage = importPackage,
             onStart = openCodeViewModel::start,
             onStop = openCodeViewModel::stop,
             onRestart = openCodeViewModel::restart,
@@ -378,9 +393,11 @@ fun NavGraphBuilder.settingsNavGraph(
     }
 
     composable(ROUTE_SETTINGS_AGENT_CLAUDE) {
+        val importPackage = rememberAgentPackageImporter()
         ClaudeCodeAgentSettingsScreen(
             claude = claude(),
             onInstall = claudeActions.onInstall,
+            onImportPackage = importPackage,
             onUpdate = claudeActions.onUpdate,
             onSelectPermissionMode = claudeActions.onSelectPermissionMode,
             onSignIn = claudeActions.onSignIn,
@@ -409,9 +426,11 @@ fun NavGraphBuilder.settingsNavGraph(
     }
 
     composable(ROUTE_SETTINGS_AGENT_ANTIGRAVITY) {
+        val importPackage = rememberAgentPackageImporter()
         AntigravityAgentSettingsScreen(
             antigravity = antigravity(),
             onInstall = antigravityActions.onInstall,
+            onImportPackage = importPackage,
             onUpdate = antigravityActions.onUpdate,
             onSelectPermissionMode = antigravityActions.onSelectPermissionMode,
             onSignIn = antigravityActions.onSignIn,
@@ -440,6 +459,7 @@ fun NavGraphBuilder.settingsNavGraph(
         val signInDialog by signInViewModel.dialog.collectAsState()
         // Re-read on open: an install can have finished, or the account been signed out, since the last look.
         androidx.compose.runtime.LaunchedEffect(Unit) { app.codexController.refresh() }
+        val importPackage = rememberAgentPackageImporter()
         CodexAgentSettingsScreen(
             codex = codex,
             signInDialog = signInDialog,
@@ -455,6 +475,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onInstall = app.codexController::install,
             onSignOut = app.codexController::signOut,
             onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_CODEX) },
+            onImportPackage = importPackage,
             onBack = { navController.popBackStack() },
         )
     }
@@ -602,3 +623,46 @@ data class AntigravitySettingsActions(
     val onCancelSignIn: () -> Unit,
     val onSignOut: () -> Unit,
 )
+
+
+@Composable
+private fun rememberAgentPackageImporter(): () -> Unit {
+    val context = LocalContext.current
+    val app = context.applicationContext as AndCodeApplication
+    val scope = rememberCoroutineScope()
+    val launcher =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            scope.launch {
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        val rootfs =
+                            app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                ?: error(app.getString(R.string.agent_import_need_runtime))
+                        val tmp =
+                            File(app.cacheDir, "import-${System.currentTimeMillis()}.andcode.zip")
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            tmp.outputStream().use { input.copyTo(it) }
+                        } ?: error("Unable to read package")
+                        try {
+                            val imported = RuntimeAgentPackage.import(tmp, rootfs)
+                            app.localRuntimeInstaller.recordAgent(imported.agent)
+                            when (imported.agent) {
+                                LocalAgent.PI -> runCatching { app.piController.refresh() }
+                                LocalAgent.CODEX -> runCatching { app.codexController.refresh() }
+                                LocalAgent.CLAUDE_CODE -> runCatching { app.claudeCodeController.refresh() }
+                                LocalAgent.ANTIGRAVITY -> runCatching { app.antigravityController.refresh() }
+                                LocalAgent.OPEN_CODE -> Unit
+                            }
+                            imported
+                        } finally {
+                            tmp.delete()
+                        }
+                    }
+                }
+            }
+        }
+    return {
+        launcher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+    }
+}
