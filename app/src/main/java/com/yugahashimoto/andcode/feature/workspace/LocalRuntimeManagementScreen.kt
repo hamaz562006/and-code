@@ -67,6 +67,7 @@ fun LocalRuntimeManagementScreen(
     onRefresh: () -> Unit,
     onRepair: () -> Unit,
     onInstallFullDevelopmentTools: () -> Unit,
+    onImportAgentPackage: () -> Unit = {},
     onToggleDevelopmentToolGroup: (String) -> Unit = {},
     onSelectAllDevelopmentToolGroups: () -> Unit = {},
     onClearDevelopmentToolGroupSelection: () -> Unit = {},
@@ -147,6 +148,29 @@ fun LocalRuntimeManagementScreen(
                 )
                 RuntimeLogsCard(diagnostics.logTail)
 
+                if (state.runtimeEnvironmentInstalled) {
+                    SectionCard {
+                        Text(
+                            stringResource(R.string.agent_package_section),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.agent_import_description),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Button(
+                            onClick = onImportAgentPackage,
+                            enabled = !busy,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.agent_import_button))
+                        }
+                    }
+                }
                 if (diagnostics.status.isInstalled()) {
                     RuntimeManagementCard(
                         busy = busy,

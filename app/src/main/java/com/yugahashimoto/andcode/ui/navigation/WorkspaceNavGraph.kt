@@ -1,13 +1,22 @@
 package com.yugahashimoto.andcode.ui.navigation
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import com.yugahashimoto.andcode.AndCodeApplication
+import com.yugahashimoto.andcode.R
 import com.yugahashimoto.andcode.feature.browser.GuestBrowserScreen
 import com.yugahashimoto.andcode.feature.workspace.CodeViewerScreen
 import com.yugahashimoto.andcode.feature.workspace.CodeViewerViewModel
@@ -23,8 +32,11 @@ import com.yugahashimoto.andcode.feature.workspace.WorkspacesScreen
 import com.yugahashimoto.andcode.feature.workspace.isOpenable
 import com.yugahashimoto.andcode.runtime.RuntimeTarget
 import com.yugahashimoto.andcode.runtime.WorkspaceRef
+import com.yugahashimoto.andcode.runtime.local.RuntimeAgentPackage
 import com.yugahashimoto.andcode.ui.ViewModelFactory
+import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 fun NavGraphBuilder.workspaceNavGraph(
@@ -123,25 +135,70 @@ fun NavGraphBuilder.workspaceNavGraph(
                 navController.popBackStack()
             }
         }
-        LocalRuntimeManagementScreen(
-            state = managementState,
-            onBack = { navController.popBackStack() },
-            onRefresh = managementViewModel::refresh,
-            onRepair = managementViewModel::repair,
-            onInstallFullDevelopmentTools = managementViewModel::installFullDevelopmentTools,
-            onToggleDevelopmentToolGroup = managementViewModel::toggleDevelopmentToolGroup,
-            onSelectAllDevelopmentToolGroups = managementViewModel::selectAllDevelopmentToolGroups,
-            onClearDevelopmentToolGroupSelection = managementViewModel::clearDevelopmentToolGroupSelection,
-            onInstallSelectedDevelopmentToolGroups = managementViewModel::installSelectedDevelopmentToolGroups,
-            onRequestDelete = managementViewModel::requestDelete,
-            onDismissDelete = managementViewModel::dismissDelete,
-            onConfirmDelete = managementViewModel::confirmDelete,
-            onShowAdbPairDialog = managementViewModel::showAdbPairDialog,
-            onDismissAdbPairDialog = managementViewModel::dismissAdbPairDialog,
-            onAdbPair = managementViewModel::adbPair,
-            onAdbConnect = managementViewModel::adbConnect,
-            onAdbDisconnect = managementViewModel::adbDisconnect,
-        )
+        val scope = rememberCoroutineScope()
+        val snackbar = remember { SnackbarHostState() }
+        val openDocument =
+            rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                if (uri == null) return@rememberLauncherForActivityResult
+                scope.launch {
+                    runCatching {
+                        val result =
+                            withContext(Dispatchers.IO) {
+                                val rootfs =
+                                    app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                        ?: error(app.getString(R.string.agent_import_need_runtime))
+                                val tmp = File(app.cacheDir, "import-${System.currentTimeMillis()}.andcode.zip")
+                                app.contentResolver.openInputStream(uri)?.use { input ->
+                                    tmp.outputStream().use { input.copyTo(it) }
+                                } ?: error("Unable to read package")
+                                try {
+                                    val imported = RuntimeAgentPackage.import(tmp, rootfs)
+                                    app.localRuntimeInstaller.recordAgent(imported.agent)
+                                    imported
+                                } finally {
+                                    tmp.delete()
+                                }
+                            }
+                        runCatching { app.piController.refresh() }
+                        snackbar.showSnackbar(
+                            app.getString(
+                                R.string.agent_import_success,
+                                result.manifest.agentId,
+                                result.filesWritten,
+                            ),
+                        )
+                    }.onFailure {
+                        snackbar.showSnackbar(
+                            app.getString(R.string.agent_import_failed, it.message ?: "error"),
+                        )
+                    }
+                }
+            }
+        androidx.compose.foundation.layout.Box {
+            LocalRuntimeManagementScreen(
+                state = managementState,
+                onBack = { navController.popBackStack() },
+                onRefresh = managementViewModel::refresh,
+                onRepair = managementViewModel::repair,
+                onInstallFullDevelopmentTools = managementViewModel::installFullDevelopmentTools,
+                onToggleDevelopmentToolGroup = managementViewModel::toggleDevelopmentToolGroup,
+                onSelectAllDevelopmentToolGroups = managementViewModel::selectAllDevelopmentToolGroups,
+                onClearDevelopmentToolGroupSelection = managementViewModel::clearDevelopmentToolGroupSelection,
+                onInstallSelectedDevelopmentToolGroups = managementViewModel::installSelectedDevelopmentToolGroups,
+                onImportAgentPackage = {
+                    openDocument.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+                },
+                onRequestDelete = managementViewModel::requestDelete,
+                onDismissDelete = managementViewModel::dismissDelete,
+                onConfirmDelete = managementViewModel::confirmDelete,
+                onShowAdbPairDialog = managementViewModel::showAdbPairDialog,
+                onDismissAdbPairDialog = managementViewModel::dismissAdbPairDialog,
+                onAdbPair = managementViewModel::adbPair,
+                onAdbConnect = managementViewModel::adbConnect,
+                onAdbDisconnect = managementViewModel::adbDisconnect,
+            )
+            SnackbarHost(hostState = snackbar)
+        }
     }
 
     composable(WORKSPACE_DETAIL_ROUTE) {

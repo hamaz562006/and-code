@@ -85,6 +85,8 @@ fun AgentSettingsScreen(
     onOpenAntigravity: () -> Unit,
     onOpenCodex: () -> Unit,
     onOpenPi: () -> Unit,
+    onExportPackage: () -> Unit = {},
+    canExportPackage: Boolean = false,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(R.string.settings_agents_row), onBack = onBack) {
@@ -98,6 +100,17 @@ fun AgentSettingsScreen(
             AgentRow(LocalAgent.CODEX, onOpenCodex)
             SettingsDivider()
             AgentRow(LocalAgent.PI, onOpenPi)
+        }
+        // Offline backup lives on the list so it is available without entering an agent screen.
+        // Export only when at least one agent is provisioned; import is on Local runtime.
+        if (canExportPackage) {
+            SettingsSection(title = stringResource(R.string.agent_package_section)) {
+                SettingsRow(
+                    icon = Icons.Default.Share,
+                    title = stringResource(R.string.agent_export_button),
+                    onClick = onExportPackage,
+                )
+            }
         }
     }
 }
@@ -113,8 +126,6 @@ fun PiAgentSettingsScreen(
     onCheckForUpdate: (() -> Unit)? = null,
     onUpdate: (() -> Unit)? = null,
     onOpenMcp: () -> Unit = {},
-    onExportPackage: () -> Unit = {},
-    onImportPackage: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.PI.displayNameRes), onBack = onBack) {
@@ -161,11 +172,6 @@ fun PiAgentSettingsScreen(
                 onClick = onOpenMcp,
             )
         }
-        AgentPackageSection(
-            installed = pi.installed,
-            onExport = onExportPackage,
-            onImport = onImportPackage,
-        )
     }
 }
 
