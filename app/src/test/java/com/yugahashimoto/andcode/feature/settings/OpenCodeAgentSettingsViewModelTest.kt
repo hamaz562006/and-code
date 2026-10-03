@@ -95,6 +95,7 @@ class OpenCodeAgentSettingsViewModelTest {
             val viewModel =
                 viewModel(
                     runtimeState = MutableStateFlow(LocalRuntimeStatus.NotInstalled),
+                    openCodeProvisionedProvider = { false },
                     startAction = { startCalls++ },
                 )
             advanceUntilIdle()
