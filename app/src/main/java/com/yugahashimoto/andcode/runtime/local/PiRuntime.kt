@@ -23,6 +23,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -117,6 +118,160 @@ class PiRuntime(
             if (process.exitValue() != 0) return PiInstaller.PI_VERSION
             output.lines().firstOrNull { it.isNotBlank() }?.trim() ?: PiInstaller.PI_VERSION
         }.getOrDefault(PiInstaller.PI_VERSION)
+    }
+
+    private val authJson =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
+
+    /** Provider ids that currently have a non-blank key in `~/.pi/agent/auth.json`. */
+    fun connectedProviderIds(): Set<String> {
+        val rootfs = installedRuntime()?.rootfs ?: return emptySet()
+        val file = File(rootfs, "root/.pi/agent/auth.json")
+        if (!file.isFile) return emptySet()
+        return runCatching {
+            val obj = authJson.parseToJsonElement(file.readText()).jsonObject
+            obj.mapNotNull { (id, value) ->
+                val key = value.jsonObject["key"]?.toString()?.trim('"')
+                id.takeIf { !key.isNullOrBlank() }
+            }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    /**
+     * Writes an OpenAI-compatible custom provider into `~/.pi/agent/models.json` (Pi format).
+     * Base URL should be the API root (e.g. `http://host:port/v1`), not `.../chat/completions`.
+     */
+
+    data class CustomProviderEntry(
+        val id: String,
+        val name: String,
+        val modelIds: List<String>,
+    )
+
+    /** Reads user-defined providers from `~/.pi/agent/models.json`. */
+    fun listCustomProviders(): List<CustomProviderEntry> {
+        val rootfs = installedRuntime()?.rootfs ?: return emptyList()
+        val file = File(rootfs, "root/.pi/agent/models.json")
+        if (!file.isFile) return emptyList()
+        return runCatching {
+            val root = authJson.parseToJsonElement(file.readText()).jsonObject
+            val providers = root["providers"]?.jsonObject ?: return emptyList()
+            providers.mapNotNull { (id, value) ->
+                val obj = value.jsonObject
+                val models =
+                    obj["models"]?.jsonArray?.mapNotNull { el ->
+                        el.jsonObject["id"]?.jsonPrimitive?.contentOrNull
+                    }.orEmpty()
+                if (models.isEmpty()) return@mapNotNull null
+                CustomProviderEntry(
+                    id = id,
+                    name = obj["name"]?.jsonPrimitive?.contentOrNull ?: id,
+                    modelIds = models,
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun registerCustomProvider(
+        id: String,
+        name: String,
+        baseUrl: String,
+        modelIds: List<String>,
+    ) {
+        val rootfs = installedRuntime()?.rootfs ?: error("Pi environment is not installed")
+        val dir = File(rootfs, "root/.pi/agent").apply { mkdirs() }
+        val file = File(dir, "models.json")
+        val existing =
+            if (file.isFile) {
+                runCatching { authJson.parseToJsonElement(file.readText()).jsonObject }.getOrDefault(buildJsonObject {})
+            } else {
+                buildJsonObject {}
+            }
+        val existingProviders =
+            existing["providers"]?.jsonObject ?: buildJsonObject {}
+        var normalizedBase = baseUrl.trim().trimEnd('/')
+        // Users often paste the full chat completions path; Pi expects the API root.
+        for (suffix in listOf("/chat/completions", "/completions")) {
+            if (normalizedBase.endsWith(suffix)) {
+                normalizedBase = normalizedBase.removeSuffix(suffix)
+                break
+            }
+        }
+        val modelsArray =
+            kotlinx.serialization.json.buildJsonArray {
+                modelIds.forEach { mid ->
+                    add(
+                        buildJsonObject {
+                            put("id", mid)
+                            put("name", mid)
+                        },
+                    )
+                }
+            }
+        val providerEntry =
+            buildJsonObject {
+                put("baseUrl", normalizedBase)
+                put("api", "openai-completions")
+                put("apiKey", id) // placeholder; real key goes in auth.json via setApiKey
+                put("name", name)
+                put("models", modelsArray)
+            }
+        val updatedProviders =
+            buildJsonObject {
+                existingProviders.forEach { (k, v) ->
+                    if (k != id) put(k, v)
+                }
+                put(id, providerEntry)
+            }
+        val updated =
+            buildJsonObject {
+                existing.forEach { (k, v) ->
+                    if (k != "providers") put(k, v)
+                }
+                put("providers", updatedProviders)
+            }
+        file.writeText(authJson.encodeToString(JsonObject.serializer(), updated))
+    }
+
+    /**
+     * Writes or removes an API key in the Pi auth file (`~/.pi/agent/auth.json` inside the rootfs).
+     * Format matches earendil-works/pi: `{ "openai": { "type": "api_key", "key": "..." } }`.
+     */
+    fun setApiKey(
+        providerId: String,
+        apiKey: String?,
+    ) {
+        val rootfs = installedRuntime()?.rootfs ?: error("Pi environment is not installed")
+        val dir = File(rootfs, "root/.pi/agent").apply { mkdirs() }
+        val file = File(dir, "auth.json")
+        val existing =
+            if (file.isFile) {
+                runCatching { authJson.parseToJsonElement(file.readText()).jsonObject }.getOrDefault(
+                    buildJsonObject {},
+                )
+            } else {
+                buildJsonObject {}
+            }
+        val updated =
+            buildJsonObject {
+                existing.forEach { (k, v) ->
+                    if (k != providerId) put(k, v)
+                }
+                val trimmed = apiKey?.trim().orEmpty()
+                if (trimmed.isNotEmpty()) {
+                    put(
+                        providerId,
+                        buildJsonObject {
+                            put("type", "api_key")
+                            put("key", trimmed)
+                        },
+                    )
+                }
+            }
+        file.writeText(authJson.encodeToString(JsonObject.serializer(), updated))
     }
 
     suspend fun install(abi: String): String {

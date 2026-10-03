@@ -3,6 +3,7 @@ package com.yugahashimoto.andcode.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.yugahashimoto.andcode.core.api.OpenCodeAgent
+import com.yugahashimoto.andcode.core.api.OpenCodeModel
 import com.yugahashimoto.andcode.core.api.OpenCodeProvider
 import com.yugahashimoto.andcode.core.api.ProviderAuthMethod
 import com.yugahashimoto.andcode.core.api.ProviderCatalog
@@ -202,14 +203,39 @@ class SettingsViewModel(
                 (core.runtime.providers.connected.toSet() + oauth.locallyConnected) - oauth.locallyDisconnected
             val managed =
                 core.providerCatalog
-                    ?: if (core.selected?.agent == LocalAgent.OPEN_CODE || core.selected?.agent == null) {
+                    ?: if (
+                        core.selected?.agent == LocalAgent.OPEN_CODE ||
+                        core.selected?.agent == LocalAgent.PI ||
+                        core.selected?.agent == null
+                    ) {
                         core.runtime.providers
                     } else {
                         catalog.cachedProviders(LocalAgent.OPEN_CODE.targetId) ?: ProviderCatalog()
                     }
+            val piSeed =
+                if (core.selected?.agent == LocalAgent.PI && managed.all.isEmpty()) {
+                    PI_SEED_PROVIDERS
+                } else {
+                    emptyList()
+                }
+            val customAsProviders =
+                customProviders.definitions().map { def ->
+                    OpenCodeProvider(
+                        id = def.id,
+                        name = def.name,
+                        models =
+                            def.models.associateWith { mid ->
+                                OpenCodeModel(id = mid, providerId = def.id, name = mid)
+                            },
+                    )
+                }
+            val baseAvailable = managed.all.ifEmpty { piSeed }
+            val mergedAvailable =
+                (baseAvailable + customAsProviders).distinctBy { it.id }
             SettingsUiState(
-                providers = core.runtime.providers.all.filter { it.id in chatConnected },
-                availableProviders = managed.all,
+                providers =
+                    (core.runtime.providers.all.ifEmpty { piSeed }).filter { it.id in chatConnected },
+                availableProviders = mergedAvailable,
                 connectedProviderIds = (managed.connected.toSet() + oauth.locallyConnected) - oauth.locallyDisconnected,
                 agents = core.runtime.agents.filter { it.mode == null || it.mode == "primary" },
                 providerId = core.preferences.providerId,
@@ -381,13 +407,17 @@ class SettingsViewModel(
     }
 
     /**
-     * Runtime that owns provider credentials.
+     * Runtime that owns provider credentials / catalogue for the Providers screen.
      *
-     * Providers are an OpenCode concept: Claude Code authenticates as itself and has no catalogue.
-     * With Claude selected, every one of these calls used to go to a runtime that cannot answer, so
-     * the connect button simply did nothing.
+     * Pi has no HTTP daemon on :4097. When Pi is selected, use the Pi target and a static seed
+     * provider list instead of calling OpenCode's local server.
      */
-    private fun providerTarget(): RuntimeTarget? = registry.targetFor(LocalAgent.OPEN_CODE)
+    private fun providerTarget(): RuntimeTarget? {
+        val selected = registry.selected.value
+        if (selected?.agent == LocalAgent.PI) return selected
+        if (selected?.agent == LocalAgent.OPEN_CODE) return selected
+        return registry.targetFor(LocalAgent.OPEN_CODE)
+    }
 
     fun openProviderAuth(providerId: String) {
         val methods = oauthState.value.methods[providerId].orEmpty()
@@ -825,5 +855,8 @@ class SettingsViewModel(
         const val TAG = "SettingsVM"
         const val AUTO_OAUTH_TIMEOUT_MS = 6 * 60 * 1000L
         const val AUTO_OAUTH_POLL_MS = 3000L
+
+        val PI_SEED_PROVIDERS =
+            com.yugahashimoto.andcode.runtime.local.PiModels.catalog().all
     }
 }

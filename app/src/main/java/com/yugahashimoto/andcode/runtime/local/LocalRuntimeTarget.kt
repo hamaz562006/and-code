@@ -83,7 +83,7 @@ class LocalRuntimeTarget(
 
     override suspend fun connect(): Result<OpenCodeHealth> {
         val localStatus = runtimeManager.status()
-        if (localStatus !is LocalRuntimeStatus.Ready) {
+        if (localStatus !is LocalRuntimeStatus.Ready || !runtimeManager.hasOpenCode()) {
             val state = mapStatus(localStatus)
             mutableState.value = state
             return Result.failure(IllegalStateException(state.describe()))
@@ -316,8 +316,18 @@ class LocalRuntimeTarget(
         scope.cancel()
     }
 
-    private fun mapStatus(status: LocalRuntimeStatus): RuntimeState =
-        when (status) {
+    private fun mapStatus(status: LocalRuntimeStatus): RuntimeState {
+        // Shared rootfs work (dev-tools install, Pi sandbox Ready, …) must not surface OpenCode in
+        // the drawer. Every state still requires the OpenCode binary + component.
+        if (!runtimeManager.hasOpenCode()) {
+            return when (status) {
+                is LocalRuntimeStatus.Broken -> RuntimeState.Failed(status.reason)
+                is LocalRuntimeStatus.UnsupportedAbi ->
+                    RuntimeState.Unavailable(messages.unsupportedAbi(status.abi))
+                else -> RuntimeState.Unavailable(messages.notInstalled)
+            }
+        }
+        return when (status) {
             LocalRuntimeStatus.NotInstalled -> RuntimeState.Unavailable(messages.notInstalled)
             is LocalRuntimeStatus.UnsupportedAbi -> RuntimeState.Unavailable(messages.unsupportedAbi(status.abi))
             is LocalRuntimeStatus.Installing -> RuntimeState.Connecting
@@ -327,6 +337,7 @@ class LocalRuntimeTarget(
             is LocalRuntimeStatus.Broken -> RuntimeState.Failed(status.reason)
             is LocalRuntimeStatus.Ready -> RuntimeState.Connected(status.version)
         }
+    }
 
     private fun RuntimeState.describe(): String =
         when (this) {

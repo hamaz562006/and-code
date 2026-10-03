@@ -3,6 +3,7 @@ package com.yugahashimoto.andcode.runtime.local
 import android.content.Context
 import android.system.Os
 import com.yugahashimoto.andcode.R
+import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -48,7 +49,7 @@ class LocalRuntimeInstaller(
      */
     suspend fun install(
         agents: Set<LocalAgent> = setOf(LocalAgent.OPEN_CODE),
-        installFullDevelopmentTools: Boolean = false,
+        developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
         /**
          * Progress, the step to show, and which agent that step belongs to - null for the shared
          * Alpine environment every agent runs in. One install provisions the whole selection, so
@@ -76,8 +77,9 @@ class LocalRuntimeInstaller(
                 )
             // Runtimes created before this option existed already contain the full toolchain, and
             // adding another agent must not silently remove it by rebuilding a smaller rootfs.
-            val includeFullDevelopmentTools =
-                installFullDevelopmentTools || existingMetadata?.fullDevelopmentToolsInstalled == true
+            val groupsToInstall =
+                developmentToolGroups + (existingMetadata?.installedDevelopmentGroups() ?: emptySet())
+            val includeFullDevelopmentTools = groupsToInstall.containsAll(DevelopmentToolGroup.ALL)
             require(requestedAgents.isNotEmpty()) { "At least one agent must be selected" }
             val commandSuite = EmbeddedCommandSuite(context, runtimeDirectory, abi).ensureInstalled()
             val manifest = manifestReader.read()
@@ -172,11 +174,7 @@ class LocalRuntimeInstaller(
                     rootfs = rootfs,
                     suite = commandSuite,
                     packages =
-                        if (includeFullDevelopmentTools) {
-                            REQUIRED_RUNTIME_PACKAGES + OPTIONAL_DEVELOPMENT_PACKAGES
-                        } else {
-                            REQUIRED_RUNTIME_PACKAGES
-                        },
+                        REQUIRED_RUNTIME_PACKAGES + DevelopmentToolGroup.packagesFor(groupsToInstall),
                 )
                 if (LocalAgent.CLAUDE_CODE in requestedAgents) {
                     onClaude(0.93f, context.getString(R.string.install_step_installing_claude_code))
@@ -190,15 +188,46 @@ class LocalRuntimeInstaller(
                     CodexInstaller.install(rootfs, abi, runtimeDirectory, accessCoordinator, httpClient)
                 }
                 if (LocalAgent.PI in requestedAgents) {
-                    onPi(0.938f, context.getString(R.string.install_step_installing_pi))
-                    runCatching { installPackages(rootfs, commandSuite, listOf("gcompat")) }
+                    // Without OpenCode the mid-band (0.24–0.72) is free — use it so the Pi download
+                    // bar moves like OpenCode's, instead of sitting at 93–97%.
+                    val piToolsAt = if (!withOpenCode) 0.22f else 0.92f
+                    val piDownloadStart = if (!withOpenCode) 0.24f else 0.93f
+                    val piDownloadEnd = if (!withOpenCode) 0.88f else 0.97f
+                    val piDepsAt = if (!withOpenCode) 0.90f else 0.975f
+                    val piDoneAt = if (!withOpenCode) 0.94f else 0.99f
+                    onPi(piToolsAt, context.getString(R.string.install_step_installing_runtime_tools))
+                    // Pi's official CLI is a Node entrypoint (npm package). Alpine node is musl-native;
+                    // the GitHub glibc binary does not run under this PRoot rootfs.
+                    installPackages(
+                        rootfs = rootfs,
+                        suite = commandSuite,
+                        packages = listOf("nodejs", "npm", "icu-data-full"),
+                    )
+                    val piDownloadLabel = context.getString(R.string.install_step_installing_pi)
+                    onPi(piDownloadStart, piDownloadLabel)
                     PiInstaller.install(
                         rootfs = rootfs,
                         abi = abi,
                         runtimeDirectory = runtimeDirectory,
                         accessCoordinator = accessCoordinator,
                         httpClient = httpClient,
+                        onProgress = { fraction ->
+                            val span = piDownloadEnd - piDownloadStart
+                            onPi(piDownloadStart + fraction.coerceIn(0f, 1f) * span, piDownloadLabel)
+                        },
                     )
+                    onPi(piDepsAt, piDownloadLabel)
+                    runShellInRootfs(
+                        rootfs = rootfs,
+                        suite = commandSuite,
+                        shell =
+                            "export NODE_OPTIONS=--max-old-space-size=256 " +
+                                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin && " +
+                                "cd /usr/local/lib/pi-coding-agent && " +
+                                "npm install --omit=dev --ignore-scripts --no-audit --no-fund",
+                        logName = "pi-npm-deps.log",
+                    )
+                    onPi(piDoneAt, piDownloadLabel)
                 }
                 if (LocalAgent.ANTIGRAVITY in requestedAgents) {
                     onAntigravity(0.94f, context.getString(R.string.install_step_downloading_antigravity))
@@ -221,7 +250,9 @@ class LocalRuntimeInstaller(
                         abi = abi,
                         components = requestedAgents.map(LocalAgent::id).toSet(),
                         fullDevelopmentToolsInstalled = includeFullDevelopmentTools,
-                        fullDebianDevelopmentToolsInstalled = includeFullDevelopmentTools && antigravityRootfs != null,
+                        fullDebianDevelopmentToolsInstalled =
+                            includeFullDevelopmentTools && antigravityRootfs != null,
+                        installedDevelopmentToolGroups = groupsToInstall.map { it.id }.toSet(),
                     )
                 File(staging, METADATA_FILE).writeText(json.encodeToString(metadata))
                 onShared(0.96f, context.getString(R.string.install_step_activating_runtime))
@@ -322,7 +353,10 @@ class LocalRuntimeInstaller(
     }
 
     /** Installs the optional toolchain into the active sandbox without rebuilding the runtime. */
-    suspend fun installFullDevelopmentTools(onProgress: (Float?, String, LocalAgent?) -> Unit = { _, _, _ -> }): LocalRuntimeMetadata =
+    suspend fun installDevelopmentToolGroups(
+        groups: Set<DevelopmentToolGroup>,
+        onProgress: (Float?, String, LocalAgent?) -> Unit = { _, _, _ -> },
+    ): LocalRuntimeMetadata =
         withContext(Dispatchers.IO) {
             accessCoordinator.write {
                 val active = File(runtimeDirectory, "environment")
@@ -337,7 +371,8 @@ class LocalRuntimeInstaller(
 
                 val suite = EmbeddedCommandSuite(context, runtimeDirectory, abi).ensureInstalled()
                 onProgress(null, context.getString(R.string.install_step_installing_dev_tools), null)
-                if (!metadata.fullDevelopmentToolsInstalled) installPackages(rootfs, suite, OPTIONAL_DEVELOPMENT_PACKAGES)
+                val missing = groups - metadata.installedDevelopmentGroups()
+                if (missing.isNotEmpty()) installPackages(rootfs, suite, DevelopmentToolGroup.packagesFor(missing))
                 if (metadata.has(LocalAgent.ANTIGRAVITY) && !metadata.fullDebianDevelopmentToolsInstalled) {
                     val antigravityRootfs = File(active, "antigravity-rootfs")
                     require(antigravityRootfs.isDirectory) { "The Antigravity Linux environment is not installed" }
@@ -346,9 +381,13 @@ class LocalRuntimeInstaller(
                 }
 
                 val updated =
-                    metadata.copy(
-                        fullDevelopmentToolsInstalled = true,
-                        fullDebianDevelopmentToolsInstalled = metadata.has(LocalAgent.ANTIGRAVITY),
+                    metadata.withDevelopmentGroups(groups).copy(
+                        fullDebianDevelopmentToolsInstalled =
+                            metadata.has(LocalAgent.ANTIGRAVITY) &&
+                                (
+                                    metadata.fullDebianDevelopmentToolsInstalled ||
+                                        groups.containsAll(DevelopmentToolGroup.ALL)
+                                ),
                     )
                 val encoded = json.encodeToString(updated)
                 File(active, METADATA_FILE).writeText(encoded)
@@ -448,6 +487,75 @@ class LocalRuntimeInstaller(
             },
         )
         onProgress(endProgress, label)
+    }
+
+    /** Installs npm dependencies for an already-extracted Pi package in the active rootfs. */
+    fun installPiNpmDependencies() {
+        val installed = installedRuntime() ?: return
+        runShellInRootfs(
+            rootfs = installed.rootfs,
+            suite = installed.commandSuite,
+            shell =
+                "export NODE_OPTIONS=--max-old-space-size=256 " +
+                    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin && " +
+                    "cd /usr/local/lib/pi-coding-agent && " +
+                    "npm install --omit=dev --ignore-scripts --no-audit --no-fund",
+            logName = "pi-npm-deps.log",
+        )
+    }
+
+    /** Runs a shell command inside the Alpine rootfs via PRoot (same mounts as [installPackages]). */
+    private fun runShellInRootfs(
+        rootfs: File,
+        suite: EmbeddedCommandSuite.Paths,
+        shell: String,
+        logName: String,
+    ) {
+        val prootTmp = File(runtimeDirectory, "proot-tmp").apply { mkdirs() }
+        val command =
+            listOf(
+                suite.proot.absolutePath,
+                "--kill-on-exit",
+                "--link2symlink",
+                "-0",
+                "-r",
+                rootfs.absolutePath,
+                "-b",
+                "/dev",
+                "-b",
+                "/proc",
+                "-b",
+                "/sys",
+                "-b",
+                "/system",
+                "-w",
+                "/root",
+                "/bin/sh",
+                "-lc",
+                shell,
+            )
+        val installLog =
+            File(runtimeDirectory, "logs/$logName").apply {
+                parentFile?.mkdirs()
+                delete()
+            }
+        val process =
+            ProcessBuilder(command)
+                .redirectErrorStream(true)
+                .redirectOutput(ProcessBuilder.Redirect.to(installLog))
+                .apply {
+                    environment().putAll(suite.environment())
+                    environment()["PROOT_TMP_DIR"] = prootTmp.absolutePath
+                }
+                .start()
+        val completed = process.waitFor(20, java.util.concurrent.TimeUnit.MINUTES)
+        if (!completed) {
+            process.destroyForcibly()
+            error("Command timed out ($logName).\n${installLog.readText().takeLast(4000)}")
+        }
+        require(process.exitValue() == 0) {
+            "Command failed ($logName).\n${installLog.readText().takeLast(4000)}"
+        }
     }
 
     private fun installPackages(
@@ -741,8 +849,12 @@ class LocalRuntimeInstaller(
                 "py3-pillow",
             )
 
-        /** Project-specific compilers, language SDKs, editors, and convenience utilities. */
-        val OPTIONAL_DEVELOPMENT_PACKAGES =
+        /** Flattened optional packages (all [DevelopmentToolGroup]s). Prefer group-based install. */
+        val OPTIONAL_DEVELOPMENT_PACKAGES: List<String>
+            get() = DevelopmentToolGroup.packagesFor(DevelopmentToolGroup.ALL)
+
+        @Deprecated("Use DevelopmentToolGroup", replaceWith = ReplaceWith("DevelopmentToolGroup.packagesFor(groups)"))
+        private val OPTIONAL_DEVELOPMENT_PACKAGES_LEGACY =
             listOf(
                 "tree",
                 "file",
@@ -755,6 +867,7 @@ class LocalRuntimeInstaller(
                 "py3-pip",
                 "nodejs",
                 "npm",
+                "icu-data-full",
                 "make",
                 "cmake",
                 "gcc",

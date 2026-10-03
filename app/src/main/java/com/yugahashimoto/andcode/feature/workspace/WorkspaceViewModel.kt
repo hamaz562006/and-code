@@ -8,6 +8,7 @@ import com.yugahashimoto.andcode.core.storage.DeviceStorage
 import com.yugahashimoto.andcode.data.connection.ConnectionProfile
 import com.yugahashimoto.andcode.data.connection.SecureSettingsRepository
 import com.yugahashimoto.andcode.data.repository.RuntimeCatalogRepository
+import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import com.yugahashimoto.andcode.runtime.RuntimeRegistry
@@ -336,8 +337,8 @@ class WorkspaceViewModel(
     /** [agents] is the setup guide's selection; every other caller means OpenCode alone. */
     fun setupLocalRuntime(
         agents: Set<LocalAgent> = setOf(LocalAgent.OPEN_CODE),
-        installFullDevelopmentTools: Boolean = false,
-    ) = localRuntimeController.installAndStart(agents, installFullDevelopmentTools)
+        developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
+    ) = localRuntimeController.installAndStart(agents, developmentToolGroups)
 
     fun startLocalRuntime() = localRuntimeController.start()
 
@@ -347,7 +348,8 @@ class WorkspaceViewModel(
 
     fun reinstallLocalRuntime() = localRuntimeController.reinstall()
 
-    fun installClaudeCode(installFullDevelopmentTools: Boolean = false) = claudeCode?.install(installFullDevelopmentTools) ?: Unit
+    fun installClaudeCode(developmentToolGroups: Set<DevelopmentToolGroup> = emptySet()) =
+        claudeCode?.install(developmentToolGroups) ?: Unit
 
     fun updateClaudeCode() = claudeCode?.update() ?: Unit
 

@@ -70,6 +70,7 @@ import com.yugahashimoto.andcode.feature.settings.ProviderAuthDialogState
 import com.yugahashimoto.andcode.feature.settings.SettingsUiState
 import com.yugahashimoto.andcode.feature.workspace.ClaudeCodeCard
 import com.yugahashimoto.andcode.feature.workspace.CodexCard
+import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import com.yugahashimoto.andcode.runtime.local.AntigravityControllerState
@@ -83,13 +84,13 @@ import com.yugahashimoto.andcode.runtime.local.PiUiState
 import com.yugahashimoto.andcode.ui.theme.AndCodeTheme
 import kotlinx.coroutines.delay
 
-private const val TOTAL_STEPS = 5
+private const val TOTAL_STEPS = 4
 
 internal fun shouldStartRuntimeInstall(
     installComplete: Boolean,
-    installFullDevelopmentTools: Boolean,
+    selectedDevelopmentTools: Boolean,
     fullDevelopmentToolsInstalled: Boolean = false,
-): Boolean = !installComplete || (installFullDevelopmentTools && !fullDevelopmentToolsInstalled)
+): Boolean = !installComplete || (selectedDevelopmentTools && !fullDevelopmentToolsInstalled)
 
 /**
  * Guided setup: choose agents, install them, sign in, then connect GitHub.
@@ -105,7 +106,7 @@ fun AndroidSetupScreen(
     antigravity: AntigravityControllerState = AntigravityControllerState(),
     fullDevelopmentToolsInstalled: Boolean = false,
     fullDevelopmentToolsInstallFailed: Boolean = false,
-    onStartSetup: (Set<LocalAgent>, Boolean) -> Unit,
+    onStartSetup: (Set<LocalAgent>, Set<DevelopmentToolGroup>) -> Unit,
     onSelectClaudePermissionMode: (ClaudePermissionMode) -> Unit,
     onBeginClaudeSignIn: () -> Unit,
     onSubmitClaudeSignInCode: (String) -> Unit,
@@ -187,7 +188,7 @@ fun AndroidSetupScreen(
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
 
     var currentStep by rememberSaveable { mutableIntStateOf(1) }
-    var installFullDevelopmentTools by rememberSaveable { mutableStateOf(false) }
+    var selectedDevToolGroupIds by rememberSaveable { mutableStateOf(emptySet<String>()) }
     var fullToolsInstallPending by rememberSaveable { mutableStateOf(false) }
     var fullToolsInstallObserved by rememberSaveable { mutableStateOf(false) }
     val packageInstallRunning =
@@ -196,7 +197,8 @@ fun AndroidSetupScreen(
             codex.install is CodexInstallStatus.Installing ||
             pi.install is PiInstallStatus.Installing ||
             antigravity.busy
-    val fullToolsReady = !installFullDevelopmentTools || fullDevelopmentToolsInstalled
+    val selectedDevGroups = selectedDevToolGroupIds.mapNotNull { DevelopmentToolGroup.fromId(it) }.toSet()
+    val fullToolsReady = selectedDevGroups.isEmpty() || fullDevelopmentToolsInstalled
     val agentsInstallComplete =
         (!openCodeSelected || openCodeReady) &&
             (!claudeSelected || claudeReady) &&
@@ -280,13 +282,13 @@ fun AndroidSetupScreen(
                     if (
                         shouldStartRuntimeInstall(
                             agentsInstallComplete,
-                            installFullDevelopmentTools,
+                            selectedDevToolGroupIds.isNotEmpty(),
                             fullDevelopmentToolsInstalled,
                         )
                     ) {
-                        if (installFullDevelopmentTools) fullToolsInstallPending = true
-                        onStartSetup(selectedAgents, installFullDevelopmentTools)
-                        if (!installFullDevelopmentTools) currentStep = 3
+                        if (selectedDevToolGroupIds.isNotEmpty()) fullToolsInstallPending = true
+                        onStartSetup(selectedAgents, selectedDevGroups)
+                        if (selectedDevToolGroupIds.isEmpty()) currentStep = 3
                     } else {
                         currentStep = 3
                     }
@@ -309,7 +311,7 @@ fun AndroidSetupScreen(
                             // CodexController.install already installs Codex alone when the rest are
                             // there.
                             if (antigravity.error != null) setOf(LocalAgent.ANTIGRAVITY) else selectedAgents,
-                            installFullDevelopmentTools,
+                            selectedDevGroups,
                         )
                     }
                 } else {
@@ -320,7 +322,7 @@ fun AndroidSetupScreen(
             // visited yet.
             4 ->
                 SetupPrimaryAction(stringResource(R.string.setup_next_action), true) {
-                    if (signInIndex < signInAgents.lastIndex) signInIndex++ else currentStep = 5
+                    if (signInIndex < signInAgents.lastIndex) signInIndex++ else onFinish()
                 }
             else -> SetupPrimaryAction(stringResource(R.string.setup_complete_button), true, onFinish)
         }
@@ -385,9 +387,9 @@ fun AndroidSetupScreen(
                     )
                 2 ->
                     DevelopmentToolsStep(
-                        installFullDevelopmentTools = installFullDevelopmentTools,
+                        selectedGroupIds = selectedDevToolGroupIds,
                         installPending = fullToolsInstallPending,
-                        onInstallFullDevelopmentToolsChanged = { installFullDevelopmentTools = it },
+                        onSelectedGroupIdsChanged = { selectedDevToolGroupIds = it },
                     )
                 3 ->
                     RuntimeDownloadStep(
@@ -427,13 +429,7 @@ fun AndroidSetupScreen(
                         onOpenProviderAuth = onOpenProviderAuth,
                         onDisconnectProvider = onDisconnectProvider,
                     )
-                else ->
-                    GitHubConnectionStep(
-                        settingsState = settingsState,
-                        onConnect = onConnectGitHub,
-                        onDisconnect = onDisconnectGitHub,
-                        onOpenVerification = onOpenGitHubVerification,
-                    )
+                else -> Unit
             }
         }
     }
@@ -698,53 +694,58 @@ private fun AgentOption(
 
 @Composable
 private fun DevelopmentToolsStep(
-    installFullDevelopmentTools: Boolean,
+    selectedGroupIds: Set<String>,
     installPending: Boolean,
-    onInstallFullDevelopmentToolsChanged: (Boolean) -> Unit,
+    onSelectedGroupIdsChanged: (Set<String>) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         StepHeader(
             title = stringResource(R.string.setup_step_development_tools),
             description = stringResource(R.string.setup_development_tools_description),
         )
-        SetupPanel {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TextButton(
+                onClick = { onSelectedGroupIdsChanged(DevelopmentToolGroup.entries.map { it.id }.toSet()) },
+                enabled = !installPending,
             ) {
-                Checkbox(checked = true, onCheckedChange = null, enabled = false)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.required_tools_title), fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        stringResource(R.string.setup_required_tools_description),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text(stringResource(R.string.development_tools_select_all))
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            TextButton(
+                onClick = { onSelectedGroupIdsChanged(emptySet()) },
+                enabled = !installPending && selectedGroupIds.isNotEmpty(),
             ) {
-                Checkbox(
-                    checked = installFullDevelopmentTools,
-                    onCheckedChange = onInstallFullDevelopmentToolsChanged,
-                    enabled = !installPending,
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        stringResource(R.string.setup_install_full_development_tools),
-                        fontWeight = FontWeight.SemiBold,
+                Text("Clear")
+            }
+        }
+        DevelopmentToolGroup.entries.forEach { group ->
+            val checked = group.id in selectedGroupIds
+            SetupPanel {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Checkbox(
+                        checked = checked,
+                        onCheckedChange = { on ->
+                            onSelectedGroupIdsChanged(
+                                if (on) selectedGroupIds + group.id else selectedGroupIds - group.id,
+                            )
+                        },
+                        enabled = !installPending,
                     )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        stringResource(R.string.setup_install_full_development_tools_description),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(group.displayNameRes), fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            stringResource(group.descriptionRes),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -836,6 +837,11 @@ private fun RuntimeDownloadStep(
                         val progress = inst.progress
                         if (progress != null) {
                             LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                            Text(
+                                text = "${(progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         } else {
                             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                         }
@@ -890,6 +896,11 @@ private fun SharedInstallProgress(status: LocalRuntimeStatus.Installing) {
     Text(status.step, fontWeight = FontWeight.Medium)
     if (status.progress != null) {
         LinearProgressIndicator(progress = { status.progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+        Text(
+            text = "${(status.progress * 100).toInt()}%",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     } else {
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
     }
@@ -1176,10 +1187,11 @@ private fun SignInStep(
                         onSignOut = onSignOutCodex,
                     )
                 LocalAgent.PI ->
-                    Text(
-                        text = stringResource(R.string.setup_agent_pi_desc),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ProviderConnectionStep(
+                        settingsState = settingsState,
+                        onOpenProviderAuth = onOpenProviderAuth,
+                        onDisconnectProvider = onDisconnectProvider,
+                        header = false,
                     )
             }
         }

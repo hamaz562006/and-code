@@ -81,6 +81,8 @@ fun SettingsScreenV2(
     onOpenGitHubSettings: () -> Unit = {},
     onOpenLocalRuntime: () -> Unit,
     onOpenGuestBrowser: () -> Unit = {},
+    /** False when GITHUB_CLIENT_ID is empty — OAuth cannot work. */
+    showGitHubSettings: Boolean = true,
     onOpenRemoteConnection: () -> Unit,
     onOpenWorkspaces: () -> Unit,
     onOpenDiagnostics: () -> Unit,
@@ -299,12 +301,14 @@ fun SettingsScreenV2(
                     title = stringResource(R.string.settings_agents_row),
                     onClick = onOpenAgentSettings,
                 )
-                SettingsDivider()
-                SettingsRow(
-                    icon = Icons.Default.Code,
-                    title = "GitHub / Git Operations",
-                    onClick = onOpenGitHubSettings,
-                )
+                if (showGitHubSettings) {
+                    SettingsDivider()
+                    SettingsRow(
+                        icon = Icons.Default.Code,
+                        title = "GitHub / Git Operations",
+                        onClick = onOpenGitHubSettings,
+                    )
+                }
                 SettingsDivider()
                 if (supportsServerInfo) {
                     SettingsRow(

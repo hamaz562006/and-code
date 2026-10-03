@@ -101,8 +101,10 @@ fun NavGraphBuilder.workspaceNavGraph(
                             },
                             repairAction = app.localRuntimeController::reinstall,
                             installFullDevelopmentToolsAction = app.localRuntimeController::installFullDevelopmentTools,
+                            installDevelopmentToolGroupsAction = app.localRuntimeController::installDevelopmentToolGroups,
                             runtimeEnvironmentInstalledProvider = app.localRuntimeManager::runtimeEnvironmentInstalled,
                             fullDevelopmentToolsInstalledProvider = app.localRuntimeManager::fullDevelopmentToolsInstalled,
+                            installedDevelopmentGroupsProvider = app.localRuntimeManager::installedDevelopmentGroups,
                             deleteAction = app.localRuntimeController::delete,
                             getString = { app.getString(it) },
                             adbState = app.adbConnectionManager.state,
@@ -127,6 +129,10 @@ fun NavGraphBuilder.workspaceNavGraph(
             onRefresh = managementViewModel::refresh,
             onRepair = managementViewModel::repair,
             onInstallFullDevelopmentTools = managementViewModel::installFullDevelopmentTools,
+            onToggleDevelopmentToolGroup = managementViewModel::toggleDevelopmentToolGroup,
+            onSelectAllDevelopmentToolGroups = managementViewModel::selectAllDevelopmentToolGroups,
+            onClearDevelopmentToolGroupSelection = managementViewModel::clearDevelopmentToolGroupSelection,
+            onInstallSelectedDevelopmentToolGroups = managementViewModel::installSelectedDevelopmentToolGroups,
             onRequestDelete = managementViewModel::requestDelete,
             onDismissDelete = managementViewModel::dismissDelete,
             onConfirmDelete = managementViewModel::confirmDelete,
@@ -186,7 +192,13 @@ fun NavGraphBuilder.workspaceNavGraph(
                 key = "terminal",
                 factory =
                     ViewModelFactory {
-                        TerminalViewModel(app.commandRunner, app.runtimeWork)
+                        TerminalViewModel(
+                            app.commandRunner,
+                            app.runtimeWork,
+                            agentLabel = {
+                                app.runtimeRegistry.selected.value?.displayName ?: "OpenCode"
+                            },
+                        )
                     },
             )
         val terminalState by terminalViewModel.state.collectAsState()

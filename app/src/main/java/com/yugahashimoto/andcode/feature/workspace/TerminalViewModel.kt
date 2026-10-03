@@ -35,13 +35,17 @@ class TerminalViewModel(
      * already tracks that as work - so without a lease the device could suspend mid-command.
      */
     private val runtimeWork: RuntimeWorkTracker,
+    /** Active agent label for the banner, e.g. "Pi" or "OpenCode". */
+    private val agentLabel: () -> String = { "OpenCode" },
 ) : ViewModel() {
+    private fun systemBanner(): TerminalLine = TerminalLine("${agentLabel()} Terminal - PRoot Alpine Linux", TerminalLineType.SYSTEM)
+
     private val _state =
         MutableStateFlow(
             TerminalUiState(
                 lines =
                     listOf(
-                        TerminalLine("OpenCode Terminal - PRoot Alpine Linux", TerminalLineType.SYSTEM),
+                        systemBanner(),
                     ),
             ),
         )
@@ -102,7 +106,7 @@ class TerminalViewModel(
             it.copy(
                 lines =
                     listOf(
-                        TerminalLine("OpenCode Terminal - PRoot Alpine Linux", TerminalLineType.SYSTEM),
+                        systemBanner(),
                     ),
             )
         }

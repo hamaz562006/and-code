@@ -86,6 +86,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenGitHubSettings = { navController.navigate(ROUTE_SETTINGS_GITHUB) },
             onOpenLocalRuntime = { navController.navigate(LOCAL_RUNTIME_MANAGEMENT_ROUTE) },
             onOpenGuestBrowser = { navController.navigate(ROUTE_GUEST_BROWSER) },
+            showGitHubSettings = com.yugahashimoto.andcode.BuildConfig.GITHUB_CLIENT_ID.isNotBlank(),
             onOpenRemoteConnection = { navController.navigate(ROUTE_REMOTE_CONNECTION) },
             onOpenWorkspaces = { navController.navigate(ROUTE_WORKSPACES) },
             onOpenDiagnostics = onShowDiagnostics,
@@ -299,6 +300,8 @@ fun NavGraphBuilder.settingsNavGraph(
             onInstall = { app.piController.install() },
             onRestart = { app.piRuntime.stopAll() },
             onStop = { app.piRuntime.stopAll() },
+            onCheckForUpdate = { app.piController.checkForUpdate() },
+            onUpdate = { app.piController.updateToLatest() },
             onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_PI) },
             onBack = { navController.popBackStack() },
         )
@@ -340,6 +343,11 @@ fun NavGraphBuilder.settingsNavGraph(
             onDismissRollback = openCodeViewModel::dismissRollback,
             onConfirmRollback = openCodeViewModel::confirmRollback,
             onOpenSetup = { navController.navigate(ROUTE_ANDROID_SETUP) },
+            onInstall = {
+                app.localRuntimeController.installAndStart(
+                    setOf(com.yugahashimoto.andcode.runtime.LocalAgent.OPEN_CODE),
+                )
+            },
             onOpenProviderSettings = { navController.navigate(ROUTE_SETTINGS_PROVIDERS) },
             onOpenModelVisibility = { navController.navigate(ROUTE_SETTINGS_MODEL_VISIBILITY) },
             onOpenSystemPrompt = { navController.navigate(ROUTE_SETTINGS_SYSTEM_PROMPT) },

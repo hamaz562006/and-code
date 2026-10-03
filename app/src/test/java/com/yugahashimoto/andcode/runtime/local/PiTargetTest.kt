@@ -17,6 +17,19 @@ class PiTargetTest {
     @get:Rule
     val tempFolder = TemporaryFolder()
 
+    private fun installPiLayout(rootfs: File) {
+        val binDir = File(rootfs, "usr/local/bin").apply { mkdirs() }
+        File(binDir, "pi").apply {
+            writeText("#!/bin/sh\necho 0.87.1\n")
+            setExecutable(true)
+        }
+        val cli = File(rootfs, "usr/local/lib/pi-coding-agent/dist/bundle/cli.js")
+        cli.parentFile?.mkdirs()
+        cli.writeText("console.log('pi')\n")
+        File(rootfs, "usr/local/lib/pi-coding-agent/node_modules").mkdirs()
+        PiInstaller.writeInstalledVersion(rootfs, "0.87.1")
+    }
+
     @Test
     fun `target exposes correct identity and capabilities`() {
         val runtimeDir = tempFolder.newFolder("runtime")
@@ -34,29 +47,30 @@ class PiTargetTest {
     }
 
     @Test
-    fun `listAgents returns single Pi primary agent`() =
-        runBlocking {
-            val runtimeDir = tempFolder.newFolder("runtime-agents")
-            val runtime = PiRuntime(runtimeDir, { null })
-            val target = PiTarget(runtime)
-
-            val agents = target.listAgents()
-            assertEquals(1, agents.size)
-            assertEquals("pi", agents.first().name)
-            assertEquals("Pi", agents.first().description)
-            assertEquals("primary", agents.first().mode)
-        }
-
-    @Test
-    fun `listProviders returns Pi catalog`() =
+    fun `listProviders returns seeded multi-provider catalog`() =
         runBlocking {
             val runtimeDir = tempFolder.newFolder("runtime-providers")
             val runtime = PiRuntime(runtimeDir, { null })
             val target = PiTarget(runtime)
 
             val catalog = target.listProviders()
-            assertEquals(1, catalog.all.size)
-            assertEquals("pi", catalog.all.first().id)
+            assertTrue(catalog.all.size >= 4)
+            val ids = catalog.all.map { it.id }.toSet()
+            assertTrue(ids.contains("anthropic"))
+            assertTrue(ids.contains("openai"))
+            assertTrue(ids.contains("google"))
+        }
+
+    @Test
+    fun `providerAuthMethods offers API key for each seed provider`() =
+        runBlocking {
+            val runtimeDir = tempFolder.newFolder("runtime-auth")
+            val runtime = PiRuntime(runtimeDir, { null })
+            val target = PiTarget(runtime)
+
+            val methods = target.providerAuthMethods()
+            assertTrue(methods.containsKey("anthropic"))
+            assertEquals("api", methods.getValue("anthropic").first().type)
         }
 
     @Test
@@ -76,13 +90,7 @@ class PiTargetTest {
         runBlocking {
             val runtimeDir = tempFolder.newFolder("runtime-installed")
             val rootfs = File(runtimeDir, "environment/rootfs").apply { mkdirs() }
-            val binDir = File(rootfs, "usr/local/bin").apply { mkdirs() }
-            val piBinary =
-                File(binDir, "pi").apply {
-                    writeText("#!/bin/sh\necho 0.87.1")
-                    setExecutable(true)
-                }
-            PiInstaller.writeInstalledVersion(rootfs, "0.87.1")
+            installPiLayout(rootfs)
 
             val installedRuntime =
                 LocalRuntimeInstaller.InstalledRuntime(

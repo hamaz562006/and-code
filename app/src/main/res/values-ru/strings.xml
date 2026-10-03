@@ -297,6 +297,7 @@
     <string name="agent_status_install_failed">Сбой установки</string>
     <string name="opencode_not_installed_note">OpenCode ещё не установлен на это устройство. Запустите настройку, чтобы установить его.</string>
     <string name="opencode_open_setup_button">Открыть настройку</string>
+    <string name="opencode_install_button">Install OpenCode</string>
     <string name="local_runtime_shared_note">Среда Linux, общая для всех локальных агентов Android. Версия и обновления каждого агента находятся в его собственных настройках.</string>
     <string name="check_update_source_note">Проверяет последний выпуск из официального GitHub Release.</string>
     <string name="check_for_update_button">Проверить обновления</string>
@@ -420,6 +421,8 @@
     <string name="notification_runtime_stopped">Локальный OpenCode остановлен</string>
     <string name="notification_runtime_ready">Локальный OpenCode работает</string>
     <string name="notification_runtime_ready_detail">OpenCode %1$s · 127.0.0.1:%2$d</string>
+    <string name="notification_runtime_ready_detail_pi">Pi · локальная песочница</string>
+    <string name="notification_runtime_ready_detail_sandbox">Локальная песочница готова</string>
     <string name="notification_runtime_broken">У локального OpenCode проблема</string>
     <string name="notification_runtime_unsupported_device">Недоступно на этом устройстве</string>
     <string name="notification_channel_local_runtime_description">Статус OpenCode, работающего на этом устройстве Android</string>
@@ -1193,4 +1196,23 @@
     <string name="full_development_tools_installed">Полный набор инструментов установлен</string>
     <string name="install_full_development_tools_button">Установить полный набор</string>
     <string name="runtime_full_development_tools_start_failed">Не удалось начать установку инструментов разработки</string>
+
+    <string name="development_tool_group_editors">Editors &amp; utilities</string>
+    <string name="development_tool_group_editors_desc">tree, file, less, nano, vim, zip/unzip, sqlite, patch, pkgconf, gcompat (~20 MB)</string>
+    <string name="development_tool_group_android_java">Android / Java / Kotlin</string>
+    <string name="development_tool_group_android_java_desc">OpenJDK 17 and Gradle (~250 MB)</string>
+    <string name="development_tool_group_node">Node.js</string>
+    <string name="development_tool_group_node_desc">nodejs, npm, full ICU data (~60 MB)</string>
+    <string name="development_tool_group_python">Python packaging</string>
+    <string name="development_tool_group_python_desc">pip for Python 3 (~8 MB)</string>
+    <string name="development_tool_group_native">C/C++ native toolchain</string>
+    <string name="development_tool_group_native_desc">make, cmake, gcc, g++, musl-dev (~100 MB)</string>
+    <string name="development_tool_group_go">Go</string>
+    <string name="development_tool_group_go_desc">Go compiler and toolchain (~120 MB)</string>
+    <string name="development_tool_group_github_cli">GitHub CLI</string>
+    <string name="development_tool_group_github_cli_desc">gh command-line tool (~15 MB)</string>
+    <string name="development_tools_select_all">Select all groups</string>
+    <string name="development_tools_install_all">Install everything</string>
+    <string name="development_tools_install_selected">Install selected</string>
+    <string name="development_tools_group_installed">Installed</string>
 </resources>

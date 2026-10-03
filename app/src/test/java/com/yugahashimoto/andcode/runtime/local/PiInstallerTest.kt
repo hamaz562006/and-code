@@ -13,18 +13,24 @@ class PiInstallerTest {
     @get:Rule
     val tempFolder = TemporaryFolder()
 
+    private fun installLayout(rootfs: File) {
+        val binDir = File(rootfs, "usr/local/bin").apply { mkdirs() }
+        File(binDir, "pi").apply {
+            writeText("#!/bin/sh\nexec node /usr/local/lib/pi-coding-agent/dist/bundle/cli.js \"\$@\"\n")
+            setExecutable(true)
+        }
+        val cli = File(rootfs, "usr/local/lib/pi-coding-agent/dist/bundle/cli.js")
+        cli.parentFile?.mkdirs()
+        cli.writeText("console.log('pi')\n")
+        File(rootfs, "usr/local/lib/pi-coding-agent/node_modules").mkdirs()
+    }
+
     @Test
-    fun `isInstalledIn returns true only when pi binary exists`() {
+    fun `isInstalledIn returns true only when shim and cli exist`() {
         val rootfs = tempFolder.newFolder("rootfs")
         assertFalse(PiInstaller.isInstalledIn(rootfs))
 
-        val binDir = File(rootfs, "usr/local/bin").apply { mkdirs() }
-        val piBinary =
-            File(binDir, "pi").apply {
-                writeText("#!/bin/sh\necho 0.87.1")
-                setExecutable(true)
-            }
-
+        installLayout(rootfs)
         assertTrue(PiInstaller.isInstalledIn(rootfs))
     }
 
@@ -33,13 +39,7 @@ class PiInstallerTest {
         val rootfs = tempFolder.newFolder("rootfs2")
         assertNull(PiInstaller.installedVersion(rootfs))
 
-        val binDir = File(rootfs, "usr/local/bin").apply { mkdirs() }
-        val piBinary =
-            File(binDir, "pi").apply {
-                writeText("#!/bin/sh\necho 0.87.1")
-                setExecutable(true)
-            }
-
+        installLayout(rootfs)
         assertEquals(PiManifest.VERSION, PiInstaller.installedVersion(rootfs))
 
         PiInstaller.writeInstalledVersion(rootfs, "0.87.1-custom")

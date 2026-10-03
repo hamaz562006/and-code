@@ -17,6 +17,7 @@ import com.yugahashimoto.andcode.MainActivity
 import com.yugahashimoto.andcode.R
 import com.yugahashimoto.andcode.core.lifecycle.AppForeground
 import com.yugahashimoto.andcode.core.runtime.RuntimeWorkTracker
+import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import kotlinx.coroutines.CoroutineScope
@@ -377,13 +378,18 @@ class LocalRuntimeService : Service() {
             LocalRuntimeServiceCommand.InstallAndStart -> {
                 autoRestartEnabled = true
                 val agents = localRuntimeInstallAgents(intent?.getStringArrayExtra(EXTRA_AGENTS))
-                val installFullDevelopmentTools = intent?.getBooleanExtra(EXTRA_FULL_DEVELOPMENT_TOOLS, false) == true
-                launchOperation { manager.installAndStart(agents, installFullDevelopmentTools) }
+                val groups = developmentToolGroupsFrom(intent)
+                launchOperation { manager.installAndStart(agents, groups) }
             }
             LocalRuntimeServiceCommand.InstallFullDevelopmentTools -> {
                 val runtimeWasRunning = manager.status() is LocalRuntimeStatus.Ready
+                val groups = developmentToolGroupsFrom(intent)
                 launchOperation {
-                    manager.installFullDevelopmentTools()
+                    if (groups.isEmpty() || groups.containsAll(DevelopmentToolGroup.ALL)) {
+                        manager.installFullDevelopmentTools()
+                    } else {
+                        manager.installDevelopmentToolGroups(groups)
+                    }
                     if (!runtimeWasRunning) {
                         stopForeground(STOP_FOREGROUND_REMOVE)
                         stopSelf()
@@ -604,6 +610,20 @@ class LocalRuntimeService : Service() {
         releaseWakeLock()
     }
 
+    /** Subtitle under the local-runtime notification: OpenCode host:port, or Pi/sandbox label. */
+    private fun runtimeNotificationDetail(
+        version: String,
+        port: Int,
+    ): String =
+        when {
+            manager.hasOpenCode() ->
+                getString(R.string.notification_runtime_ready_detail, version, port)
+            manager.hasAgent(LocalAgent.PI) ->
+                getString(R.string.notification_runtime_ready_detail_pi)
+            else ->
+                getString(R.string.notification_runtime_ready_detail_sandbox)
+        }
+
     private fun notification(status: LocalRuntimeStatus): android.app.Notification {
         val openIntent =
             PendingIntent.getActivity(
@@ -636,7 +656,7 @@ class LocalRuntimeService : Service() {
                 is LocalRuntimeStatus.Starting ->
                     NotificationState(
                         getString(R.string.notification_runtime_starting),
-                        getString(R.string.capability_version, status.version),
+                        runtimeNotificationDetail(status.version, status.port),
                         true,
                     )
                 is LocalRuntimeStatus.Updating ->
@@ -649,12 +669,12 @@ class LocalRuntimeService : Service() {
                 is LocalRuntimeStatus.Stopped ->
                     NotificationState(
                         getString(R.string.notification_runtime_stopped),
-                        getString(R.string.capability_version, status.version),
+                        runtimeNotificationDetail(status.version, status.port),
                     )
                 is LocalRuntimeStatus.Ready ->
                     NotificationState(
                         getString(R.string.notification_runtime_ready),
-                        getString(R.string.notification_runtime_ready_detail, status.version, status.port),
+                        runtimeNotificationDetail(status.version, status.port),
                     )
                 is LocalRuntimeStatus.Broken -> NotificationState(getString(R.string.notification_runtime_broken), status.reason)
                 is LocalRuntimeStatus.UnsupportedAbi ->
@@ -719,6 +739,7 @@ class LocalRuntimeService : Service() {
         /** Ids of the agents an install should provision; see [LocalRuntimeInstaller.install]. */
         const val EXTRA_AGENTS = "com.yugahashimoto.andcode.local.AGENTS"
         const val EXTRA_FULL_DEVELOPMENT_TOOLS = "com.yugahashimoto.andcode.local.FULL_DEVELOPMENT_TOOLS"
+        const val EXTRA_DEVELOPMENT_TOOL_GROUPS = "com.yugahashimoto.andcode.local.DEVELOPMENT_TOOL_GROUPS"
 
         /**
          * Sends a command to the runtime service, starting it when it is not running yet.
@@ -733,13 +754,34 @@ class LocalRuntimeService : Service() {
             context: Context,
             action: String,
             agents: Set<LocalAgent> = emptySet(),
-            installFullDevelopmentTools: Boolean = false,
+            developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
         ) {
             val intent = Intent(context, LocalRuntimeService::class.java).setAction(action)
             if (agents.isNotEmpty()) intent.putExtra(EXTRA_AGENTS, agents.map(LocalAgent::id).toTypedArray())
-            if (installFullDevelopmentTools) intent.putExtra(EXTRA_FULL_DEVELOPMENT_TOOLS, true)
+            if (developmentToolGroups.isNotEmpty()) {
+                intent.putExtra(
+                    EXTRA_DEVELOPMENT_TOOL_GROUPS,
+                    developmentToolGroups.map { it.id }.toTypedArray(),
+                )
+                // Legacy boolean for older listeners that only understand all-or-nothing.
+                if (developmentToolGroups.containsAll(DevelopmentToolGroup.ALL)) {
+                    intent.putExtra(EXTRA_FULL_DEVELOPMENT_TOOLS, true)
+                }
+            }
             runCatching { ContextCompat.startForegroundService(context, intent) }
                 .onFailure { error -> Log.w(TAG, "Foreground start refused for $action", error) }
+        }
+
+        private fun developmentToolGroupsFrom(intent: Intent?): Set<DevelopmentToolGroup> {
+            val ids = intent?.getStringArrayExtra(EXTRA_DEVELOPMENT_TOOL_GROUPS)
+            if (!ids.isNullOrEmpty()) {
+                return ids.mapNotNull { DevelopmentToolGroup.fromId(it) }.toSet()
+            }
+            return if (intent?.getBooleanExtra(EXTRA_FULL_DEVELOPMENT_TOOLS, false) == true) {
+                DevelopmentToolGroup.ALL
+            } else {
+                emptySet()
+            }
         }
     }
 }
@@ -752,15 +794,22 @@ class LocalRuntimeServiceController(private val context: Context) {
      */
     fun installAndStart(
         agents: Set<LocalAgent> = setOf(LocalAgent.OPEN_CODE),
-        installFullDevelopmentTools: Boolean = false,
+        developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
     ) = LocalRuntimeService.send(
         context,
         LocalRuntimeService.ACTION_INSTALL_AND_START,
         agents,
-        installFullDevelopmentTools,
+        developmentToolGroups,
     )
 
     fun installFullDevelopmentTools() = LocalRuntimeService.send(context, LocalRuntimeService.ACTION_INSTALL_FULL_DEVELOPMENT_TOOLS)
+
+    fun installDevelopmentToolGroups(groups: Set<DevelopmentToolGroup>) =
+        LocalRuntimeService.send(
+            context,
+            LocalRuntimeService.ACTION_INSTALL_FULL_DEVELOPMENT_TOOLS,
+            developmentToolGroups = groups,
+        )
 
     fun start() = LocalRuntimeService.send(context, LocalRuntimeService.ACTION_START)
 

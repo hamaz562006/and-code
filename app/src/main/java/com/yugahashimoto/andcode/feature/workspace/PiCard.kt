@@ -35,6 +35,8 @@ fun PiCard(
     onInstall: () -> Unit,
     onRestart: (() -> Unit)? = null,
     onStop: (() -> Unit)? = null,
+    onCheckForUpdate: (() -> Unit)? = null,
+    onUpdate: (() -> Unit)? = null,
 ) {
     Spacer(Modifier.height(12.dp))
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -75,6 +77,34 @@ fun PiCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    pi.updateMessage?.let { msg ->
+                        Text(
+                            text = msg,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    pi.updateAvailable?.let { latest ->
+                        Text(
+                            text = "Update available: ${pi.version ?: "?"} → $latest",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        if (onUpdate != null) {
+                            Button(onClick = onUpdate, modifier = Modifier.fillMaxWidth()) {
+                                Text("Update to $latest")
+                            }
+                        }
+                    }
+                    if (onCheckForUpdate != null) {
+                        OutlinedButton(
+                            onClick = onCheckForUpdate,
+                            enabled = !pi.isCheckingUpdate,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.check_for_update_button))
+                        }
+                    }
                     if (onRestart != null || onStop != null) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),

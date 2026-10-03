@@ -1,5 +1,6 @@
 package com.yugahashimoto.andcode.runtime.local
 
+import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import kotlinx.coroutines.CancellationException
@@ -35,15 +36,37 @@ data class LocalRuntimeMetadata(
     /** Legacy runtimes installed the complete Alpine toolchain, but not its Debian equivalent. */
     @SerialName("fullDevelopmentToolsInstalled") val fullDevelopmentToolsInstalled: Boolean = true,
     @SerialName("fullDebianDevelopmentToolsInstalled") val fullDebianDevelopmentToolsInstalled: Boolean = false,
+    /** Optional [DevelopmentToolGroup] ids. Empty + [fullDevelopmentToolsInstalled] true ⇒ legacy "all groups". */
+    @SerialName("installedDevelopmentToolGroups") val installedDevelopmentToolGroups: Set<String> = emptySet(),
 ) {
     fun has(agent: LocalAgent): Boolean = agent.id in components
 
-    fun hasFullDevelopmentTools(): Boolean =
-        fullDevelopmentToolsInstalled && (!has(LocalAgent.ANTIGRAVITY) || fullDebianDevelopmentToolsInstalled)
+    fun installedDevelopmentGroups(): Set<DevelopmentToolGroup> {
+        if (fullDevelopmentToolsInstalled && installedDevelopmentToolGroups.isEmpty()) {
+            return DevelopmentToolGroup.ALL
+        }
+        return installedDevelopmentToolGroups.mapNotNull { DevelopmentToolGroup.fromId(it) }.toSet()
+    }
+
+    fun hasDevelopmentGroup(group: DevelopmentToolGroup): Boolean = group in installedDevelopmentGroups()
+
+    fun hasFullDevelopmentTools(): Boolean {
+        val groups = installedDevelopmentGroups()
+        return groups.containsAll(DevelopmentToolGroup.ALL) &&
+            (!has(LocalAgent.ANTIGRAVITY) || fullDebianDevelopmentToolsInstalled)
+    }
 
     fun with(agent: LocalAgent): LocalRuntimeMetadata = copy(components = components + agent.id)
 
     fun without(agent: LocalAgent): LocalRuntimeMetadata = copy(components = components - agent.id)
+
+    fun withDevelopmentGroups(groups: Set<DevelopmentToolGroup>): LocalRuntimeMetadata {
+        val merged = installedDevelopmentGroups() + groups
+        return copy(
+            installedDevelopmentToolGroups = merged.map { it.id }.toSet(),
+            fullDevelopmentToolsInstalled = merged.containsAll(DevelopmentToolGroup.ALL),
+        )
+    }
 }
 
 class LocalRuntimeManager(
@@ -108,7 +131,7 @@ class LocalRuntimeManager(
 
     suspend fun installAndStart(
         agents: Set<LocalAgent> = setOf(LocalAgent.OPEN_CODE),
-        installFullDevelopmentTools: Boolean = false,
+        developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
     ): Result<LocalRuntimeStatus.Ready> =
         operationMutex.withLock {
             val configuredInstaller =
@@ -116,7 +139,7 @@ class LocalRuntimeManager(
                     ?: return@withLock Result.failure(IllegalStateException("Local runtime installer is not configured"))
             runCatching {
                 val installed =
-                    configuredInstaller.install(agents, installFullDevelopmentTools) { progress, step, agent ->
+                    configuredInstaller.install(agents, developmentToolGroups) { progress, step, agent ->
                         mutableState.value = LocalRuntimeStatus.Installing(progress, step, agent)
                     }
                 mutableState.value = LocalRuntimeStatus.Stopped(installed.metadata.version, installed.metadata.port)
@@ -151,6 +174,14 @@ class LocalRuntimeManager(
                 compareRuntimeVersions(metadata.version, bundledVersion) < 0
             ) {
                 return@withLock updateToLatestLocked()
+            }
+            // Pi-/Codex-only sandboxes have no OpenCode HTTP server — do not launch opencode.
+            if (!hasOpenCode()) {
+                val version = metadata.version.ifBlank { "sandbox" }
+                val port = metadata.port.takeIf { it in 1..65535 } ?: 0
+                return@withLock Result.success(
+                    LocalRuntimeStatus.Ready(version, port).also { mutableState.value = it },
+                )
             }
             // Same reasoning as computeStatus(): only restart a server that is genuinely gone. A
             // live process that missed a probe is busy, and stopping it here would end whatever it
@@ -216,7 +247,7 @@ class LocalRuntimeManager(
                                 ?.toSet()
                                 ?.takeIf(Set<LocalAgent>::isNotEmpty)
                                 ?: setOf(LocalAgent.OPEN_CODE),
-                        installFullDevelopmentTools = previousMetadata?.fullDevelopmentToolsInstalled == true,
+                        developmentToolGroups = previousMetadata?.installedDevelopmentGroups() ?: emptySet(),
                     ) { progress, step, agent ->
                         mutableState.value = LocalRuntimeStatus.Installing(progress, step, agent)
                     }
@@ -232,21 +263,40 @@ class LocalRuntimeManager(
     // UI readers must not wait on the installer's write lock during a long package download.
     fun fullDevelopmentToolsInstalled(): Boolean = readMetadata()?.hasFullDevelopmentTools() == true
 
+    fun installedDevelopmentGroups(): Set<DevelopmentToolGroup> = readMetadata()?.installedDevelopmentGroups() ?: emptySet()
+
     fun runtimeEnvironmentInstalled(): Boolean = readMetadata() != null && File(runtimeDirectory, "environment/rootfs").isDirectory
 
-    suspend fun installFullDevelopmentTools(): Result<Unit> =
+    /**
+     * True only when OpenCode itself was provisioned into the shared rootfs.
+     * A Pi-/Codex-only sandbox still reports [LocalRuntimeStatus.Ready] for the environment, but
+     * the OpenCode drawer entry must stay hidden until this is true.
+     */
+    fun hasOpenCode(): Boolean {
+        val metadata = readMetadata() ?: return false
+        if (!metadata.has(LocalAgent.OPEN_CODE)) return false
+        return File(runtimeDirectory, "environment/rootfs/usr/local/bin/opencode").isFile
+    }
+
+    fun hasAgent(agent: LocalAgent): Boolean = readMetadata()?.has(agent) == true
+
+    suspend fun installFullDevelopmentTools(): Result<Unit> = installDevelopmentToolGroups(DevelopmentToolGroup.ALL)
+
+    suspend fun installDevelopmentToolGroups(groups: Set<DevelopmentToolGroup>): Result<Unit> =
         operationMutex.withLock {
             val configuredInstaller =
                 installer
                     ?: return@withLock Result.failure(IllegalStateException("Local runtime installer is not configured"))
-            if (configuredInstaller.installedMetadata()?.hasFullDevelopmentTools() == true) {
+            val already = configuredInstaller.installedMetadata()?.installedDevelopmentGroups() ?: emptySet()
+            val missing = groups - already
+            if (missing.isEmpty()) {
                 return@withLock Result.success(Unit)
             }
             mutableLastOperation.value = null
             val wasRunning = status() is LocalRuntimeStatus.Ready
             try {
                 if (wasRunning) withContext(Dispatchers.IO) { processLauncher?.stop() }
-                configuredInstaller.installFullDevelopmentTools { progress, step, agent ->
+                configuredInstaller.installDevelopmentToolGroups(missing) { progress, step, agent ->
                     mutableState.value = LocalRuntimeStatus.Installing(progress, step, agent)
                 }
                 val installed = configuredInstaller.installedRuntime() ?: error("Local runtime is not installed")
@@ -288,6 +338,11 @@ class LocalRuntimeManager(
 
     suspend fun checkForUpdate(): Result<LocalRuntimeUpdateCheck> =
         operationMutex.withLock {
+            if (!hasOpenCode()) {
+                // Pi-only (and other non-OpenCode) sandboxes have no OpenCode release to check.
+                // Do not publish Failed("Invalid OpenCode version") into the shared lastOperation.
+                return@withLock Result.failure(IllegalStateException("OpenCode is not installed"))
+            }
             val engine =
                 updateEngine
                     ?: return@withLock Result.failure(IllegalStateException("Local runtime updater is not configured"))
@@ -577,6 +632,16 @@ class LocalRuntimeManager(
      */
     internal suspend fun startInstalled(installed: LocalRuntimeInstaller.InstalledRuntime): LocalRuntimeStatus.Ready =
         withContext(Dispatchers.IO) {
+            // Shared rootfs only (Pi / Codex / … without OpenCode in metadata): mark Ready, do not
+            // exec opencode. When OPEN_CODE is listed, keep the normal start path (tests and real
+            // OpenCode installs still write the system prompt and launch the process).
+            if (!installed.metadata.has(LocalAgent.OPEN_CODE)) {
+                val version = installed.metadata.version.ifBlank { "sandbox" }
+                val port = installed.metadata.port.takeIf { it in 1..65535 } ?: 0
+                val ready = LocalRuntimeStatus.Ready(version, port)
+                mutableState.value = ready
+                return@withContext ready
+            }
             val launcher =
                 processLauncher
                     ?: error("Local runtime process launcher is not configured")
@@ -610,10 +675,16 @@ class LocalRuntimeManager(
             }.getOrElse { error ->
                 return LocalRuntimeStatus.Broken("Runtime metadata is invalid: ${error.message}")
             }
-        // A sandbox provisioned for Claude Code only is not a broken OpenCode install: OpenCode was
-        // never asked for, so it is simply not installed and the UI should offer to add it.
-        if (!metadata.has(LocalAgent.OPEN_CODE)) return LocalRuntimeStatus.NotInstalled
         val rootfs = File(runtimeDirectory, "environment/rootfs")
+        // Non-OpenCode sandboxes (Pi / Claude / Codex / Antigravity) still own a provisioned rootfs.
+        if (!metadata.has(LocalAgent.OPEN_CODE)) {
+            if (!rootfs.isDirectory) {
+                return LocalRuntimeStatus.Broken(messages.missingFiles)
+            }
+            val version = metadata.version.ifBlank { "sandbox" }
+            val port = metadata.port.takeIf { it in 1..65535 } ?: 0
+            return LocalRuntimeStatus.Ready(version, port)
+        }
         val openCode = File(rootfs, "usr/local/bin/opencode")
         if (!rootfs.isDirectory || !openCode.isFile) {
             return LocalRuntimeStatus.Broken(messages.missingFiles)

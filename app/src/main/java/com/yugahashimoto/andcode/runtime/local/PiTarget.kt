@@ -7,9 +7,12 @@ import com.yugahashimoto.andcode.core.api.OpenCodeFileContent
 import com.yugahashimoto.andcode.core.api.OpenCodeFileNode
 import com.yugahashimoto.andcode.core.api.OpenCodeHealth
 import com.yugahashimoto.andcode.core.api.OpenCodeMessage
+import com.yugahashimoto.andcode.core.api.OpenCodeModel
+import com.yugahashimoto.andcode.core.api.OpenCodeProvider
 import com.yugahashimoto.andcode.core.api.OpenCodeSearchMatch
 import com.yugahashimoto.andcode.core.api.OpenCodeSession
 import com.yugahashimoto.andcode.core.api.PromptRequest
+import com.yugahashimoto.andcode.core.api.ProviderAuthMethod
 import com.yugahashimoto.andcode.core.api.ProviderCatalog
 import com.yugahashimoto.andcode.runtime.BackendKind
 import com.yugahashimoto.andcode.runtime.LocalAgent
@@ -28,6 +31,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 
 /**
@@ -82,7 +87,78 @@ class PiTarget(
 
     override suspend fun health(): OpenCodeHealth = connect().getOrElse { OpenCodeHealth(false, "") }
 
-    override suspend fun listProviders(): ProviderCatalog = PiModels.catalog()
+    override suspend fun listProviders(): ProviderCatalog =
+        withContext(Dispatchers.IO) {
+            val connected = runtime.connectedProviderIds()
+            val base = PiModels.catalog(connectedIds = connected)
+            val custom =
+                runtime.listCustomProviders().map { entry ->
+                    OpenCodeProvider(
+                        id = entry.id,
+                        name = entry.name,
+                        models =
+                            entry.modelIds.associateWith { mid ->
+                                OpenCodeModel(
+                                    id = mid,
+                                    providerId = entry.id,
+                                    name = mid,
+                                )
+                            },
+                    )
+                }
+            val merged = (base.all + custom).distinctBy { it.id }
+            ProviderCatalog(
+                all = merged,
+                default = base.default,
+                connected = connected.toList(),
+            )
+        }
+
+    override suspend fun providerAuthMethods(): Map<String, List<ProviderAuthMethod>> =
+        PiModels.SEED_PROVIDERS.associate { seed ->
+            seed.id to listOf(ProviderAuthMethod(type = "api", label = "API key"))
+        }
+
+    override suspend fun setProviderApiKey(
+        providerId: String,
+        apiKey: String,
+        metadata: Map<String, String>,
+    ): Boolean =
+        withContext(Dispatchers.IO) {
+            runtime.setApiKey(providerId, apiKey)
+            true
+        }
+
+    override suspend fun removeProviderAuth(providerId: String): Boolean =
+        withContext(Dispatchers.IO) {
+            runtime.setApiKey(providerId, null)
+            true
+        }
+
+    /**
+     * Accepts the same OpenCode-shaped custom-provider patch the Providers UI sends, and stores it
+     * in Pi's `models.json` instead of calling an OpenCode HTTP config API.
+     */
+    override suspend fun updateConfig(patch: JsonObject): kotlinx.serialization.json.JsonElement =
+        withContext(Dispatchers.IO) {
+            val providers =
+                patch["provider"]?.jsonObject
+                    ?: error("Pi config update expects a provider object")
+            providers.forEach { (providerId, value) ->
+                val obj = value.jsonObject
+                val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: providerId
+                val baseUrl =
+                    obj["options"]?.jsonObject?.get("baseURL")?.jsonPrimitive?.contentOrNull
+                        ?: obj["baseUrl"]?.jsonPrimitive?.contentOrNull
+                        ?: error("Custom provider needs a base URL")
+                val modelIds =
+                    obj["models"]?.jsonObject?.keys?.toList().orEmpty().ifEmpty {
+                        error("Custom provider needs at least one model id")
+                    }
+                runtime.registerCustomProvider(providerId, name, baseUrl, modelIds)
+            }
+            patch
+        }
 
     override suspend fun listAgents(): List<OpenCodeAgent> =
         listOf(OpenCodeAgent(name = "pi", description = "Pi", mode = "primary", native = true))
