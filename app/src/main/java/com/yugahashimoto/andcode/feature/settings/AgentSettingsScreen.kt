@@ -14,7 +14,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.PlayArrow
@@ -111,6 +113,8 @@ fun PiAgentSettingsScreen(
     onCheckForUpdate: (() -> Unit)? = null,
     onUpdate: (() -> Unit)? = null,
     onOpenMcp: () -> Unit = {},
+    onExportPackage: () -> Unit = {},
+    onImportPackage: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.PI.displayNameRes), onBack = onBack) {
@@ -157,6 +161,11 @@ fun PiAgentSettingsScreen(
                 onClick = onOpenMcp,
             )
         }
+        AgentPackageSection(
+            installed = pi.installed,
+            onExport = onExportPackage,
+            onImport = onImportPackage,
+        )
     }
 }
 
@@ -750,5 +759,39 @@ private fun AgentSettingsScaffold(
         ) {
             content()
         }
+    }
+}
+
+
+@Composable
+fun AgentPackageSection(
+    installed: Boolean,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
+) {
+    SettingsSection(title = stringResource(R.string.agent_package_section)) {
+        Text(
+            text = stringResource(R.string.agent_export_description),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        SettingsRow(
+            icon = Icons.Default.Share,
+            title = stringResource(R.string.agent_export_button),
+            onClick = onExport,
+            enabled = installed,
+        )
+        Text(
+            text = stringResource(R.string.agent_import_description),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        SettingsRow(
+            icon = Icons.Default.Download,
+            title = stringResource(R.string.agent_import_button),
+            onClick = onImport,
+        )
     }
 }

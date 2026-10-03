@@ -1213,4 +1213,18 @@
     <string name="development_tools_install_all">Install everything</string>
     <string name="development_tools_install_selected">Install selected</string>
     <string name="development_tools_group_installed">Installed</string>
+
+    <string name="agent_export_title">Export agent package</string>
+    <string name="agent_export_description">Save a full offline package of this agent (binaries and optional config) so it can be restored without downloading.</string>
+    <string name="agent_export_button">Export package</string>
+    <string name="agent_import_title">Import agent package</string>
+    <string name="agent_import_description">Restore an agent from a previously exported .andcode.zip package. The Linux environment must already be installed.</string>
+    <string name="agent_import_button">Import package</string>
+    <string name="agent_export_success">Exported %1$s</string>
+    <string name="agent_export_failed">Export failed: %1$s</string>
+    <string name="agent_import_success">Imported %1$s (%2$d files)</string>
+    <string name="agent_import_failed">Import failed: %1$s</string>
+    <string name="agent_export_not_installed">Install this agent before exporting</string>
+    <string name="agent_import_need_runtime">Install the Linux environment first</string>
+    <string name="agent_package_section">Backup &amp; restore</string>
 </resources>
