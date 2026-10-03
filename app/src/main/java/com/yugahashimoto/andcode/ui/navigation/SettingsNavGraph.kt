@@ -291,130 +291,14 @@ fun NavGraphBuilder.settingsNavGraph(
     }
 
     composable(ROUTE_SETTINGS_AGENTS) {
-        val app = context.applicationContext as com.yugahashimoto.andcode.AndCodeApplication
-        val scope = rememberCoroutineScope()
-        val snackbar = remember { SnackbarHostState() }
-        var pendingExportFile by remember { mutableStateOf<File?>(null) }
-        // Prefer Pi, then Codex, OpenCode, Claude, Antigravity for offline export.
-        val piState by app.piController.state.collectAsState()
-        val canExport =
-            piState.installed ||
-                app.localRuntimeManager.hasAgent(LocalAgent.CODEX) ||
-                app.localRuntimeManager.hasOpenCode() ||
-                app.localRuntimeManager.hasAgent(LocalAgent.CLAUDE_CODE) ||
-                app.localRuntimeManager.hasAgent(LocalAgent.ANTIGRAVITY)
-        val createDocument =
-            rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-                val src = pendingExportFile
-                pendingExportFile = null
-                if (uri == null || src == null) return@rememberLauncherForActivityResult
-                scope.launch {
-                    runCatching {
-                        withContext(Dispatchers.IO) {
-                            context.contentResolver.openOutputStream(uri)?.use { out ->
-                                src.inputStream().use { it.copyTo(out) }
-                            } ?: error("Unable to write package")
-                        }
-                        snackbar.showSnackbar(context.getString(R.string.agent_export_success, src.name))
-                    }.onFailure {
-                        snackbar.showSnackbar(
-                            context.getString(R.string.agent_export_failed, it.message ?: "error"),
-                        )
-                    }
-                    runCatching { src.delete() }
-                }
-            }
-        val openDocument =
-            rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-                if (uri == null) return@rememberLauncherForActivityResult
-                scope.launch {
-                    runCatching {
-                        val result =
-                            withContext(Dispatchers.IO) {
-                                val rootfs =
-                                    app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                        ?: error(context.getString(R.string.agent_import_need_runtime))
-                                val tmp = File(app.cacheDir, "import-${System.currentTimeMillis()}.andcode.zip")
-                                context.contentResolver.openInputStream(uri)?.use { input ->
-                                    tmp.outputStream().use { input.copyTo(it) }
-                                } ?: error("Unable to read package")
-                                try {
-                                    val imported = RuntimeAgentPackage.import(tmp, rootfs)
-                                    app.localRuntimeInstaller.recordAgent(imported.agent)
-                                    imported
-                                } finally {
-                                    tmp.delete()
-                                }
-                            }
-                        runCatching { app.piController.refresh() }
-                        snackbar.showSnackbar(
-                            context.getString(
-                                R.string.agent_import_success,
-                                result.manifest.agentId,
-                                result.filesWritten,
-                            ),
-                        )
-                    }.onFailure {
-                        snackbar.showSnackbar(
-                            context.getString(R.string.agent_import_failed, it.message ?: "error"),
-                        )
-                    }
-                }
-            }
-        androidx.compose.foundation.layout.Box {
-            AgentSettingsScreen(
-                onOpenOpenCode = { navController.navigate(ROUTE_SETTINGS_AGENT_OPENCODE) },
-                onOpenClaudeCode = { navController.navigate(ROUTE_SETTINGS_AGENT_CLAUDE) },
-                onOpenAntigravity = { navController.navigate(ROUTE_SETTINGS_AGENT_ANTIGRAVITY) },
-                onOpenCodex = { navController.navigate(ROUTE_SETTINGS_AGENT_CODEX) },
-                onOpenPi = { navController.navigate(ROUTE_SETTINGS_AGENT_PI) },
-                onImportPackage = {
-                    openDocument.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
-                },
-                canExportPackage = canExport,
-                onExportPackage = {
-                    scope.launch {
-                        runCatching {
-                            val (file, name) =
-                                withContext(Dispatchers.IO) {
-                                    val rootfs =
-                                        app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                            ?: error(context.getString(R.string.agent_import_need_runtime))
-                                    val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
-                                    val agent =
-                                        when {
-                                            piState.installed -> LocalAgent.PI
-                                            app.localRuntimeManager.hasAgent(LocalAgent.CODEX) -> LocalAgent.CODEX
-                                            app.localRuntimeManager.hasOpenCode() -> LocalAgent.OPEN_CODE
-                                            app.localRuntimeManager.hasAgent(LocalAgent.CLAUDE_CODE) ->
-                                                LocalAgent.CLAUDE_CODE
-                                            app.localRuntimeManager.hasAgent(LocalAgent.ANTIGRAVITY) ->
-                                                LocalAgent.ANTIGRAVITY
-                                            else -> error(context.getString(R.string.agent_export_not_installed))
-                                        }
-                                    val exported =
-                                        RuntimeAgentPackage.export(
-                                            agent = agent,
-                                            rootfs = rootfs,
-                                            abi = abi,
-                                            outputDir = File(app.cacheDir, "agent-export"),
-                                            includeConfig = true,
-                                        )
-                                    exported.file to exported.suggestedName
-                                }
-                            pendingExportFile = file
-                            createDocument.launch(name)
-                        }.onFailure {
-                            snackbar.showSnackbar(
-                                context.getString(R.string.agent_export_failed, it.message ?: "error"),
-                            )
-                        }
-                    }
-                },
-                onBack = { navController.popBackStack() },
-            )
-            SnackbarHost(hostState = snackbar)
-        }
+        AgentSettingsScreen(
+            onOpenOpenCode = { navController.navigate(ROUTE_SETTINGS_AGENT_OPENCODE) },
+            onOpenClaudeCode = { navController.navigate(ROUTE_SETTINGS_AGENT_CLAUDE) },
+            onOpenAntigravity = { navController.navigate(ROUTE_SETTINGS_AGENT_ANTIGRAVITY) },
+            onOpenCodex = { navController.navigate(ROUTE_SETTINGS_AGENT_CODEX) },
+            onOpenPi = { navController.navigate(ROUTE_SETTINGS_AGENT_PI) },
+            onBack = { navController.popBackStack() },
+        )
     }
 
     composable(ROUTE_SETTINGS_AGENT_PI) {

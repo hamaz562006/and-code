@@ -7,6 +7,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -172,6 +174,32 @@ fun NavGraphBuilder.workspaceNavGraph(
                     }
                 }
             }
+        var pendingExportFile by remember { mutableStateOf<java.io.File?>(null) }
+        val createDocument =
+            rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+                val src = pendingExportFile
+                pendingExportFile = null
+                if (uri == null || src == null) return@rememberLauncherForActivityResult
+                scope.launch {
+                    runCatching {
+                        withContext(Dispatchers.IO) {
+                            app.contentResolver.openOutputStream(uri)?.use { out ->
+                                src.inputStream().use { it.copyTo(out) }
+                            } ?: error("Unable to write package")
+                        }
+                        snackbar.showSnackbar(app.getString(R.string.agent_export_success, src.name))
+                    }.onFailure {
+                        snackbar.showSnackbar(app.getString(R.string.agent_export_failed, it.message ?: "error"))
+                    }
+                    runCatching { src.delete() }
+                }
+            }
+        val canExportAgent =
+            app.piController.state.value.installed ||
+                app.localRuntimeManager.hasOpenCode() ||
+                app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.CODEX) ||
+                app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE) ||
+                app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY)
         androidx.compose.foundation.layout.Box {
             LocalRuntimeManagementScreen(
                 state = managementState,
@@ -185,6 +213,50 @@ fun NavGraphBuilder.workspaceNavGraph(
                 onInstallSelectedDevelopmentToolGroups = managementViewModel::installSelectedDevelopmentToolGroups,
                 onImportAgentPackage = {
                     openDocument.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+                },
+                canExportAgentPackage = canExportAgent,
+                onExportAgentPackage = {
+                    scope.launch {
+                        runCatching {
+                            val (file, name) =
+                                withContext(Dispatchers.IO) {
+                                    val rootfs =
+                                        app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                            ?: error(app.getString(R.string.agent_import_need_runtime))
+                                    val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
+                                    val agent =
+                                        when {
+                                            app.piController.state.value.installed ->
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.PI
+                                            app.localRuntimeManager.hasAgent(
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.CODEX,
+                                            ) -> com.yugahashimoto.andcode.runtime.LocalAgent.CODEX
+                                            app.localRuntimeManager.hasOpenCode() ->
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.OPEN_CODE
+                                            app.localRuntimeManager.hasAgent(
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE,
+                                            ) -> com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE
+                                            app.localRuntimeManager.hasAgent(
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY,
+                                            ) -> com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY
+                                            else -> error(app.getString(R.string.agent_export_not_installed))
+                                        }
+                                    val exported =
+                                        RuntimeAgentPackage.export(
+                                            agent = agent,
+                                            rootfs = rootfs,
+                                            abi = abi,
+                                            outputDir = File(app.cacheDir, "agent-export"),
+                                            includeConfig = true,
+                                        )
+                                    exported.file to exported.suggestedName
+                                }
+                            pendingExportFile = file
+                            createDocument.launch(name)
+                        }.onFailure {
+                            snackbar.showSnackbar(app.getString(R.string.agent_export_failed, it.message ?: "error"))
+                        }
+                    }
                 },
                 onRequestDelete = managementViewModel::requestDelete,
                 onDismissDelete = managementViewModel::dismissDelete,

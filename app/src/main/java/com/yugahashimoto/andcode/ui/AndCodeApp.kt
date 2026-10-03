@@ -1,5 +1,9 @@
 package com.yugahashimoto.andcode.ui
 
+import java.io.File
+
+import com.yugahashimoto.andcode.runtime.local.RuntimeAgentPackage
+
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -934,6 +938,36 @@ fun AndCodeApp(
                     composable(ROUTE_ANDROID_SETUP) {
                         val localRuntimeStatus by app.localRuntimeManager.state.collectAsState()
                         val localRuntimeLastOperation by app.localRuntimeManager.lastOperation.collectAsState()
+                        val setupScope = rememberCoroutineScope()
+                        val setupImportLauncher =
+                            rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                                if (uri == null) return@rememberLauncherForActivityResult
+                                setupScope.launch {
+                                    runCatching {
+                                        withContext(Dispatchers.IO) {
+                                            val rootfs =
+                                                app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                                    ?: error(app.getString(R.string.agent_import_need_runtime))
+                                            val tmp =
+                                                File(
+                                                    app.cacheDir,
+                                                    "import-${System.currentTimeMillis()}.andcode.zip",
+                                                )
+                                            context.contentResolver.openInputStream(uri)?.use { input ->
+                                                tmp.outputStream().use { input.copyTo(it) }
+                                            } ?: error("Unable to read package")
+                                            try {
+                                                val imported = RuntimeAgentPackage.import(tmp, rootfs)
+                                                app.localRuntimeInstaller.recordAgent(imported.agent)
+                                                runCatching { app.piController.refresh() }
+                                                imported
+                                            } finally {
+                                                tmp.delete()
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         AndroidSetupScreen(
                             runtimeStatus = localRuntimeStatus,
                             claude = workspaceState.claude,
@@ -1015,6 +1049,11 @@ fun AndCodeApp(
                             onDisconnectGitHub = settingsViewModel::disconnectGitHub,
                             onBack = { navController.popBackStack() },
                             onFinish = completeOnboardingAndGoToChat,
+                            onImportAgentPackage = {
+                                setupImportLauncher.launch(
+                                    arrayOf("application/zip", "application/octet-stream", "*/*"),
+                                )
+                            },
                         )
                     }
 

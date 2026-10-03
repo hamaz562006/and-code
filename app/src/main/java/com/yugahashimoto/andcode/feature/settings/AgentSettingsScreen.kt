@@ -85,9 +85,6 @@ fun AgentSettingsScreen(
     onOpenAntigravity: () -> Unit,
     onOpenCodex: () -> Unit,
     onOpenPi: () -> Unit,
-    onImportPackage: () -> Unit = {},
-    onExportPackage: () -> Unit = {},
-    canExportPackage: Boolean = false,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(R.string.settings_agents_row), onBack = onBack) {
@@ -101,22 +98,6 @@ fun AgentSettingsScreen(
             AgentRow(LocalAgent.CODEX, onOpenCodex)
             SettingsDivider()
             AgentRow(LocalAgent.PI, onOpenPi)
-        }
-        // Offline packages on the list: Import before any agent install; Export after install.
-        SettingsSection(title = stringResource(R.string.agent_package_section)) {
-            SettingsRow(
-                icon = Icons.Default.Download,
-                title = stringResource(R.string.agent_import_button),
-                onClick = onImportPackage,
-            )
-            if (canExportPackage) {
-                SettingsDivider()
-                SettingsRow(
-                    icon = Icons.Default.Share,
-                    title = stringResource(R.string.agent_export_button),
-                    onClick = onExportPackage,
-                )
-            }
         }
     }
 }

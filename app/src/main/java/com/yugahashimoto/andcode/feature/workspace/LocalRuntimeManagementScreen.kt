@@ -68,6 +68,8 @@ fun LocalRuntimeManagementScreen(
     onRepair: () -> Unit,
     onInstallFullDevelopmentTools: () -> Unit,
     onImportAgentPackage: () -> Unit = {},
+    onExportAgentPackage: () -> Unit = {},
+    canExportAgentPackage: Boolean = false,
     onToggleDevelopmentToolGroup: (String) -> Unit = {},
     onSelectAllDevelopmentToolGroups: () -> Unit = {},
     onClearDevelopmentToolGroupSelection: () -> Unit = {},
@@ -168,6 +170,22 @@ fun LocalRuntimeManagementScreen(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(stringResource(R.string.agent_import_button))
+                        }
+                        if (canExportAgentPackage) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                stringResource(R.string.agent_export_description),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = onExportAgentPackage,
+                                enabled = !busy,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(stringResource(R.string.agent_export_button))
+                            }
                         }
                     }
                 }
