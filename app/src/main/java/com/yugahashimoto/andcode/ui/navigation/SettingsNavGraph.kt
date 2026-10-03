@@ -36,6 +36,7 @@ import com.yugahashimoto.andcode.feature.settings.VoiceSettingsScreen
 import com.yugahashimoto.andcode.feature.support.GitHubSupportSheetHost
 import com.yugahashimoto.andcode.feature.wakeword.VoskModelState
 import com.yugahashimoto.andcode.feature.wakeword.WakeWordSettingsPolicy
+import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.RuntimeRegistry
 import com.yugahashimoto.andcode.ui.components.systemPromptPresetLabel
 

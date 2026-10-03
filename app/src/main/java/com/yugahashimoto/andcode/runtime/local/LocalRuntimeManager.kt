@@ -130,7 +130,7 @@ class LocalRuntimeManager(
     fun restartCount(): Int = processLauncher?.restartCount() ?: 0
 
     suspend fun installAndStart(
-        agents: Set<LocalAgent> = setOf(LocalAgent.OPEN_CODE),
+        agents: Set<LocalAgent> = emptySet(),
         developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
     ): Result<LocalRuntimeStatus.Ready> =
         operationMutex.withLock {
@@ -246,7 +246,7 @@ class LocalRuntimeManager(
                                 ?.mapNotNull(LocalAgent::fromId)
                                 ?.toSet()
                                 ?.takeIf(Set<LocalAgent>::isNotEmpty)
-                                ?: setOf(LocalAgent.OPEN_CODE),
+                                ?: emptySet(),
                         developmentToolGroups = previousMetadata?.installedDevelopmentGroups() ?: emptySet(),
                     ) { progress, step, agent ->
                         mutableState.value = LocalRuntimeStatus.Installing(progress, step, agent)

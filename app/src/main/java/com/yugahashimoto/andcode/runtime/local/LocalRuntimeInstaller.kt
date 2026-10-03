@@ -48,7 +48,7 @@ class LocalRuntimeInstaller(
      * OpenCode is actually among the resulting agents.
      */
     suspend fun install(
-        agents: Set<LocalAgent> = setOf(LocalAgent.OPEN_CODE),
+        agents: Set<LocalAgent> = emptySet(),
         developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
         /**
          * Progress, the step to show, and which agent that step belongs to - null for the shared
@@ -69,12 +69,16 @@ class LocalRuntimeInstaller(
             onShared(0.02f, context.getString(R.string.install_step_preparing_command_env))
             val existingMetadata = installedMetadata()
             val requestedAgents =
-                agents + (
-                    existingMetadata?.let {
-                            existing ->
-                        LocalAgent.entries.filter(existing::has)
-                    } ?: emptyList()
-                )
+                (
+                    agents + (
+                        existingMetadata?.let { existing ->
+                            LocalAgent.entries.filter(existing::has)
+                        } ?: emptyList()
+                    )
+                ).toSet()
+            require(requestedAgents.isNotEmpty()) {
+                "No agents selected and none recorded in the existing environment"
+            }
             // Runtimes created before this option existed already contain the full toolchain, and
             // adding another agent must not silently remove it by rebuilding a smaller rootfs.
             val groupsToInstall =

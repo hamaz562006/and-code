@@ -93,15 +93,15 @@ internal fun clearsUserStoppedFlag(command: LocalRuntimeServiceCommand): Boolean
  * The agents an [LocalRuntimeService.ACTION_INSTALL_AND_START] intent asks for, from its
  * [LocalRuntimeService.EXTRA_AGENTS] extra.
  *
- * Falls back to OpenCode alone, which is what every caller that carries no selection means - the
- * runtime notification's restart, the watchdog, and the workspace picker's own button. Takes the
- * raw array rather than the Intent so the mapping is testable without an Android runtime.
+ * Empty when the intent carries no selection. The installer then keeps only agents already
+ * recorded in metadata (or errors if there is no environment yet) — never silently switches a
+ * Pi-/Codex-only sandbox to OpenCode. Takes the raw array rather than the Intent so the mapping
+ * is testable without an Android runtime.
  */
 internal fun localRuntimeInstallAgents(ids: Array<String>?): Set<LocalAgent> =
     ids?.mapNotNull { id -> LocalAgent.entries.firstOrNull { it.id == id } }
         ?.toSet()
-        ?.takeIf(Set<LocalAgent>::isNotEmpty)
-        ?: setOf(LocalAgent.OPEN_CODE)
+        .orEmpty()
 
 /**
  * Whether the runtime is live enough to be worth keeping the CPU out of suspend for.
@@ -793,7 +793,7 @@ class LocalRuntimeServiceController(private val context: Context) {
      * installers would otherwise have to race this one for the same staging directory.
      */
     fun installAndStart(
-        agents: Set<LocalAgent> = setOf(LocalAgent.OPEN_CODE),
+        agents: Set<LocalAgent> = emptySet(),
         developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
     ) = LocalRuntimeService.send(
         context,

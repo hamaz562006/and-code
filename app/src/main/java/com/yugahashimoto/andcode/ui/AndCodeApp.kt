@@ -100,6 +100,7 @@ import com.yugahashimoto.andcode.runtime.RuntimeState
 import com.yugahashimoto.andcode.runtime.WorkspaceRef
 import com.yugahashimoto.andcode.runtime.local.GitCloneResult
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeOperationResult
+import com.yugahashimoto.andcode.runtime.local.RuntimeAgentPackage
 import com.yugahashimoto.andcode.ui.components.SessionStatus
 import com.yugahashimoto.andcode.ui.navigation.ClaudeSettingsActions
 import com.yugahashimoto.andcode.ui.navigation.DRAWER_ROOT_ROUTES
@@ -135,6 +136,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
 
 /** How often the open chat asks GitHub whether its pull requests have moved on. */
@@ -934,6 +936,36 @@ fun AndCodeApp(
                     composable(ROUTE_ANDROID_SETUP) {
                         val localRuntimeStatus by app.localRuntimeManager.state.collectAsState()
                         val localRuntimeLastOperation by app.localRuntimeManager.lastOperation.collectAsState()
+                        val setupScope = rememberCoroutineScope()
+                        val setupImportLauncher =
+                            rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                                if (uri == null) return@rememberLauncherForActivityResult
+                                setupScope.launch {
+                                    runCatching {
+                                        withContext(Dispatchers.IO) {
+                                            val rootfs =
+                                                app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                                    ?: error(app.getString(R.string.agent_import_need_runtime))
+                                            val tmp =
+                                                File(
+                                                    app.cacheDir,
+                                                    "import-${System.currentTimeMillis()}.andcode.zip",
+                                                )
+                                            context.contentResolver.openInputStream(uri)?.use { input ->
+                                                tmp.outputStream().use { input.copyTo(it) }
+                                            } ?: error("Unable to read package")
+                                            try {
+                                                val imported = RuntimeAgentPackage.import(tmp, rootfs)
+                                                app.localRuntimeInstaller.recordAgent(imported.agent)
+                                                runCatching { app.piController.refresh() }
+                                                imported
+                                            } finally {
+                                                tmp.delete()
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         AndroidSetupScreen(
                             runtimeStatus = localRuntimeStatus,
                             claude = workspaceState.claude,
@@ -1015,6 +1047,11 @@ fun AndCodeApp(
                             onDisconnectGitHub = settingsViewModel::disconnectGitHub,
                             onBack = { navController.popBackStack() },
                             onFinish = completeOnboardingAndGoToChat,
+                            onImportAgentPackage = {
+                                setupImportLauncher.launch(
+                                    arrayOf("application/zip", "application/octet-stream", "*/*"),
+                                )
+                            },
                         )
                     }
 

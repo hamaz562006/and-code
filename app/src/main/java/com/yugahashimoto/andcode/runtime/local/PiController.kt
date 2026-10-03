@@ -88,7 +88,13 @@ class PiController(
                 it.copy(
                     installed = false,
                     version = null,
-                    install = if (it.install is PiInstallStatus.Installing) it.install else PiInstallStatus.Idle,
+                    // Keep Failed so the user sees the error instead of a silent "Not installed".
+                    install =
+                        when (it.install) {
+                            is PiInstallStatus.Installing -> it.install
+                            is PiInstallStatus.Failed -> it.install
+                            else -> PiInstallStatus.Idle
+                        },
                 )
             }
             return

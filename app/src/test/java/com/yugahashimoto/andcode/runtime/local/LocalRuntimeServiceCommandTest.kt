@@ -82,9 +82,9 @@ class LocalRuntimeServiceCommandTest {
     /** Callers with no selection - the notification's restart, the watchdog - mean OpenCode alone. */
     @Test
     fun `an install with no selection means OpenCode`() {
-        assertEquals(setOf(LocalAgent.OPEN_CODE), localRuntimeInstallAgents(null))
-        assertEquals(setOf(LocalAgent.OPEN_CODE), localRuntimeInstallAgents(emptyArray()))
-        assertEquals(setOf(LocalAgent.OPEN_CODE), localRuntimeInstallAgents(arrayOf("not-an-agent")))
+        assertEquals(emptySet<LocalAgent>(), localRuntimeInstallAgents(null))
+        assertEquals(emptySet<LocalAgent>(), localRuntimeInstallAgents(emptyArray()))
+        assertEquals(emptySet<LocalAgent>(), localRuntimeInstallAgents(arrayOf("not-an-agent")))
     }
 
     /**
