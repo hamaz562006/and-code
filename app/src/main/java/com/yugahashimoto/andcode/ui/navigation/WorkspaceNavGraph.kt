@@ -7,10 +7,25 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.compose.composable
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
@@ -194,8 +209,9 @@ fun NavGraphBuilder.workspaceNavGraph(
                     runCatching { src.delete() }
                 }
             }
+        val piUi by app.piController.state.collectAsState()
         val canExportAgent =
-            app.piController.state.value.installed ||
+            piUi.installed ||
                 app.localRuntimeManager.hasOpenCode() ||
                 app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.CODEX) ||
                 app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE) ||
@@ -226,7 +242,7 @@ fun NavGraphBuilder.workspaceNavGraph(
                                     val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
                                     val agent =
                                         when {
-                                            app.piController.state.value.installed ->
+                                            piUi.installed ->
                                                 com.yugahashimoto.andcode.runtime.LocalAgent.PI
                                             app.localRuntimeManager.hasAgent(
                                                 com.yugahashimoto.andcode.runtime.LocalAgent.CODEX,
