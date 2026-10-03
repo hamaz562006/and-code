@@ -243,8 +243,7 @@ class OpenCodeAgentSettingsViewModelTest {
             val viewModel =
                 viewModel(
                     runtimeState = MutableStateFlow(LocalRuntimeStatus.Ready("1.19.0", 4097)),
-                    openCodeProvisionedProvider = { true },
-            lastOperationState = lastOperation,
+                    lastOperationState = lastOperation,
                 )
             advanceUntilIdle()
 
@@ -257,6 +256,7 @@ class OpenCodeAgentSettingsViewModelTest {
     private fun viewModel(
         runtimeState: MutableStateFlow<LocalRuntimeStatus>,
         lastOperationState: MutableStateFlow<LocalRuntimeOperationResult?> = MutableStateFlow(null),
+        openCodeProvisionedProvider: () -> Boolean = { true },
         updateCheckProvider: suspend () -> Result<LocalRuntimeUpdateCheck> = { Result.success(upToDate()) },
         rollbackVersionProvider: suspend () -> String? = { null },
         freeBytesProvider: () -> Long = { 1_000_000L },
@@ -267,8 +267,8 @@ class OpenCodeAgentSettingsViewModelTest {
         rollbackAction: () -> Unit = {},
     ) = OpenCodeAgentSettingsViewModel(
         runtimeState = runtimeState,
-        openCodeProvisionedProvider = { true },
-            lastOperationState = lastOperationState,
+        lastOperationState = lastOperationState,
+        openCodeProvisionedProvider = openCodeProvisionedProvider,
         updateCheckProvider = updateCheckProvider,
         rollbackVersionProvider = rollbackVersionProvider,
         freeBytesProvider = freeBytesProvider,
