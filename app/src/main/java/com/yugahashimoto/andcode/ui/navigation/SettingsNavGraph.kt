@@ -324,6 +324,43 @@ fun NavGraphBuilder.settingsNavGraph(
                     runCatching { src.delete() }
                 }
             }
+        val openDocument =
+            rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                if (uri == null) return@rememberLauncherForActivityResult
+                scope.launch {
+                    runCatching {
+                        val result =
+                            withContext(Dispatchers.IO) {
+                                val rootfs =
+                                    app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                        ?: error(context.getString(R.string.agent_import_need_runtime))
+                                val tmp = File(app.cacheDir, "import-${System.currentTimeMillis()}.andcode.zip")
+                                context.contentResolver.openInputStream(uri)?.use { input ->
+                                    tmp.outputStream().use { input.copyTo(it) }
+                                } ?: error("Unable to read package")
+                                try {
+                                    val imported = RuntimeAgentPackage.import(tmp, rootfs)
+                                    app.localRuntimeInstaller.recordAgent(imported.agent)
+                                    imported
+                                } finally {
+                                    tmp.delete()
+                                }
+                            }
+                        runCatching { app.piController.refresh() }
+                        snackbar.showSnackbar(
+                            context.getString(
+                                R.string.agent_import_success,
+                                result.manifest.agentId,
+                                result.filesWritten,
+                            ),
+                        )
+                    }.onFailure {
+                        snackbar.showSnackbar(
+                            context.getString(R.string.agent_import_failed, it.message ?: "error"),
+                        )
+                    }
+                }
+            }
         androidx.compose.foundation.layout.Box {
             AgentSettingsScreen(
                 onOpenOpenCode = { navController.navigate(ROUTE_SETTINGS_AGENT_OPENCODE) },
@@ -331,6 +368,9 @@ fun NavGraphBuilder.settingsNavGraph(
                 onOpenAntigravity = { navController.navigate(ROUTE_SETTINGS_AGENT_ANTIGRAVITY) },
                 onOpenCodex = { navController.navigate(ROUTE_SETTINGS_AGENT_CODEX) },
                 onOpenPi = { navController.navigate(ROUTE_SETTINGS_AGENT_PI) },
+                onImportPackage = {
+                    openDocument.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+                },
                 canExportPackage = canExport,
                 onExportPackage = {
                     scope.launch {

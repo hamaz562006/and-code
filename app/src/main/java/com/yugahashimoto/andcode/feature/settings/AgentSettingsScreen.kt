@@ -85,6 +85,7 @@ fun AgentSettingsScreen(
     onOpenAntigravity: () -> Unit,
     onOpenCodex: () -> Unit,
     onOpenPi: () -> Unit,
+    onImportPackage: () -> Unit = {},
     onExportPackage: () -> Unit = {},
     canExportPackage: Boolean = false,
     onBack: () -> Unit,
@@ -101,10 +102,15 @@ fun AgentSettingsScreen(
             SettingsDivider()
             AgentRow(LocalAgent.PI, onOpenPi)
         }
-        // Offline backup lives on the list so it is available without entering an agent screen.
-        // Export only when at least one agent is provisioned; import is on Local runtime.
-        if (canExportPackage) {
-            SettingsSection(title = stringResource(R.string.agent_package_section)) {
+        // Offline packages on the list: Import before any agent install; Export after install.
+        SettingsSection(title = stringResource(R.string.agent_package_section)) {
+            SettingsRow(
+                icon = Icons.Default.Download,
+                title = stringResource(R.string.agent_import_button),
+                onClick = onImportPackage,
+            )
+            if (canExportPackage) {
+                SettingsDivider()
                 SettingsRow(
                     icon = Icons.Default.Share,
                     title = stringResource(R.string.agent_export_button),
