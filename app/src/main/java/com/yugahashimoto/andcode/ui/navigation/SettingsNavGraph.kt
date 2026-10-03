@@ -433,6 +433,7 @@ fun NavGraphBuilder.settingsNavGraph(
                         OpenCodeAgentSettingsViewModel(
                             runtimeState = app.localRuntimeManager.state,
                             lastOperationState = app.localRuntimeManager.lastOperation,
+                            openCodeProvisionedProvider = app.localRuntimeManager::hasOpenCode,
                             updateCheckProvider = app.localRuntimeManager::checkForUpdate,
                             rollbackVersionProvider = app.localRuntimeManager::rollbackVersion,
                             freeBytesProvider = { app.filesDir.usableSpace },

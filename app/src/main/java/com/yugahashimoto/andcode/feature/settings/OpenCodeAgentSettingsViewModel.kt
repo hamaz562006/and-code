@@ -14,6 +14,8 @@ import kotlinx.coroutines.launch
 
 data class OpenCodeAgentUiState(
     val status: LocalRuntimeStatus = LocalRuntimeStatus.NotInstalled,
+    /** True when the OpenCode binary is provisioned — independent of shared sandbox Ready. */
+    val openCodeProvisioned: Boolean = false,
     val updateCheck: LocalRuntimeUpdateCheck? = null,
     val rollbackVersion: String? = null,
     val lastOperation: LocalRuntimeOperationResult? = null,
@@ -31,38 +33,51 @@ data class OpenCodeAgentUiState(
                 status is LocalRuntimeStatus.Starting ||
                 status is LocalRuntimeStatus.Updating
 
+    /**
+     * OpenCode itself is installed. Shared Linux Ready (Pi-/Codex-only "sandbox") must not count.
+     */
     val installed: Boolean
-        get() {
-            // Shared sandbox Ready with version "sandbox" means Pi/Codex-only — not OpenCode.
-            val ver =
-                when (val current = status) {
-                    is LocalRuntimeStatus.Ready -> current.version
-                    is LocalRuntimeStatus.Starting -> current.version
-                    is LocalRuntimeStatus.Stopped -> current.version
-                    is LocalRuntimeStatus.Updating -> current.currentVersion
-                    else -> return false
+        get() = openCodeProvisioned
+
+    /**
+     * Status shown on OpenCode's card. When OpenCode is not provisioned, never surface the shared
+     * sandbox Ready/Stopped/port as if OpenCode were running.
+     */
+    val displayStatus: LocalRuntimeStatus
+        get() =
+            if (!openCodeProvisioned) {
+                when (status) {
+                    is LocalRuntimeStatus.Installing -> status
+                    is LocalRuntimeStatus.Broken -> status
+                    is LocalRuntimeStatus.UnsupportedAbi -> status
+                    else -> LocalRuntimeStatus.NotInstalled
                 }
-            return ver.isNotBlank() && ver != "sandbox"
-        }
+            } else {
+                status
+            }
 
     val version: String?
-        get() =
-            when (val current = status) {
-                is LocalRuntimeStatus.Ready -> current.version
-                is LocalRuntimeStatus.Starting -> current.version
-                is LocalRuntimeStatus.Stopped -> current.version
+        get() {
+            if (!openCodeProvisioned) return null
+            return when (val current = status) {
+                is LocalRuntimeStatus.Ready -> current.version.takeUnless { it.isBlank() || it == "sandbox" }
+                is LocalRuntimeStatus.Starting -> current.version.takeUnless { it.isBlank() || it == "sandbox" }
+                is LocalRuntimeStatus.Stopped -> current.version.takeUnless { it.isBlank() || it == "sandbox" }
                 is LocalRuntimeStatus.Updating -> current.currentVersion
                 else -> null
             }
+        }
 
     val port: Int?
-        get() =
-            when (val current = status) {
-                is LocalRuntimeStatus.Ready -> current.port
-                is LocalRuntimeStatus.Starting -> current.port
-                is LocalRuntimeStatus.Stopped -> current.port
+        get() {
+            if (!openCodeProvisioned) return null
+            return when (val current = status) {
+                is LocalRuntimeStatus.Ready -> current.port.takeIf { it in 1..65535 }
+                is LocalRuntimeStatus.Starting -> current.port.takeIf { it in 1..65535 }
+                is LocalRuntimeStatus.Stopped -> current.port.takeIf { it in 1..65535 }
                 else -> null
             }
+        }
 }
 
 /**
@@ -77,6 +92,7 @@ data class OpenCodeAgentUiState(
 class OpenCodeAgentSettingsViewModel(
     runtimeState: StateFlow<LocalRuntimeStatus>,
     lastOperationState: StateFlow<LocalRuntimeOperationResult?>,
+    private val openCodeProvisionedProvider: () -> Boolean = { false },
     private val updateCheckProvider: suspend () -> Result<LocalRuntimeUpdateCheck>,
     private val rollbackVersionProvider: suspend () -> String?,
     private val freeBytesProvider: () -> Long,
@@ -91,6 +107,7 @@ class OpenCodeAgentSettingsViewModel(
         MutableStateFlow(
             OpenCodeAgentUiState(
                 status = runtimeState.value,
+                openCodeProvisioned = openCodeProvisionedProvider(),
                 lastOperation = lastOperationState.value,
             ),
         )
@@ -101,7 +118,12 @@ class OpenCodeAgentSettingsViewModel(
         viewModelScope.launch {
             runtimeState.collect { status ->
                 val settled = mutableState.value.busy && status.isTerminal()
-                mutableState.update { it.copy(status = status) }
+                mutableState.update {
+                    it.copy(
+                        status = status,
+                        openCodeProvisioned = openCodeProvisionedProvider(),
+                    )
+                }
                 // The version and the rollback target both move with an update, so a finished
                 // operation has to re-read them or the card keeps reporting the old release.
                 if (settled) refresh()
@@ -119,7 +141,11 @@ class OpenCodeAgentSettingsViewModel(
             val rollbackVersion = runCatching { rollbackVersionProvider() }.getOrNull()
             val freeBytes = runCatching { freeBytesProvider() }.getOrDefault(0L)
             mutableState.update {
-                it.copy(rollbackVersion = rollbackVersion, freeBytes = freeBytes.coerceAtLeast(0L))
+                it.copy(
+                    openCodeProvisioned = openCodeProvisionedProvider(),
+                    rollbackVersion = rollbackVersion,
+                    freeBytes = freeBytes.coerceAtLeast(0L),
+                )
             }
         }
         if (mutableState.value.installed) {

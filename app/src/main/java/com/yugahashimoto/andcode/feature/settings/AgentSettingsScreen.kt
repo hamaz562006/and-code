@@ -393,8 +393,8 @@ fun OpenCodeAgentSettingsScreen(
             state.lastOperation?.let { RuntimeOperationResultCard(it) }
 
             AgentStatusCard(
-                status = state.status.displayName(),
-                active = state.status is LocalRuntimeStatus.Ready,
+                status = state.displayStatus.displayName(),
+                active = state.installed && state.status is LocalRuntimeStatus.Ready,
                 metrics = openCodeMetrics(state),
             ) {
                 if (state.installed) {
