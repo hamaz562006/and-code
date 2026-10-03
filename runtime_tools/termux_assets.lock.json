@@ -21,10 +21,10 @@
         },
         {
           "depends": [],
-          "filename": "pool/main/libt/libtalloc/libtalloc_2.4.3_aarch64.deb",
+          "filename": "pool/main/libt/libtalloc/libtalloc_2.5.0_aarch64.deb",
           "name": "libtalloc",
-          "sha256": "ac81ad623d74c209718b9f3acb2dd702cc8a88c431e820d212229910b4db29da",
-          "version": "2.4.3"
+          "sha256": "556591f43bb773ad8777e1a29522640866a55f95dab71914418b94a8c58ad5a7",
+          "version": "2.5.0"
         }
       ],
       "termux_arch": "aarch64"
@@ -50,10 +50,10 @@
         },
         {
           "depends": [],
-          "filename": "pool/main/libt/libtalloc/libtalloc_2.4.3_x86_64.deb",
+          "filename": "pool/main/libt/libtalloc/libtalloc_2.5.0_x86_64.deb",
           "name": "libtalloc",
-          "sha256": "7ca2eaae2e53b28228a01301bc410b62845403d6317c25b8e0a7f40681de0628",
-          "version": "2.4.3"
+          "sha256": "b8c6d95f20075dc1f9ec6573575b2444e8d526e48e0d8d6d5cf4e071e6e06530",
+          "version": "2.5.0"
         }
       ],
       "termux_arch": "x86_64"
