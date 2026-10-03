@@ -16,12 +16,12 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Visibility
@@ -70,7 +70,6 @@ import com.yugahashimoto.andcode.ui.components.displayName
 import com.yugahashimoto.andcode.ui.components.formatRuntimeBytes
 import com.yugahashimoto.andcode.ui.components.systemPromptPresetLabel
 import com.yugahashimoto.andcode.ui.runtimeAgentIcon
-
 /**
  * Lists the agents so their settings sit under the agent they belong to.
  *
@@ -762,7 +761,6 @@ private fun AgentSettingsScaffold(
     }
 }
 
-
 @Composable
 fun AgentPackageSection(
     installed: Boolean,
@@ -776,12 +774,13 @@ fun AgentPackageSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         )
-        SettingsRow(
-            icon = Icons.Default.Share,
-            title = stringResource(R.string.agent_export_button),
-            onClick = onExport,
-            enabled = installed,
-        )
+        if (installed) {
+            SettingsRow(
+                icon = Icons.Default.Share,
+                title = stringResource(R.string.agent_export_button),
+                onClick = onExport,
+            )
+        }
         Text(
             text = stringResource(R.string.agent_import_description),
             style = MaterialTheme.typography.bodySmall,
