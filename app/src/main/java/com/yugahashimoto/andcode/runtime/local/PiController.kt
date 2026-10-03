@@ -85,12 +85,18 @@ class PiController(
                 ?: (if (runtime.isInstalled()) runtime.version() else null)
         if (version == null) {
             mutableState.update {
-                it.copy(
-                    installed = false,
-                    version = null,
-                    install = if (it.install is PiInstallStatus.Installing) it.install else PiInstallStatus.Idle,
-                )
-            }
+                        it.copy(
+                            installed = false,
+                            version = null,
+                            // Keep Failed so the user sees the error instead of a silent "Not installed".
+                            install =
+                                when (it.install) {
+                                    is PiInstallStatus.Installing -> it.install
+                                    is PiInstallStatus.Failed -> it.install
+                                    else -> PiInstallStatus.Idle
+                                },
+                        )
+                    }
             return
         }
         mutableState.update {
