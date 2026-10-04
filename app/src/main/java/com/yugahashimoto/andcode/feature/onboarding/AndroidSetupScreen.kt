@@ -1214,6 +1214,12 @@ private fun SignInStep(
                         onDisconnectProvider = onDisconnectProvider,
                         header = false,
                     )
+                LocalAgent.GROK_BUILD ->
+                    Text(
+                        text = stringResource(R.string.agent_grok_build_api_key_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
             }
         }
     }
