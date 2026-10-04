@@ -143,6 +143,13 @@ object RuntimeAgentPackage {
                     addIfExists(paths, rootfs, "root/.config/antigravity")
                 }
             }
+            LocalAgent.GROK_BUILD -> {
+                addIfExists(paths, rootfs, "usr/local/bin/${GrokBuildInstaller.GROK_BINARY}")
+                addIfExists(paths, rootfs, "usr/local/bin/.${GrokBuildInstaller.GROK_BINARY}-version")
+                if (includeConfig) {
+                    addIfExists(paths, rootfs, "root/.grok")
+                }
+            }
         }
         return paths.toList()
     }
@@ -183,6 +190,8 @@ object RuntimeAgentPackage {
         val version =
             when (agent) {
                 LocalAgent.PI -> PiInstaller.installedVersion(rootfs) ?: PiInstaller.PI_VERSION
+                LocalAgent.GROK_BUILD ->
+                    GrokBuildInstaller.installedVersion(rootfs) ?: GrokBuildManifest.VERSION
                 else -> "installed"
             }
         val paths = collectPaths(agent, rootfs, includeConfig)

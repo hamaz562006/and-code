@@ -1016,6 +1016,8 @@ fun AndCodeApp(
                                     app.codexController.install(agents, developmentToolGroups)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.PI in agents) {
                                     app.piController.install(agents, developmentToolGroups)
+                                } else if (com.yugahashimoto.andcode.runtime.LocalAgent.GROK_BUILD in agents) {
+                                    app.grokBuildController.install(agents, developmentToolGroups)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE in agents) {
                                     workspaceViewModel.installClaudeCode(developmentToolGroups)
                                 }

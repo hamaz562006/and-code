@@ -32,6 +32,7 @@ import com.yugahashimoto.andcode.feature.settings.GitHubSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ModelVisibilityScreen
 import com.yugahashimoto.andcode.feature.settings.OpenCodeAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.OpenCodeAgentSettingsViewModel
+import com.yugahashimoto.andcode.feature.settings.GrokBuildAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.PiAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ProviderSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.SettingsScreenV2
@@ -298,6 +299,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenAntigravity = { navController.navigate(ROUTE_SETTINGS_AGENT_ANTIGRAVITY) },
             onOpenCodex = { navController.navigate(ROUTE_SETTINGS_AGENT_CODEX) },
             onOpenPi = { navController.navigate(ROUTE_SETTINGS_AGENT_PI) },
+            onOpenGrokBuild = { navController.navigate(ROUTE_SETTINGS_AGENT_GROK_BUILD) },
             onBack = { navController.popBackStack() },
         )
     }
@@ -441,6 +443,21 @@ fun NavGraphBuilder.settingsNavGraph(
                 UrlLauncher.openUrl(context, url)
             },
             onBack = { navController.popBackStack() },
+        )
+    }
+
+    
+    composable(ROUTE_SETTINGS_AGENT_GROK_BUILD) {
+        val app = LocalContext.current.applicationContext as AndCodeApplication
+        val grok by app.grokBuildController.state.collectAsState()
+        val importPackage = rememberAgentPackageImporter()
+        GrokBuildAgentSettingsScreen(
+            grok = grok,
+            onBack = { navController.popBackStack() },
+            onInstall = { app.grokBuildController.install() },
+            onRefresh = { app.grokBuildController.refresh() },
+            onApiKey = { key -> app.grokBuildController.setApiKey(key) },
+            onImportPackage = importPackage.takeIf { !grok.installed },
         )
     }
 
@@ -648,6 +665,7 @@ private fun rememberAgentPackageImporter(): () -> Unit {
                                 app.localRuntimeInstaller.recordAgent(imported.agent)
                                 when (imported.agent) {
                                     LocalAgent.PI -> runCatching { app.piController.refresh() }
+                                    LocalAgent.GROK_BUILD -> runCatching { app.grokBuildController.refresh() }
                                     LocalAgent.CODEX -> runCatching { app.codexController.refresh() }
                                     LocalAgent.CLAUDE_CODE -> runCatching { app.claudeCodeController.refresh() }
                                     LocalAgent.ANTIGRAVITY -> runCatching { app.antigravityController.refresh() }

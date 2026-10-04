@@ -75,6 +75,9 @@ import com.yugahashimoto.andcode.runtime.local.LocalRuntimeServiceController
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeTarget
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeUpdater
 import com.yugahashimoto.andcode.runtime.local.PiController
+import com.yugahashimoto.andcode.runtime.local.GrokBuildController
+import com.yugahashimoto.andcode.runtime.local.GrokBuildRuntime
+import com.yugahashimoto.andcode.runtime.local.GrokBuildTarget
 import com.yugahashimoto.andcode.runtime.local.PiRuntime
 import com.yugahashimoto.andcode.runtime.local.PiTarget
 import com.yugahashimoto.andcode.runtime.local.SystemPromptStore
@@ -224,6 +227,12 @@ class AndCodeApplication : Application() {
         private set
 
     lateinit var piController: PiController
+
+    lateinit var grokBuildRuntime: GrokBuildRuntime
+
+    lateinit var grokBuildTarget: GrokBuildTarget
+
+    lateinit var grokBuildController: GrokBuildController
         private set
 
     /** Which agents the shared sandbox holds, for callers that must not pay for a full runtime check. */
@@ -373,6 +382,9 @@ class AndCodeApplication : Application() {
         }
         codexController = CodexController(codexRuntime, codexTarget, installer, abi, runtimeWork, applicationScope)
         piController = PiController(piRuntime, piTarget, installer, abi, runtimeWork, applicationScope)
+        grokBuildRuntime = GrokBuildRuntime(runtimeDirectory)
+        grokBuildTarget = GrokBuildTarget(grokBuildRuntime, installer)
+        grokBuildController = GrokBuildController(grokBuildRuntime, grokBuildTarget, installer, abi, runtimeWork, applicationScope)
         runtimeMessages = AndroidLocalRuntimeMessages(this)
         gitCloneRepository =
             GitCloneRepository(
@@ -477,12 +489,13 @@ class AndCodeApplication : Application() {
             RuntimeRegistry(
                 store = settings,
                 localTarget = LocalRuntimeTarget(localRuntimeManager, messages = runtimeMessages),
-                additionalTargets = listOf(claudeCodeTarget, antigravityTarget, codexTarget, piTarget),
+                additionalTargets = listOf(claudeCodeTarget, antigravityTarget, codexTarget, piTarget, grokBuildTarget),
             )
         // Surface the installed/version state to the workspace picker without waiting for the
         // first chat to touch Antigravity or Pi.
         applicationScope.launch { antigravityTarget.connect() }
         applicationScope.launch { piTarget.connect() }
+        applicationScope.launch { grokBuildTarget.connect() }
         // A setup without OpenCode has nothing else to establish a default runtime: the auto-start
         // path only ever selects the OpenCode-local target, so a Codex-only or Pi-only install used
         // to open on no runtime at all and send nowhere. Fill an empty selection once it connects;

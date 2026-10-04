@@ -65,6 +65,7 @@ class LocalRuntimeInstaller(
             val onAntigravity: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.ANTIGRAVITY) }
             val onCodex: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.CODEX) }
             val onPi: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.PI) }
+            val onGrok: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.GROK_BUILD) }
             runtimeDirectory.mkdirs()
             onShared(0.02f, context.getString(R.string.install_step_preparing_command_env))
             val existingMetadata = installedMetadata()
@@ -232,6 +233,23 @@ class LocalRuntimeInstaller(
                         logName = "pi-npm-deps.log",
                     )
                     onPi(piDoneAt, piDownloadLabel)
+                }
+
+                if (LocalAgent.GROK_BUILD in requestedAgents) {
+                    val grokStart = if (!withOpenCode) 0.90f else 0.96f
+                    val grokEnd = if (!withOpenCode) 0.98f else 0.99f
+                    val grokLabel = context.getString(R.string.install_step_installing_grok_build)
+                    onGrok(grokStart, grokLabel)
+                    GrokBuildInstaller.install(
+                        rootfs = rootfs,
+                        runtimeDirectory = runtimeDirectory,
+                        httpClient = httpClient,
+                        onProgress = { fraction ->
+                            val span = grokEnd - grokStart
+                            onGrok(grokStart + fraction.coerceIn(0f, 1f) * span, grokLabel)
+                        },
+                    )
+                    onGrok(grokEnd, grokLabel)
                 }
                 if (LocalAgent.ANTIGRAVITY in requestedAgents) {
                     onAntigravity(0.94f, context.getString(R.string.install_step_downloading_antigravity))

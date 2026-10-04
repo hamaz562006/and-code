@@ -642,6 +642,12 @@ private fun AgentSelectionStep(
             selected = LocalAgent.PI in selectedAgents,
             onToggle = { onToggle(LocalAgent.PI) },
         )
+        AgentOption(
+            title = stringResource(R.string.agent_grok_build_name),
+            description = stringResource(R.string.setup_agent_grok_build_desc),
+            selected = LocalAgent.GROK_BUILD in selectedAgents,
+            onToggle = { onToggle(LocalAgent.GROK_BUILD) },
+        )
         if (selectedAgents.size >= 2) {
             Text(
                 text = stringResource(R.string.setup_runtime_shared_note),

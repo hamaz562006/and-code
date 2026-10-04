@@ -21,6 +21,7 @@ enum class LocalAgent(
     ANTIGRAVITY("antigravity", R.string.agent_antigravity_name, "antigravity-local", R.drawable.ic_agent_antigravity),
     CODEX("codex", R.string.agent_codex_name, "codex-local", R.drawable.ic_agent_codex),
     PI("pi", R.string.agent_pi_name, "pi-local", R.drawable.ic_agent_pi),
+    GROK_BUILD("grok-build", R.string.agent_grok_build_name, "grok-build-local", R.drawable.ic_agent_grok_build),
     ;
 
     companion object {

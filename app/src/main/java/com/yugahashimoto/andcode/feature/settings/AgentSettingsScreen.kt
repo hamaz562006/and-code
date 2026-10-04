@@ -31,13 +31,19 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -84,6 +90,7 @@ fun AgentSettingsScreen(
     onOpenAntigravity: () -> Unit,
     onOpenCodex: () -> Unit,
     onOpenPi: () -> Unit,
+    onOpenGrokBuild: () -> Unit,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(R.string.settings_agents_row), onBack = onBack) {
@@ -97,6 +104,7 @@ fun AgentSettingsScreen(
             AgentRow(LocalAgent.CODEX, onOpenCodex)
             SettingsDivider()
             AgentRow(LocalAgent.PI, onOpenPi)
+            AgentRow(LocalAgent.GROK_BUILD, onOpenGrokBuild)
         }
     }
 }
@@ -161,6 +169,104 @@ fun PiAgentSettingsScreen(
                 title = stringResource(R.string.mcp_settings_row),
                 onClick = onOpenMcp,
             )
+        }
+    }
+}
+
+
+@Composable
+fun GrokBuildAgentSettingsScreen(
+    grok: GrokBuildUiState,
+    onBack: () -> Unit,
+    onInstall: () -> Unit,
+    onRefresh: () -> Unit,
+    onApiKey: (String) -> Unit,
+    onImportPackage: (() -> Unit)? = null,
+) {
+    var apiKey by remember { mutableStateOf("") }
+    AgentSettingsScaffold(title = stringResource(LocalAgent.GROK_BUILD.displayNameRes), onBack = onBack) {
+        AgentCardSection {
+            val status =
+                when (grok.install) {
+                    is GrokBuildInstallStatus.Installing ->
+                        stringResource(R.string.runtime_status_setting_up)
+                    is GrokBuildInstallStatus.Failed ->
+                        stringResource(R.string.agent_status_install_failed)
+                    is GrokBuildInstallStatus.Ready ->
+                        stringResource(R.string.agent_status_ready)
+                    else ->
+                        if (grok.installed) {
+                            stringResource(R.string.agent_status_ready)
+                        } else {
+                            stringResource(R.string.runtime_status_not_installed)
+                        }
+                }
+            Text(status, style = MaterialTheme.typography.bodyMedium)
+            grok.version?.let {
+                Text(
+                    stringResource(R.string.agent_version_label, it),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (grok.install is GrokBuildInstallStatus.Installing) {
+                val progress = (grok.install as GrokBuildInstallStatus.Installing).progress
+                if (progress != null) {
+                    LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                } else {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+                (grok.install as GrokBuildInstallStatus.Installing).step?.let { step ->
+                    Text(step, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            if (grok.install is GrokBuildInstallStatus.Failed) {
+                Text(
+                    (grok.install as GrokBuildInstallStatus.Failed).message ?: "",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (!grok.installed) {
+                Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.grok_build_install_button))
+                }
+                if (onImportPackage != null) {
+                    OutlinedButton(onClick = onImportPackage, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.agent_import_button))
+                    }
+                }
+            } else {
+                OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.refresh))
+                }
+            }
+        }
+        if (grok.installed) {
+            AgentCardSection {
+                Text(stringResource(R.string.agent_grok_build_api_key_hint), style = MaterialTheme.typography.labelMedium)
+                OutlinedTextField(
+                    value = apiKey,
+                    onValueChange = { apiKey = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("XAI_API_KEY") },
+                )
+                Button(
+                    onClick = { onApiKey(apiKey) },
+                    enabled = apiKey.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.save_api_key))
+                }
+                if (grok.hasApiKey) {
+                    Text(
+                        stringResource(R.string.agent_grok_build_api_key_saved),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
         }
     }
 }
