@@ -76,7 +76,6 @@ class GrokBuildController(
         val installed = rootfs != null && GrokBuildInstaller.isInstalledIn(rootfs)
         val version = rootfs?.let { GrokBuildInstaller.installedVersion(it) }
         val hasKey = rootfs?.let { runtime.hasApiKey(it) } == true
-        // Preserve Failed so a transient refresh does not look like "Not installed".
         val installStatus =
             when {
                 previous.install is GrokBuildInstallStatus.Failed && !installed -> previous.install
@@ -99,42 +98,44 @@ class GrokBuildController(
 
     fun install(
         agents: Set<LocalAgent> = setOf(LocalAgent.GROK_BUILD),
-        developmentGroups: Set<DevelopmentToolGroup> = emptySet(),
+        developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
     ) {
         if (mutableState.value.install is GrokBuildInstallStatus.Installing) return
+        mutableState.update { it.copy(install = GrokBuildInstallStatus.Installing()) }
         scope.launch {
-            mutableState.update {
-                it.copy(install = GrokBuildInstallStatus.Installing(progress = 0f, step = null))
-            }
-            try {
-                runtimeWork.track("Installing Grok Build") {
-                    installer.install(
-                        agents = agents,
-                        developmentGroups = developmentGroups,
-                        onProgress = { progress, step, agent ->
-                            if (agent == null || agent == LocalAgent.GROK_BUILD) {
-                                mutableState.update {
-                                    it.copy(
-                                        install =
-                                            GrokBuildInstallStatus.Installing(
-                                                progress = progress,
-                                                step = step,
-                                            ),
-                                    )
-                                }
+            runtimeWork.withLease("grok-build-install") {
+                try {
+                    val existing = installer.installedMetadata()
+                    val othersMissing = (agents - LocalAgent.GROK_BUILD).any { existing?.has(it) != true }
+                    if (installer.installedRuntime() == null || othersMissing) {
+                        installer.install(agents + LocalAgent.GROK_BUILD, developmentToolGroups) { progress, step, _ ->
+                            mutableState.update {
+                                it.copy(install = GrokBuildInstallStatus.Installing(progress, step))
                             }
-                        },
-                    )
-                }
-                rehydrate()
-                mutableState.update {
-                    it.copy(install = GrokBuildInstallStatus.Ready)
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                mutableState.update {
-                    it.copy(install = GrokBuildInstallStatus.Failed(e.message))
+                        }
+                    } else {
+                        if (developmentToolGroups.isNotEmpty()) {
+                            installer.installDevelopmentToolGroups(developmentToolGroups)
+                        }
+                        // Shared environment already present: install only this agent via full installer path.
+                        installer.install(
+                            agents = setOf(LocalAgent.GROK_BUILD),
+                            developmentToolGroups = emptySet(),
+                        ) { progress, step, _ ->
+                            mutableState.update {
+                                it.copy(install = GrokBuildInstallStatus.Installing(progress, step))
+                            }
+                        }
+                        installer.recordAgent(LocalAgent.GROK_BUILD)
+                    }
+                    mutableState.update { it.copy(install = GrokBuildInstallStatus.Ready) }
+                    runCatching { rehydrate() }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (error: Throwable) {
+                    val detail = error.cause?.message?.takeIf { it.isNotBlank() }
+                    val message = listOfNotNull(error.message, detail).joinToString(": ").ifBlank { null }
+                    mutableState.update { it.copy(install = GrokBuildInstallStatus.Failed(message)) }
                 }
             }
         }
@@ -149,7 +150,6 @@ class GrokBuildController(
     }
 
     fun checkForUpdate() {
-        // Pinned release for now; wire GitHub latest later.
         scope.launch {
             mutableState.update { it.copy(isCheckingUpdate = true, updateMessage = null) }
             val current = mutableState.value.version

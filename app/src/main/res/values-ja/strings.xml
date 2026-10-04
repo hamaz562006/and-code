@@ -1244,4 +1244,12 @@
     <string name="agent_export_not_installed">Install this agent before exporting</string>
     <string name="agent_import_need_runtime">Install the Linux environment first</string>
     <string name="agent_package_section">Backup &amp; restore</string>
+    <string name="agent_grok_build_name">Grok Build</string>
+    <string name="agent_grok_build_description">xAI coding agent (API key, no browser login). Termux aarch64 build.</string>
+    <string name="setup_agent_grok_build_desc">xAI Grok Build via API key (no browser login). ~70 MB download.</string>
+    <string name="install_step_installing_grok_build">Installing Grok Build…</string>
+    <string name="agent_grok_build_api_key_hint">XAI API key from console.x.ai</string>
+    <string name="agent_grok_build_api_key_saved">API key saved</string>
+    <string name="grok_build_install_button">Install Grok Build</string>
+    <string name="grok_build_installed_version">Grok Build %1$s</string>
 </resources>

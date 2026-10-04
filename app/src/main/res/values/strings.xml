@@ -907,6 +907,7 @@
     <string name="agent_grok_build_api_key_hint">XAI API key from console.x.ai</string>
     <string name="agent_grok_build_api_key_saved">API key saved</string>
     <string name="grok_build_install_button">Install Grok Build</string>
+    <string name="grok_build_installed_version">Grok Build %1$s</string>
 
     <string name="runtime_error_install_failed">Could not install the local runtime</string>
     <string name="runtime_error_reinstall_failed">Could not reinstall the local runtime</string>
