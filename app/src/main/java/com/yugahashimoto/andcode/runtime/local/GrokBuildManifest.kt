@@ -15,8 +15,7 @@ object GrokBuildManifest {
     /** Only arm64 is published by the Termux port today. */
     private const val ARCHIVE_NAME = "grok-termux-aarch64-$VERSION.tar.gz"
 
-    fun archiveUrl(): String =
-        "https://github.com/$REPO/releases/download/$TAG/$ARCHIVE_NAME"
+    fun archiveUrl(): String = "https://github.com/$REPO/releases/download/$TAG/$ARCHIVE_NAME"
 
     fun sha256Url(): String = "${archiveUrl()}.sha256"
 }
