@@ -1,13 +1,22 @@
 package com.yugahashimoto.andcode.ui.navigation
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import com.yugahashimoto.andcode.AndCodeApplication
+import com.yugahashimoto.andcode.R
 import com.yugahashimoto.andcode.feature.browser.GuestBrowserScreen
 import com.yugahashimoto.andcode.feature.workspace.CodeViewerScreen
 import com.yugahashimoto.andcode.feature.workspace.CodeViewerViewModel
@@ -23,9 +32,12 @@ import com.yugahashimoto.andcode.feature.workspace.WorkspacesScreen
 import com.yugahashimoto.andcode.feature.workspace.isOpenable
 import com.yugahashimoto.andcode.runtime.RuntimeTarget
 import com.yugahashimoto.andcode.runtime.WorkspaceRef
+import com.yugahashimoto.andcode.runtime.local.RuntimeAgentPackage
 import com.yugahashimoto.andcode.ui.ViewModelFactory
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 fun NavGraphBuilder.workspaceNavGraph(
     navController: NavController,
@@ -123,25 +135,107 @@ fun NavGraphBuilder.workspaceNavGraph(
                 navController.popBackStack()
             }
         }
-        LocalRuntimeManagementScreen(
-            state = managementState,
-            onBack = { navController.popBackStack() },
-            onRefresh = managementViewModel::refresh,
-            onRepair = managementViewModel::repair,
-            onInstallFullDevelopmentTools = managementViewModel::installFullDevelopmentTools,
-            onToggleDevelopmentToolGroup = managementViewModel::toggleDevelopmentToolGroup,
-            onSelectAllDevelopmentToolGroups = managementViewModel::selectAllDevelopmentToolGroups,
-            onClearDevelopmentToolGroupSelection = managementViewModel::clearDevelopmentToolGroupSelection,
-            onInstallSelectedDevelopmentToolGroups = managementViewModel::installSelectedDevelopmentToolGroups,
-            onRequestDelete = managementViewModel::requestDelete,
-            onDismissDelete = managementViewModel::dismissDelete,
-            onConfirmDelete = managementViewModel::confirmDelete,
-            onShowAdbPairDialog = managementViewModel::showAdbPairDialog,
-            onDismissAdbPairDialog = managementViewModel::dismissAdbPairDialog,
-            onAdbPair = managementViewModel::adbPair,
-            onAdbConnect = managementViewModel::adbConnect,
-            onAdbDisconnect = managementViewModel::adbDisconnect,
-        )
+        val scope = rememberCoroutineScope()
+        val snackbar = remember { SnackbarHostState() }
+        var pendingExportFile by remember { mutableStateOf<java.io.File?>(null) }
+        var isExporting by remember { mutableStateOf(false) }
+        val createDocument =
+            rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+                val src = pendingExportFile
+                pendingExportFile = null
+                if (uri == null || src == null) return@rememberLauncherForActivityResult
+                scope.launch {
+                    runCatching {
+                        withContext(Dispatchers.IO) {
+                            app.contentResolver.openOutputStream(uri)?.use { out ->
+                                src.inputStream().use { it.copyTo(out) }
+                            } ?: error("Unable to write package")
+                        }
+                        snackbar.showSnackbar(app.getString(R.string.agent_export_success, src.name))
+                    }.onFailure {
+                        snackbar.showSnackbar(app.getString(R.string.agent_export_failed, it.message ?: "error"))
+                    }
+                    runCatching { src.delete() }
+                }
+            }
+        val piUi by app.piController.state.collectAsState()
+        val canExportAgent =
+            piUi.installed ||
+                app.localRuntimeManager.hasOpenCode() ||
+                app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.CODEX) ||
+                app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE) ||
+                app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY)
+        androidx.compose.foundation.layout.Box {
+            LocalRuntimeManagementScreen(
+                state = managementState,
+                onBack = { navController.popBackStack() },
+                onRefresh = managementViewModel::refresh,
+                onRepair = managementViewModel::repair,
+                onInstallFullDevelopmentTools = managementViewModel::installFullDevelopmentTools,
+                onToggleDevelopmentToolGroup = managementViewModel::toggleDevelopmentToolGroup,
+                onSelectAllDevelopmentToolGroups = managementViewModel::selectAllDevelopmentToolGroups,
+                onClearDevelopmentToolGroupSelection = managementViewModel::clearDevelopmentToolGroupSelection,
+                onInstallSelectedDevelopmentToolGroups = managementViewModel::installSelectedDevelopmentToolGroups,
+                canExportAgentPackage = canExportAgent,
+                isExportingPackage = isExporting,
+                onExportAgentPackage = exportClick@{
+                    if (isExporting) return@exportClick
+                    scope.launch {
+                        isExporting = true
+                        snackbar.showSnackbar(app.getString(R.string.agent_export_preparing))
+                        runCatching {
+                            val (file, name) =
+                                withContext(Dispatchers.IO) {
+                                    val rootfs =
+                                        app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                            ?: error(app.getString(R.string.agent_import_need_runtime))
+                                    val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
+                                    val agent =
+                                        when {
+                                            piUi.installed ->
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.PI
+                                            app.localRuntimeManager.hasAgent(
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.CODEX,
+                                            ) -> com.yugahashimoto.andcode.runtime.LocalAgent.CODEX
+                                            app.localRuntimeManager.hasOpenCode() ->
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.OPEN_CODE
+                                            app.localRuntimeManager.hasAgent(
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE,
+                                            ) -> com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE
+                                            app.localRuntimeManager.hasAgent(
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY,
+                                            ) -> com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY
+                                            else -> error(app.getString(R.string.agent_export_not_installed))
+                                        }
+                                    val exported =
+                                        RuntimeAgentPackage.export(
+                                            agent = agent,
+                                            rootfs = rootfs,
+                                            abi = abi,
+                                            outputDir = File(app.cacheDir, "agent-export"),
+                                            includeConfig = true,
+                                        )
+                                    exported.file to exported.suggestedName
+                                }
+                            pendingExportFile = file
+                            createDocument.launch(name)
+                        }.onFailure {
+                            snackbar.showSnackbar(app.getString(R.string.agent_export_failed, it.message ?: "error"))
+                        }
+                        isExporting = false
+                    }
+                },
+                onRequestDelete = managementViewModel::requestDelete,
+                onDismissDelete = managementViewModel::dismissDelete,
+                onConfirmDelete = managementViewModel::confirmDelete,
+                onShowAdbPairDialog = managementViewModel::showAdbPairDialog,
+                onDismissAdbPairDialog = managementViewModel::dismissAdbPairDialog,
+                onAdbPair = managementViewModel::adbPair,
+                onAdbConnect = managementViewModel::adbConnect,
+                onAdbDisconnect = managementViewModel::adbDisconnect,
+            )
+            SnackbarHost(hostState = snackbar)
+        }
     }
 
     composable(WORKSPACE_DETAIL_ROUTE) {

@@ -67,6 +67,10 @@ fun LocalRuntimeManagementScreen(
     onRefresh: () -> Unit,
     onRepair: () -> Unit,
     onInstallFullDevelopmentTools: () -> Unit,
+    onImportAgentPackage: () -> Unit = {},
+    onExportAgentPackage: () -> Unit = {},
+    canExportAgentPackage: Boolean = false,
+    isExportingPackage: Boolean = false,
     onToggleDevelopmentToolGroup: (String) -> Unit = {},
     onSelectAllDevelopmentToolGroups: () -> Unit = {},
     onClearDevelopmentToolGroupSelection: () -> Unit = {},
@@ -81,6 +85,7 @@ fun LocalRuntimeManagementScreen(
     onAdbDisconnect: () -> Unit = {},
 ) {
     val busy = state.runtimeStatus.isBusy() || state.isDeleting
+    val exportBusy = busy || isExportingPackage
     Scaffold(
         topBar = {
             TopAppBar(
@@ -147,6 +152,36 @@ fun LocalRuntimeManagementScreen(
                 )
                 RuntimeLogsCard(diagnostics.logTail)
 
+                // Runtime already exists here — only export makes sense (backup installed agents).
+                if (state.runtimeEnvironmentInstalled && canExportAgentPackage) {
+                    SectionCard {
+                        Text(
+                            stringResource(R.string.agent_package_section),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.agent_export_description),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Button(
+                            onClick = onExportAgentPackage,
+                            enabled = !exportBusy,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                if (isExportingPackage) {
+                                    stringResource(R.string.agent_export_preparing)
+                                } else {
+                                    stringResource(R.string.agent_export_button)
+                                },
+                            )
+                        }
+                    }
+                }
                 if (diagnostics.status.isInstalled()) {
                     RuntimeManagementCard(
                         busy = busy,

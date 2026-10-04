@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Key
@@ -111,6 +112,7 @@ fun PiAgentSettingsScreen(
     onCheckForUpdate: (() -> Unit)? = null,
     onUpdate: (() -> Unit)? = null,
     onOpenMcp: () -> Unit = {},
+    onImportPackage: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.PI.displayNameRes), onBack = onBack) {
@@ -150,6 +152,9 @@ fun PiAgentSettingsScreen(
                 )
             }
         }
+        if (!pi.installed) {
+            AgentPackageSection(installed = false, onImport = onImportPackage)
+        }
         SettingsSection(title = stringResource(R.string.settings_agents_section)) {
             SettingsRow(
                 icon = Icons.Default.Extension,
@@ -180,6 +185,7 @@ fun CodexAgentSettingsScreen(
     onInstall: () -> Unit,
     onSignOut: () -> Unit,
     onOpenMcp: () -> Unit,
+    onImportPackage: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.CODEX.displayNameRes), onBack = onBack) {
@@ -199,6 +205,9 @@ fun CodexAgentSettingsScreen(
                     onSignOut = onSignOut,
                 )
             }
+        }
+        if (!codex.installed) {
+            AgentPackageSection(installed = false, onImport = onImportPackage)
         }
         // The same agent-scoped section Claude Code and Antigravity have, so every agent's MCP
         // servers are configured from that agent's own screen.
@@ -249,6 +258,7 @@ fun AntigravityAgentSettingsScreen(
     onSignOut: () -> Unit,
     onOpenMcp: () -> Unit,
     onOpenUrl: (String) -> Unit,
+    onImportPackage: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.ANTIGRAVITY.displayNameRes), onBack = onBack) {
@@ -275,6 +285,9 @@ fun AntigravityAgentSettingsScreen(
                 )
             }
         }
+        if (!antigravity.installed) {
+            AgentPackageSection(installed = false, onImport = onImportPackage)
+        }
         SettingsSection(title = stringResource(R.string.settings_agents_section)) {
             SettingsRow(
                 icon = Icons.Default.Extension,
@@ -300,6 +313,7 @@ fun ClaudeCodeAgentSettingsScreen(
     onOpenSystemPrompt: () -> Unit,
     onOpenMcp: () -> Unit,
     onOpenUrl: (String) -> Unit,
+    onImportPackage: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.CLAUDE_CODE.displayNameRes), onBack = onBack) {
@@ -325,6 +339,9 @@ fun ClaudeCodeAgentSettingsScreen(
                     showVersion = false,
                 )
             }
+        }
+        if (!claude.installed) {
+            AgentPackageSection(installed = false, onImport = onImportPackage)
         }
         SettingsSection(title = stringResource(R.string.settings_agents_section)) {
             SettingsRow(
@@ -376,6 +393,7 @@ fun OpenCodeAgentSettingsScreen(
     onOpenSystemPrompt: () -> Unit,
     systemPromptLabel: String,
     onOpenMcp: () -> Unit,
+    onImportPackage: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.OPEN_CODE.displayNameRes), onBack = onBack) {
@@ -400,6 +418,11 @@ fun OpenCodeAgentSettingsScreen(
                         Icon(Icons.Default.Build, contentDescription = null)
                         Spacer(Modifier.padding(horizontal = 4.dp))
                         Text(stringResource(R.string.opencode_install_button))
+                    }
+                    OutlinedButton(onClick = onImportPackage, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Download, contentDescription = null)
+                        Spacer(Modifier.padding(horizontal = 4.dp))
+                        Text(stringResource(R.string.agent_import_button))
                     }
                 }
             }
@@ -749,6 +772,30 @@ private fun AgentSettingsScaffold(
                     .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 28.dp),
         ) {
             content()
+        }
+    }
+}
+
+@Composable
+fun AgentPackageSection(
+    installed: Boolean,
+    onExport: () -> Unit = {},
+    onImport: () -> Unit = {},
+) {
+    // Only for agents that are not installed — offline restore next to Install.
+    if (!installed) {
+        SettingsSection(title = stringResource(R.string.agent_package_section)) {
+            Text(
+                text = stringResource(R.string.agent_import_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+            SettingsRow(
+                icon = Icons.Default.Download,
+                title = stringResource(R.string.agent_import_button),
+                onClick = onImport,
+            )
         }
     }
 }

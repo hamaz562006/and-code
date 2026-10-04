@@ -16,6 +16,8 @@ NATIVE_EXECUTABLES = {
 RUNTIME_LIBRARIES = {
     "libandroid-shmem.so": "libandroid-shmem.so",
     "libc++_shared.so": "libc++_shared.so",
+    # Prefer the current Termux SONAME file; keep older names so a lock downgrade still packs.
+    "libtalloc.so.2.5.0": "libtalloc.so",
     "libtalloc.so.2.4.3": "libtalloc.so",
 }
 NATIVE_EXECUTABLE_SEARCH_DIRS = ("bin", "libexec")
@@ -56,13 +58,31 @@ def copy_abi(linux_assets_dir: Path, output_dir: Path, abi: str) -> None:
         shutil.copy2(source, destination)
         destination.chmod(0o755)
     lib_dir = prefix_dir / "lib"
+    copied_destinations: set[str] = set()
     for source_name, destination_name in sorted(RUNTIME_LIBRARIES.items()):
         source = lib_dir / source_name
         if source.is_file():
             destination = abi_output / destination_name
             shutil.copy2(source, destination)
             destination.chmod(0o755)
+            copied_destinations.add(destination_name)
+    # Fallback: any libtalloc.so* from the extracted prefix (handles future version bumps).
+    if "libtalloc.so" not in copied_destinations and lib_dir.is_dir():
+        for source in sorted(lib_dir.glob("libtalloc.so*")):
+            if source.is_file():
+                destination = abi_output / "libtalloc.so"
+                shutil.copy2(source, destination)
+                destination.chmod(0o755)
+                copied_destinations.add("libtalloc.so")
+                break
+    if "libtalloc.so" not in copied_destinations:
+        raise FileNotFoundError(
+            f"libtalloc.so missing under {lib_dir}; proot cannot run without it",
+        )
     patch_needed(abi_output / "libopencode_android_proot.so", "libtalloc.so.2", "libtalloc.so")
+    # proot 5.x may also DT_NEEDED libtalloc.so.2.5.0 / .2.4.3 — retarget those too.
+    for soname in ("libtalloc.so.2.5.0", "libtalloc.so.2.4.3", "libtalloc.so.2"):
+        patch_needed(abi_output / "libopencode_android_proot.so", soname, "libtalloc.so")
 
 
 def prepare_native_libs(linux_assets_dir: Path, output_dir: Path) -> None:

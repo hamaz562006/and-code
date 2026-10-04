@@ -1,6 +1,9 @@
 package com.yugahashimoto.andcode.ui.navigation
 
 import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -8,10 +11,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
+import com.yugahashimoto.andcode.AndCodeApplication
 import com.yugahashimoto.andcode.R
 import com.yugahashimoto.andcode.core.UrlLauncher
 import com.yugahashimoto.andcode.data.settings.AppPreferences
@@ -36,8 +41,14 @@ import com.yugahashimoto.andcode.feature.settings.VoiceSettingsScreen
 import com.yugahashimoto.andcode.feature.support.GitHubSupportSheetHost
 import com.yugahashimoto.andcode.feature.wakeword.VoskModelState
 import com.yugahashimoto.andcode.feature.wakeword.WakeWordSettingsPolicy
+import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.RuntimeRegistry
+import com.yugahashimoto.andcode.runtime.local.RuntimeAgentPackage
 import com.yugahashimoto.andcode.ui.components.systemPromptPresetLabel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 fun NavGraphBuilder.settingsNavGraph(
     navController: NavController,
@@ -295,9 +306,11 @@ fun NavGraphBuilder.settingsNavGraph(
         val app = context.applicationContext as com.yugahashimoto.andcode.AndCodeApplication
         val pi by app.piController.state.collectAsState()
         androidx.compose.runtime.LaunchedEffect(Unit) { app.piController.refresh() }
+        val importPackage = rememberAgentPackageImporter()
         PiAgentSettingsScreen(
             pi = pi,
             onInstall = { app.piController.install() },
+            onImportPackage = importPackage,
             onRestart = { app.piRuntime.stopAll() },
             onStop = { app.piRuntime.stopAll() },
             onCheckForUpdate = { app.piController.checkForUpdate() },
@@ -331,8 +344,10 @@ fun NavGraphBuilder.settingsNavGraph(
                     },
             )
         val openCodeState by openCodeViewModel.state.collectAsState()
+        val importPackage = rememberAgentPackageImporter()
         OpenCodeAgentSettingsScreen(
             state = openCodeState,
+            onImportPackage = importPackage,
             onStart = openCodeViewModel::start,
             onStop = openCodeViewModel::stop,
             onRestart = openCodeViewModel::restart,
@@ -377,9 +392,11 @@ fun NavGraphBuilder.settingsNavGraph(
     }
 
     composable(ROUTE_SETTINGS_AGENT_CLAUDE) {
+        val importPackage = rememberAgentPackageImporter()
         ClaudeCodeAgentSettingsScreen(
             claude = claude(),
             onInstall = claudeActions.onInstall,
+            onImportPackage = importPackage,
             onUpdate = claudeActions.onUpdate,
             onSelectPermissionMode = claudeActions.onSelectPermissionMode,
             onSignIn = claudeActions.onSignIn,
@@ -408,9 +425,11 @@ fun NavGraphBuilder.settingsNavGraph(
     }
 
     composable(ROUTE_SETTINGS_AGENT_ANTIGRAVITY) {
+        val importPackage = rememberAgentPackageImporter()
         AntigravityAgentSettingsScreen(
             antigravity = antigravity(),
             onInstall = antigravityActions.onInstall,
+            onImportPackage = importPackage,
             onUpdate = antigravityActions.onUpdate,
             onSelectPermissionMode = antigravityActions.onSelectPermissionMode,
             onSignIn = antigravityActions.onSignIn,
@@ -439,6 +458,7 @@ fun NavGraphBuilder.settingsNavGraph(
         val signInDialog by signInViewModel.dialog.collectAsState()
         // Re-read on open: an install can have finished, or the account been signed out, since the last look.
         androidx.compose.runtime.LaunchedEffect(Unit) { app.codexController.refresh() }
+        val importPackage = rememberAgentPackageImporter()
         CodexAgentSettingsScreen(
             codex = codex,
             signInDialog = signInDialog,
@@ -454,6 +474,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onInstall = app.codexController::install,
             onSignOut = app.codexController::signOut,
             onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_CODEX) },
+            onImportPackage = importPackage,
             onBack = { navController.popBackStack() },
         )
     }
@@ -601,3 +622,69 @@ data class AntigravitySettingsActions(
     val onCancelSignIn: () -> Unit,
     val onSignOut: () -> Unit,
 )
+
+@Composable
+private fun rememberAgentPackageImporter(): () -> Unit {
+    val context = LocalContext.current
+    val app = context.applicationContext as AndCodeApplication
+    val scope = rememberCoroutineScope()
+    val launcher =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            scope.launch {
+                val result =
+                    runCatching {
+                        withContext(Dispatchers.IO) {
+                            val rootfs =
+                                app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                    ?: error(app.getString(R.string.agent_import_need_runtime))
+                            val tmp =
+                                File(app.cacheDir, "import-${System.currentTimeMillis()}.andcode.zip")
+                            context.contentResolver.openInputStream(uri)?.use { input ->
+                                tmp.outputStream().use { input.copyTo(it) }
+                            } ?: error("Unable to read package")
+                            try {
+                                val imported = RuntimeAgentPackage.import(tmp, rootfs)
+                                app.localRuntimeInstaller.recordAgent(imported.agent)
+                                when (imported.agent) {
+                                    LocalAgent.PI -> runCatching { app.piController.refresh() }
+                                    LocalAgent.CODEX -> runCatching { app.codexController.refresh() }
+                                    LocalAgent.CLAUDE_CODE -> runCatching { app.claudeCodeController.refresh() }
+                                    LocalAgent.ANTIGRAVITY -> runCatching { app.antigravityController.refresh() }
+                                    LocalAgent.OPEN_CODE -> Unit
+                                }
+                                imported
+                            } finally {
+                                tmp.delete()
+                            }
+                        }
+                    }
+                result
+                    .onSuccess { imported ->
+                        android.widget.Toast
+                            .makeText(
+                                context,
+                                app.getString(
+                                    R.string.agent_import_success,
+                                    imported.agent.id,
+                                    imported.filesWritten,
+                                ),
+                                android.widget.Toast.LENGTH_LONG,
+                            ).show()
+                    }.onFailure { error ->
+                        android.widget.Toast
+                            .makeText(
+                                context,
+                                app.getString(
+                                    R.string.agent_import_failed,
+                                    error.message ?: "error",
+                                ),
+                                android.widget.Toast.LENGTH_LONG,
+                            ).show()
+                    }
+            }
+        }
+    return {
+        launcher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+    }
+}

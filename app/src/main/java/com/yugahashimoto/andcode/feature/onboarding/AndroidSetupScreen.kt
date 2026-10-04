@@ -145,6 +145,7 @@ fun AndroidSetupScreen(
     onDisconnectGitHub: () -> Unit = {},
     onBack: () -> Unit,
     onFinish: () -> Unit,
+    onImportAgentPackage: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var selectedAgents by rememberSaveable(
@@ -384,6 +385,7 @@ fun AndroidSetupScreen(
                             selectedAgents =
                                 if (agent in selectedAgents) selectedAgents - agent else selectedAgents + agent
                         },
+                        onImportPackage = onImportAgentPackage,
                     )
                 2 ->
                     DevelopmentToolsStep(
@@ -602,6 +604,7 @@ private fun StepHeader(
 private fun AgentSelectionStep(
     selectedAgents: Set<LocalAgent>,
     onToggle: (LocalAgent) -> Unit,
+    onImportPackage: () -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         StepHeader(
@@ -653,6 +656,18 @@ private fun AgentSelectionStep(
                 color = MaterialTheme.colorScheme.error,
             )
         }
+        // Offline restore without selecting a download — needs an existing Linux environment.
+        OutlinedButton(
+            onClick = onImportPackage,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.agent_import_button))
+        }
+        Text(
+            text = stringResource(R.string.agent_import_description),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
