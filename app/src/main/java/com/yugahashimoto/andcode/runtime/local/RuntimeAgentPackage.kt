@@ -70,7 +70,12 @@ object RuntimeAgentPackage {
         return "${agent.id}-$safeVersion-$safeAbi-$stamp.$FILE_EXTENSION"
     }
 
-    /** Relative paths (files and directories) under [rootfs] to package for [agent]. */
+    /**
+     * Relative paths (files and directories) under [rootfs] to package for [agent].
+     *
+     * Includes the agent itself **and** the install-time dependencies that were provisioned
+     * with it (e.g. Node/npm/ICU for Pi), so import can restore without re-downloading.
+     */
     fun collectPaths(
         agent: LocalAgent,
         rootfs: File,
@@ -79,9 +84,20 @@ object RuntimeAgentPackage {
         val paths = linkedSetOf<String>()
         when (agent) {
             LocalAgent.PI -> {
+                // Pi CLI tree (includes node_modules when npm deps were installed).
                 addIfExists(paths, rootfs, "usr/local/bin/${PiInstaller.PI_BINARY}")
                 addIfExists(paths, rootfs, "usr/local/bin/.${PiInstaller.PI_BINARY}-version")
                 addIfExists(paths, rootfs, "usr/local/lib/pi-coding-agent")
+                // Runtime packages installed with Pi: nodejs, npm, icu-data-full.
+                addIfExists(paths, rootfs, "usr/bin/node")
+                addIfExists(paths, rootfs, "usr/bin/nodejs")
+                addIfExists(paths, rootfs, "usr/bin/npm")
+                addIfExists(paths, rootfs, "usr/bin/npx")
+                addIfExists(paths, rootfs, "usr/lib/node_modules")
+                addPrefixed(paths, rootfs, "usr/lib", "libnode")
+                // ICU data (icu-data-full) — required for Node on Alpine.
+                addIfExists(paths, rootfs, "usr/share/icu")
+                addPrefixed(paths, rootfs, "usr/lib", "libicu")
                 if (includeConfig) {
                     addIfExists(paths, rootfs, "root/.pi")
                 }
@@ -90,21 +106,28 @@ object RuntimeAgentPackage {
                 CodexInstaller.INSTALLED_BINARIES.forEach { name ->
                     addIfExists(paths, rootfs, "usr/local/bin/$name")
                 }
+                // Vendor payload directory if present alongside the binaries.
+                addIfExists(paths, rootfs, "usr/local/lib/codex")
+                addIfExists(paths, rootfs, "usr/local/share/codex")
                 if (includeConfig) {
                     addIfExists(paths, rootfs, "root/.codex")
                 }
             }
             LocalAgent.OPEN_CODE -> {
                 addIfExists(paths, rootfs, "usr/local/bin/opencode")
+                addIfExists(paths, rootfs, "usr/local/lib/opencode")
+                addIfExists(paths, rootfs, "usr/local/share/opencode")
                 if (includeConfig) {
                     addIfExists(paths, rootfs, "root/.local/share/opencode")
                     addIfExists(paths, rootfs, "root/.config/opencode")
                 }
             }
             LocalAgent.CLAUDE_CODE -> {
-                // Claude is an apk package; capture the binary and common config dirs.
                 addIfExists(paths, rootfs, "usr/bin/claude")
                 addIfExists(paths, rootfs, "usr/local/bin/claude")
+                // Alpine package files for the Claude CLI when installed via apk.
+                addIfExists(paths, rootfs, "usr/lib/claude-code")
+                addIfExists(paths, rootfs, "usr/share/claude-code")
                 if (includeConfig) {
                     addIfExists(paths, rootfs, "root/.claude")
                     addIfExists(paths, rootfs, "root/.config/claude")
@@ -113,6 +136,8 @@ object RuntimeAgentPackage {
             LocalAgent.ANTIGRAVITY -> {
                 addIfExists(paths, rootfs, "usr/local/bin/agy")
                 addIfExists(paths, rootfs, "usr/local/bin/antigravity")
+                addIfExists(paths, rootfs, "usr/local/lib/antigravity")
+                addIfExists(paths, rootfs, "usr/local/share/antigravity")
                 if (includeConfig) {
                     addIfExists(paths, rootfs, "root/.antigravity")
                     addIfExists(paths, rootfs, "root/.config/antigravity")
@@ -129,6 +154,22 @@ object RuntimeAgentPackage {
     ) {
         val f = File(rootfs, relative)
         if (f.exists()) paths.add(relative.trim('/'))
+    }
+
+    /** Adds every file/dir under [relativeDir] whose name starts with [namePrefix]. */
+    private fun addPrefixed(
+        paths: MutableSet<String>,
+        rootfs: File,
+        relativeDir: String,
+        namePrefix: String,
+    ) {
+        val dir = File(rootfs, relativeDir)
+        if (!dir.isDirectory) return
+        dir.listFiles()?.forEach { child ->
+            if (child.name.startsWith(namePrefix)) {
+                paths.add("${relativeDir.trim('/')}/${child.name}")
+            }
+        }
     }
 
     fun export(
@@ -239,7 +280,12 @@ object RuntimeAgentPackage {
                     val dest = File(rootfs, relative)
                     dest.parentFile?.mkdirs()
                     FileOutputStream(dest).use { out -> zip.copyTo(out) }
-                    if (relative.startsWith("usr/local/bin/") || relative.startsWith("usr/bin/")) {
+                    if (
+                        relative.startsWith("usr/local/bin/") ||
+                        relative.startsWith("usr/bin/") ||
+                        relative.endsWith(".so") ||
+                        relative.contains("/node_modules/.bin/")
+                    ) {
                         dest.setExecutable(true, false)
                     }
                     written++

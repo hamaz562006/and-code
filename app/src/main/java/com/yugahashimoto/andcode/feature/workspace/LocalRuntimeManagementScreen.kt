@@ -70,6 +70,7 @@ fun LocalRuntimeManagementScreen(
     onImportAgentPackage: () -> Unit = {},
     onExportAgentPackage: () -> Unit = {},
     canExportAgentPackage: Boolean = false,
+    isExportingPackage: Boolean = false,
     onToggleDevelopmentToolGroup: (String) -> Unit = {},
     onSelectAllDevelopmentToolGroups: () -> Unit = {},
     onClearDevelopmentToolGroupSelection: () -> Unit = {},
@@ -84,6 +85,7 @@ fun LocalRuntimeManagementScreen(
     onAdbDisconnect: () -> Unit = {},
 ) {
     val busy = state.runtimeStatus.isBusy() || state.isDeleting
+    val exportBusy = busy || isExportingPackage
     Scaffold(
         topBar = {
             TopAppBar(
@@ -167,10 +169,16 @@ fun LocalRuntimeManagementScreen(
                         Spacer(Modifier.height(10.dp))
                         Button(
                             onClick = onExportAgentPackage,
-                            enabled = !busy,
+                            enabled = !exportBusy,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text(stringResource(R.string.agent_export_button))
+                            Text(
+                                if (isExportingPackage) {
+                                    stringResource(R.string.agent_export_preparing)
+                                } else {
+                                    stringResource(R.string.agent_export_button)
+                                },
+                            )
                         }
                     }
                 }

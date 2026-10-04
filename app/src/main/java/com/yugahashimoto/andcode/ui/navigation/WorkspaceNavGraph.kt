@@ -138,6 +138,7 @@ fun NavGraphBuilder.workspaceNavGraph(
         val scope = rememberCoroutineScope()
         val snackbar = remember { SnackbarHostState() }
         var pendingExportFile by remember { mutableStateOf<java.io.File?>(null) }
+        var isExporting by remember { mutableStateOf(false) }
         val createDocument =
             rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
                 val src = pendingExportFile
@@ -176,8 +177,12 @@ fun NavGraphBuilder.workspaceNavGraph(
                 onClearDevelopmentToolGroupSelection = managementViewModel::clearDevelopmentToolGroupSelection,
                 onInstallSelectedDevelopmentToolGroups = managementViewModel::installSelectedDevelopmentToolGroups,
                 canExportAgentPackage = canExportAgent,
-                onExportAgentPackage = {
+                isExportingPackage = isExporting,
+                onExportAgentPackage = exportClick@{
+                    if (isExporting) return@exportClick
                     scope.launch {
+                        isExporting = true
+                        snackbar.showSnackbar(app.getString(R.string.agent_export_preparing))
                         runCatching {
                             val (file, name) =
                                 withContext(Dispatchers.IO) {
@@ -217,6 +222,7 @@ fun NavGraphBuilder.workspaceNavGraph(
                         }.onFailure {
                             snackbar.showSnackbar(app.getString(R.string.agent_export_failed, it.message ?: "error"))
                         }
+                        isExporting = false
                     }
                 },
                 onRequestDelete = managementViewModel::requestDelete,

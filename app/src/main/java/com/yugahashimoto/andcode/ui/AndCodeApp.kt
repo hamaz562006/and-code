@@ -941,29 +941,53 @@ fun AndCodeApp(
                             rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
                                 if (uri == null) return@rememberLauncherForActivityResult
                                 setupScope.launch {
-                                    runCatching {
-                                        withContext(Dispatchers.IO) {
-                                            val rootfs =
-                                                app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                                    ?: error(app.getString(R.string.agent_import_need_runtime))
-                                            val tmp =
-                                                File(
-                                                    app.cacheDir,
-                                                    "import-${System.currentTimeMillis()}.andcode.zip",
-                                                )
-                                            context.contentResolver.openInputStream(uri)?.use { input ->
-                                                tmp.outputStream().use { input.copyTo(it) }
-                                            } ?: error("Unable to read package")
-                                            try {
-                                                val imported = RuntimeAgentPackage.import(tmp, rootfs)
-                                                app.localRuntimeInstaller.recordAgent(imported.agent)
-                                                runCatching { app.piController.refresh() }
-                                                imported
-                                            } finally {
-                                                tmp.delete()
+                                    val result =
+                                        runCatching {
+                                            withContext(Dispatchers.IO) {
+                                                val rootfs =
+                                                    app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                                        ?: error(app.getString(R.string.agent_import_need_runtime))
+                                                val tmp =
+                                                    File(
+                                                        app.cacheDir,
+                                                        "import-${System.currentTimeMillis()}.andcode.zip",
+                                                    )
+                                                context.contentResolver.openInputStream(uri)?.use { input ->
+                                                    tmp.outputStream().use { input.copyTo(it) }
+                                                } ?: error("Unable to read package")
+                                                try {
+                                                    val imported = RuntimeAgentPackage.import(tmp, rootfs)
+                                                    app.localRuntimeInstaller.recordAgent(imported.agent)
+                                                    runCatching { app.piController.refresh() }
+                                                    imported
+                                                } finally {
+                                                    tmp.delete()
+                                                }
                                             }
                                         }
-                                    }
+                                    result
+                                        .onSuccess { imported ->
+                                            android.widget.Toast
+                                                .makeText(
+                                                    context,
+                                                    app.getString(
+                                                        R.string.agent_import_success,
+                                                        imported.agent.id,
+                                                        imported.filesWritten,
+                                                    ),
+                                                    android.widget.Toast.LENGTH_LONG,
+                                                ).show()
+                                        }.onFailure { error ->
+                                            android.widget.Toast
+                                                .makeText(
+                                                    context,
+                                                    app.getString(
+                                                        R.string.agent_import_failed,
+                                                        error.message ?: "error",
+                                                    ),
+                                                    android.widget.Toast.LENGTH_LONG,
+                                                ).show()
+                                        }
                                 }
                             }
                         AndroidSetupScreen(
