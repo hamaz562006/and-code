@@ -122,30 +122,34 @@ object GrokBuildInstaller {
         val wrapper = pathEntry(rootfs)
         wrapper.parentFile?.mkdirs()
         val guestReal = "/$LIB_DIR/$GROK_BINARY"
+        // Termux/Android binary (see Duro02/grok-build-termux). INTERP is linker64; on modern
+        // devices that is a symlink into /apex/com.android.runtime — proot must bind /apex.
         val script =
             buildString {
                 appendLine("#!/bin/sh")
-                appendLine("# Grok Build is a bionic (Android) PIE. Under Alpine/proot, plain exec")
-                appendLine("# reports \"not found\" because the kernel INTERP path is not applied the")
-                appendLine("# same way — invoke linker64 explicitly (proot binds /system).")
                 appendLine("export ANDROID_ROOT=\"\${ANDROID_ROOT:-/system}\"")
                 appendLine("export ANDROID_DATA=\"\${ANDROID_DATA:-/data}\"")
                 appendLine("export PREFIX=\"\${PREFIX:-/usr/local}\"")
                 appendLine(
-                    "export LD_LIBRARY_PATH=\"/system/lib64:/system/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}\"",
+                    "export LD_LIBRARY_PATH=\"/apex/com.android.runtime/lib64:/system/lib64:/system/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}\"",
                 )
                 appendLine("REAL=\"$guestReal\"")
                 appendLine("if [ ! -f \"\$REAL\" ]; then")
                 appendLine("  echo \"grok: binary missing at \$REAL\" >&2")
                 appendLine("  exit 127")
                 appendLine("fi")
-                appendLine("if [ -x /system/bin/linker64 ]; then")
-                appendLine("  exec /system/bin/linker64 \"\$REAL\" \"\$@\"")
+                appendLine("LINKER=\"\"")
+                appendLine("for c in \\")
+                appendLine("  /apex/com.android.runtime/bin/linker64 \\")
+                appendLine("  /system/bin/linker64 \\")
+                appendLine("  /system/bin/linker")
+                appendLine("do")
+                appendLine("  if [ -e \"\$c\" ]; then LINKER=\"\$c\"; break; fi")
+                appendLine("done")
+                appendLine("if [ -n \"\$LINKER\" ]; then")
+                appendLine("  exec \"\$LINKER\" \"\$REAL\" \"\$@\"")
                 appendLine("fi")
-                appendLine("if [ -x /system/bin/linker ]; then")
-                appendLine("  exec /system/bin/linker \"\$REAL\" \"\$@\"")
-                appendLine("fi")
-                appendLine("echo \"grok: Android linker not found under /system (is /system bound?)\" >&2")
+                appendLine("echo \"grok: Android linker not found (need /system + /apex binds in proot)\" >&2")
                 appendLine("exit 127")
             }
         wrapper.writeText(script)

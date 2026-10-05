@@ -303,6 +303,10 @@ object ClaudeCodeInstaller {
                     "/sys",
                     "-b",
                     "/system",
+                    "-b",
+                    "/apex",
+                    "-b",
+                    "/vendor",
                     "-w",
                     "/root",
                     // Deliberately not a login shell: /etc/profile.d narrows PATH to the OpenCode
