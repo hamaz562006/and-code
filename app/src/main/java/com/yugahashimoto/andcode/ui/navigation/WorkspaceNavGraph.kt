@@ -200,16 +200,22 @@ fun NavGraphBuilder.workspaceNavGraph(
                                             selectedAgent == com.yugahashimoto.andcode.runtime.LocalAgent.GROK_BUILD && grokUi.installed ->
                                                 com.yugahashimoto.andcode.runtime.LocalAgent.GROK_BUILD
                                             selectedAgent == com.yugahashimoto.andcode.runtime.LocalAgent.CODEX &&
-                                                app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.CODEX) ->
+                                                app.localRuntimeManager.hasAgent(
+                                                    com.yugahashimoto.andcode.runtime.LocalAgent.CODEX,
+                                                ) ->
                                                 com.yugahashimoto.andcode.runtime.LocalAgent.CODEX
                                             selectedAgent == com.yugahashimoto.andcode.runtime.LocalAgent.OPEN_CODE &&
                                                 app.localRuntimeManager.hasOpenCode() ->
                                                 com.yugahashimoto.andcode.runtime.LocalAgent.OPEN_CODE
                                             selectedAgent == com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE &&
-                                                app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE) ->
+                                                app.localRuntimeManager.hasAgent(
+                                                    com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE,
+                                                ) ->
                                                 com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE
                                             selectedAgent == com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY &&
-                                                app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY) ->
+                                                app.localRuntimeManager.hasAgent(
+                                                    com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY,
+                                                ) ->
                                                 com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY
                                             piUi.installed ->
                                                 com.yugahashimoto.andcode.runtime.LocalAgent.PI

@@ -344,7 +344,6 @@ fun GrokBuildAgentSettingsScreen(
     }
 }
 
-
 /** What the Codex sign-in dialog can do; the same callbacks [ProviderAuthDialog] takes for OpenCode's providers. */
 data class CodexSignInActions(
     val onOpen: () -> Unit,
