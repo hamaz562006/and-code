@@ -127,8 +127,7 @@ class GrokBuildTarget(
     override suspend fun createSession(
         title: String?,
         directory: String?,
-    ): OpenCodeSession =
-        error("Grok Build chat sessions are not wired yet; install and API key work from agent settings")
+    ): OpenCodeSession = error("Grok Build chat sessions are not wired yet; install and API key work from agent settings")
 
     override suspend fun listMessages(sessionId: String): List<OpenCodeMessage> = emptyList()
 
