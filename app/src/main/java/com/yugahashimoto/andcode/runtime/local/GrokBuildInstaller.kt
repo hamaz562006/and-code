@@ -4,8 +4,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.apache.commons.compress.archivers.ar.ArArchiveInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
@@ -15,10 +17,11 @@ import java.security.MessageDigest
 /**
  * Downloads the Duro02 Termux aarch64 Grok Build archive into the shared rootfs.
  *
- * The upstream binary is an Android (bionic) PIE linked against `/system/bin/linker64`.
- * Alpine/musl cannot load it as a normal guest binary, so we:
- * 1. Install the real ELF under [LIB_DIR]
- * 2. Put a small shell wrapper on `PATH` that sets Android library paths and execs it
+ * Upstream binary needs:
+ * - Android linker (`/system/bin/linker64` → APEX) — proot binds `/system` + `/apex`
+ * - NDK `libc++_shared.so` with `RUNPATH=$ORIGIN/../lib` — we install Termux's copy at
+ *   `usr/local/lib/libc++_shared.so` so `$ORIGIN/../lib` resolves when the ELF lives at
+ *   `usr/local/lib/grok-build/grok`
  *
  * Headless auth is [XAI_API_KEY] (see [GrokBuildRuntime.setApiKey]) — no browser login.
  */
@@ -27,19 +30,17 @@ object GrokBuildInstaller {
     const val GROK_VERSION = GrokBuildManifest.VERSION
     private const val BIN_DIR = "usr/local/bin"
     private const val LIB_DIR = "usr/local/lib/grok-build"
+    private const val LOCAL_LIB = "usr/local/lib"
 
-    /** Real Android ELF (not the wrapper). */
     fun binaryPath(rootfs: File): File = File(rootfs, "$LIB_DIR/$GROK_BINARY")
 
-    /** PATH entry — shell wrapper when present, else legacy direct binary. */
     fun pathEntry(rootfs: File): File = File(rootfs, "$BIN_DIR/$GROK_BINARY")
 
     fun isInstalledIn(rootfs: File): Boolean {
         val real = binaryPath(rootfs)
         if (real.isFile && real.length() > 1_000_000L) return true
-        // Legacy installs placed the ELF directly on PATH.
         val legacy = pathEntry(rootfs)
-        return legacy.isFile && legacy.length() > 1_000_000L && !legacy.readText().startsWith("#!")
+        return legacy.isFile && legacy.length() > 1_000_000L
     }
 
     fun installedVersion(rootfs: File): String? =
@@ -66,7 +67,7 @@ object GrokBuildInstaller {
             val cache = File(runtimeDirectory, "cache").apply { mkdirs() }
             val archive = File(cache, "grok-termux-aarch64-$version.tar.gz")
             download(httpClient, GrokBuildManifest.archiveUrl(), archive) { fraction ->
-                onProgress(fraction * 0.85f)
+                onProgress(fraction * 0.55f)
             }
             val expectedSha =
                 runCatching {
@@ -84,7 +85,18 @@ object GrokBuildInstaller {
                     "Grok Build archive SHA-256 mismatch (expected $expectedSha, got $actual)"
                 }
             }
-            onProgress(0.88f)
+            onProgress(0.58f)
+
+            val libcppDeb = File(cache, "libcpp_30_aarch64.deb")
+            download(httpClient, GrokBuildManifest.LIBCPP_DEB_URL, libcppDeb) { fraction ->
+                onProgress(0.58f + fraction * 0.15f)
+            }
+            val libcppSha = sha256Hex(libcppDeb)
+            require(libcppSha == GrokBuildManifest.LIBCPP_DEB_SHA256) {
+                "libc++ deb SHA-256 mismatch (expected ${GrokBuildManifest.LIBCPP_DEB_SHA256}, got $libcppSha)"
+            }
+            onProgress(0.75f)
+
             val extraction = File(runtimeDirectory, "grok-extract-${System.nanoTime()}").apply { mkdirs() }
             try {
                 extractTarGz(archive, extraction)
@@ -101,6 +113,10 @@ object GrokBuildInstaller {
                 realDestination.setExecutable(true, false)
                 realDestination.setReadable(true, false)
 
+                // RUNPATH=$ORIGIN/../lib → usr/local/lib when binary is usr/local/lib/grok-build/grok
+                val libDir = File(rootfs, LOCAL_LIB).apply { mkdirs() }
+                extractLibcxxShared(libcppDeb, File(libDir, GrokBuildManifest.LIBCPP_SONAME))
+
                 writeWrapper(rootfs, realDestination)
                 writeInstalledVersion(rootfs, version)
                 File(rootfs, "root/.grok").mkdirs()
@@ -112,9 +128,77 @@ object GrokBuildInstaller {
         }
 
     /**
-     * Shell wrapper so `grok` on PATH runs the Android ELF with the host linker and system libs
-     * (proot already binds `/system`).
+     * Extract [GrokBuildManifest.LIBCPP_SONAME] from a Termux `.deb` into [destination].
      */
+    private fun extractLibcxxShared(
+        deb: File,
+        destination: File,
+    ) {
+        val tmp = File(destination.absolutePath + ".part")
+        if (tmp.exists()) tmp.delete()
+        ArArchiveInputStream(BufferedInputStream(FileInputStream(deb))).use { ar ->
+            var entry = ar.nextEntry
+            var dataMember: File? = null
+            val staging = File(destination.parentFile, "deb-staging-${System.nanoTime()}").apply { mkdirs() }
+            try {
+                while (entry != null) {
+                    val name = entry.name.trimStart('/')
+                    if (name.startsWith("data.tar")) {
+                        dataMember = File(staging, name)
+                        FileOutputStream(dataMember).use { ar.copyTo(it) }
+                    }
+                    entry = ar.nextEntry
+                }
+                val data = dataMember ?: error("libc++ deb missing data.tar.* member")
+                val found =
+                    when {
+                        data.name.endsWith(".xz") ->
+                            extractNamedFromTar(
+                                TarArchiveInputStream(XZCompressorInputStream(BufferedInputStream(FileInputStream(data)))),
+                                GrokBuildManifest.LIBCPP_SONAME,
+                                tmp,
+                            )
+                        data.name.endsWith(".gz") ->
+                            extractNamedFromTar(
+                                TarArchiveInputStream(GzipCompressorInputStream(BufferedInputStream(FileInputStream(data)))),
+                                GrokBuildManifest.LIBCPP_SONAME,
+                                tmp,
+                            )
+                        else ->
+                            extractNamedFromTar(
+                                TarArchiveInputStream(BufferedInputStream(FileInputStream(data))),
+                                GrokBuildManifest.LIBCPP_SONAME,
+                                tmp,
+                            )
+                    }
+                require(found) { "libc++ deb did not contain ${GrokBuildManifest.LIBCPP_SONAME}" }
+            } finally {
+                staging.deleteRecursively()
+            }
+        }
+        if (destination.exists()) destination.delete()
+        require(tmp.renameTo(destination)) { "Unable to finalize ${GrokBuildManifest.LIBCPP_SONAME}" }
+        destination.setReadable(true, false)
+    }
+
+    private fun extractNamedFromTar(
+        tar: TarArchiveInputStream,
+        fileName: String,
+        out: File,
+    ): Boolean {
+        tar.use { input ->
+            var entry = input.nextEntry
+            while (entry != null) {
+                if (!entry.isDirectory && entry.name.substringAfterLast('/') == fileName) {
+                    FileOutputStream(out).use { input.copyTo(it) }
+                    return true
+                }
+                entry = input.nextEntry
+            }
+        }
+        return false
+    }
+
     private fun writeWrapper(
         rootfs: File,
         realBinary: File,
@@ -122,20 +206,23 @@ object GrokBuildInstaller {
         val wrapper = pathEntry(rootfs)
         wrapper.parentFile?.mkdirs()
         val guestReal = "/$LIB_DIR/$GROK_BINARY"
-        // Termux/Android binary (Duro02/grok-build-termux). Needs host /system+/apex+/linkerconfig
-        // binds in proot and a bionic-friendly LD_LIBRARY_PATH (libandroidicu lives under APEX i18n).
         val script =
             buildString {
                 appendLine("#!/bin/sh")
                 appendLine("export ANDROID_ROOT=\"\${ANDROID_ROOT:-/system}\"")
                 appendLine("export ANDROID_DATA=\"\${ANDROID_DATA:-/data}\"")
                 appendLine("export PREFIX=\"\${PREFIX:-/usr/local}\"")
+                // $ORIGIN/../lib is usr/local/lib — keep it first for libc++_shared.so
                 appendLine(
-                    "export LD_LIBRARY_PATH=\"/apex/com.android.runtime/lib64:/apex/com.android.i18n/lib64:/apex/com.android.art/lib64:/system/lib64:/system/lib:/system_ext/lib64:/vendor/lib64:/vendor/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}\"",
+                    "export LD_LIBRARY_PATH=\"/usr/local/lib:/apex/com.android.runtime/lib64:/apex/com.android.i18n/lib64:/apex/com.android.art/lib64:/system/lib64:/system/lib:/vendor/lib64\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}\"",
                 )
                 appendLine("REAL=\"$guestReal\"")
                 appendLine("if [ ! -f \"\$REAL\" ]; then")
                 appendLine("  echo \"grok: binary missing at \$REAL\" >&2")
+                appendLine("  exit 127")
+                appendLine("fi")
+                appendLine("if [ ! -f /usr/local/lib/libc++_shared.so ]; then")
+                appendLine("  echo \"grok: libc++_shared.so missing under /usr/local/lib\" >&2")
                 appendLine("  exit 127")
                 appendLine("fi")
                 appendLine("LINKER=\"\"")
@@ -149,7 +236,7 @@ object GrokBuildInstaller {
                 appendLine("if [ -n \"\$LINKER\" ]; then")
                 appendLine("  exec \"\$LINKER\" \"\$REAL\" \"\$@\"")
                 appendLine("fi")
-                appendLine("echo \"grok: Android linker not found (need /system + /apex binds)\" >&2")
+                appendLine("echo \"grok: Android linker not found\" >&2")
                 appendLine("exit 127")
             }
         wrapper.writeText(script)
@@ -188,7 +275,7 @@ object GrokBuildInstaller {
             }
         }
         if (destination.exists()) destination.delete()
-        require(tmp.renameTo(destination)) { "Unable to finalize Grok Build download" }
+        require(tmp.renameTo(destination)) { "Unable to finalize download $url" }
         onProgress(1f)
     }
 

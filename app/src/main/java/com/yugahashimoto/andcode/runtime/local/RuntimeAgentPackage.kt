@@ -156,6 +156,7 @@ object RuntimeAgentPackage {
                 addIfExists(paths, rootfs, "usr/local/bin/${GrokBuildInstaller.GROK_BINARY}")
                 addIfExists(paths, rootfs, "usr/local/bin/.${GrokBuildInstaller.GROK_BINARY}-version")
                 addIfExists(paths, rootfs, "usr/local/lib/grok-build")
+                addIfExists(paths, rootfs, "usr/local/lib/libc++_shared.so")
                 if (includeConfig) {
                     addIfExists(paths, rootfs, "root/.grok")
                 }
