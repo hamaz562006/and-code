@@ -1035,6 +1035,7 @@ fun AndCodeApp(
                             onSignOutAntigravity = app.antigravityController::logout,
                             codex = codexState,
                             pi = piState,
+                            grok = grokBuildState,
                             codexSignInDialog = codexSignInDialog,
                             codexSignIn =
                                 CodexSignInActions(

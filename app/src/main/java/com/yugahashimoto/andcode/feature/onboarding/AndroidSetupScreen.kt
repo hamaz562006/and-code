@@ -79,6 +79,8 @@ import com.yugahashimoto.andcode.runtime.local.ClaudeInstallStatus
 import com.yugahashimoto.andcode.runtime.local.ClaudePermissionMode
 import com.yugahashimoto.andcode.runtime.local.CodexInstallStatus
 import com.yugahashimoto.andcode.runtime.local.CodexUiState
+import com.yugahashimoto.andcode.runtime.local.GrokBuildInstallStatus
+import com.yugahashimoto.andcode.runtime.local.GrokBuildUiState
 import com.yugahashimoto.andcode.runtime.local.PiInstallStatus
 import com.yugahashimoto.andcode.runtime.local.PiUiState
 import com.yugahashimoto.andcode.ui.theme.AndCodeTheme
@@ -119,6 +121,7 @@ fun AndroidSetupScreen(
     onSelectAntigravityPermissionMode: (com.yugahashimoto.andcode.runtime.local.AntigravityPermissionMode) -> Unit = {},
     codex: CodexUiState = CodexUiState(),
     pi: PiUiState = PiUiState(),
+    grok: GrokBuildUiState = GrokBuildUiState(),
     /** Codex signs in through its own dialog state, not [settingsState]'s, which is OpenCode's. */
     codexSignInDialog: ProviderAuthDialogState? = null,
     codexSignIn: CodexSignInActions =
@@ -166,6 +169,7 @@ fun AndroidSetupScreen(
     val antigravitySelected = LocalAgent.ANTIGRAVITY in selectedAgents
     val codexSelected = LocalAgent.CODEX in selectedAgents
     val piSelected = LocalAgent.PI in selectedAgents
+    val grokSelected = LocalAgent.GROK_BUILD in selectedAgents
     val openCodeReady = runtimeStatus is LocalRuntimeStatus.Ready || runtimeStatus is LocalRuntimeStatus.Stopped
     val antigravityReady = antigravitySelected && antigravity.installed && !antigravity.busy
     val codexReady = codex.installed && codex.install !is CodexInstallStatus.Installing && codex.install !is CodexInstallStatus.Failed
@@ -173,6 +177,7 @@ fun AndroidSetupScreen(
     // Pi is an agent of its own: its readiness comes from PiController alone and never from OpenCode's
     // runtime status. isReady() also excludes a reinstall in flight and a failure.
     val piReady = pi.isReady()
+    val grokReady = grok.isReady()
     // Only what is selected *and* actually on the device: an agent whose binary is missing has no
     // sign-in to offer, and Claude Code's card would shell out to /usr/bin/claude and fail there.
     // OpenCode, Claude Code, Antigravity - the same order the picker lists them in, so the guide
@@ -197,6 +202,7 @@ fun AndroidSetupScreen(
             claude.install is ClaudeInstallStatus.Installing ||
             codex.install is CodexInstallStatus.Installing ||
             pi.install is PiInstallStatus.Installing ||
+            grok.install is GrokBuildInstallStatus.Installing ||
             antigravity.busy
     val selectedDevGroups = selectedDevToolGroupIds.mapNotNull { DevelopmentToolGroup.fromId(it) }.toSet()
     val fullToolsReady = selectedDevGroups.isEmpty() || fullDevelopmentToolsInstalled
@@ -206,6 +212,7 @@ fun AndroidSetupScreen(
             (!antigravitySelected || antigravityReady) &&
             (!codexSelected || codexReady) &&
             (!piSelected || piReady) &&
+            (!grokSelected || grokReady) &&
             fullToolsReady
     val installComplete = agentsInstallComplete && !fullToolsInstallPending
 
@@ -303,6 +310,7 @@ fun AndroidSetupScreen(
                     antigravity.error != null ||
                     codex.install is CodexInstallStatus.Failed ||
                     pi.install is PiInstallStatus.Failed ||
+                    grok.install is GrokBuildInstallStatus.Failed ||
                     fullDevelopmentToolsInstallFailed
                 ) {
                     SetupPrimaryAction(stringResource(R.string.claude_retry_install_button), true) {
@@ -405,6 +413,8 @@ fun AndroidSetupScreen(
                         antigravitySelected = antigravitySelected,
                         codexSelected = codexSelected,
                         piSelected = piSelected,
+                        grokSelected = grokSelected,
+                        grok = grok,
                     )
                 4 ->
                     SignInStep(
@@ -798,6 +808,8 @@ private fun RuntimeDownloadStep(
     antigravitySelected: Boolean,
     codexSelected: Boolean,
     piSelected: Boolean,
+    grokSelected: Boolean = false,
+    grok: GrokBuildUiState = GrokBuildUiState(),
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
     // each step is shown under the agent it names. Without this the OpenCode panel displayed
@@ -877,6 +889,58 @@ private fun RuntimeDownloadStep(
                     installing != null -> Text(stringResource(R.string.install_step_installing_pi))
                     // Nothing is installing: do not claim "Installing Pi" for something that is not.
                     else -> Text(stringResource(R.string.setup_runtime_not_installed), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
+        if (grokSelected) {
+            SetupPanel {
+                Text(stringResource(R.string.agent_grok_build_name), fontWeight = FontWeight.SemiBold)
+                val step = stepFor(LocalAgent.GROK_BUILD)
+                when {
+                    step != null -> SharedInstallProgress(step)
+                    grok.install is GrokBuildInstallStatus.Installing -> {
+                        val inst = grok.install
+                        Text(
+                            inst.step?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.install_step_installing_grok_build),
+                            fontWeight = FontWeight.Medium,
+                        )
+                        val progress = inst.progress
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Text(
+                                text = "${(progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    grok.install is GrokBuildInstallStatus.Failed ->
+                        Text(
+                            (grok.install as GrokBuildInstallStatus.Failed).message
+                                ?: stringResource(R.string.agent_status_install_failed),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    grok.isReady() ->
+                        ReadyAgentRow(
+                            stringResource(
+                                R.string.grok_build_installed_version,
+                                grok.version.orEmpty(),
+                            ),
+                        )
+                    installing != null ->
+                        Text(stringResource(R.string.install_step_installing_grok_build))
+                    else ->
+                        Text(
+                            stringResource(R.string.setup_runtime_not_installed),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                 }
             }
         }
