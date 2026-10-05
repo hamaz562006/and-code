@@ -189,6 +189,7 @@ fun AndroidSetupScreen(
             LocalAgent.ANTIGRAVITY.takeIf { antigravitySelected && antigravity.installed },
             LocalAgent.CODEX.takeIf { codexSelected && codex.installed },
             LocalAgent.PI.takeIf { piSelected && pi.installed },
+            LocalAgent.GROK_BUILD.takeIf { grokSelected && grok.installed },
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
@@ -1279,10 +1280,11 @@ private fun SignInStep(
                         header = false,
                     )
                 LocalAgent.GROK_BUILD ->
-                    Text(
-                        text = stringResource(R.string.agent_grok_build_api_key_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ProviderConnectionStep(
+                        settingsState = settingsState,
+                        onOpenProviderAuth = onOpenProviderAuth,
+                        onDisconnectProvider = onDisconnectProvider,
+                        header = false,
                     )
             }
         }

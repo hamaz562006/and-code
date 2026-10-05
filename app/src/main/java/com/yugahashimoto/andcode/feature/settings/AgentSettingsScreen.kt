@@ -182,6 +182,7 @@ fun GrokBuildAgentSettingsScreen(
     onInstall: () -> Unit,
     onRefresh: () -> Unit,
     onApiKey: (String) -> Unit,
+    onOpenProviders: () -> Unit = {},
     onImportPackage: (() -> Unit)? = null,
 ) {
     var apiKey by remember { mutableStateOf("") }
@@ -203,13 +204,14 @@ fun GrokBuildAgentSettingsScreen(
                         }
                 }
             Text(status, style = MaterialTheme.typography.bodyMedium)
-            grok.version?.let {
-                Text(
-                    stringResource(R.string.agent_version_label, it),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Text(
+                stringResource(
+                    R.string.agent_version_label,
+                    grok.version?.takeIf { it.isNotBlank() } ?: "—",
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             if (grok.install is GrokBuildInstallStatus.Installing) {
                 val progress = (grok.install as GrokBuildInstallStatus.Installing).progress
                 if (progress != null) {
@@ -266,6 +268,9 @@ fun GrokBuildAgentSettingsScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
+                }
+                OutlinedButton(onClick = onOpenProviders, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.provider_credentials))
                 }
             }
         }

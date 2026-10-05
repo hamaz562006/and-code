@@ -1,13 +1,14 @@
-<!--
-  Pi mark used for the local runtime picker and agent settings.
--->
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Grok Build mark: distinct from Pi -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
-    android:viewportHeight="24"
-    android:tint="?attr/colorControlNormal">
+    android:viewportHeight="24">
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M4,6.5h16v2.5h-2.5v7c0,1.8 1,2.5 2.5,2.5v2c-2.5,0 -4.5,-1.2 -4.5,-3.8v-7.7h-5v7.2c0,1.8 -1.1,2.3 -2.7,2.3l-0.8,-2c0.8,0 1.2,-0.3 1.2,-1.2v-6.3h-4.2z" />
+        android:pathData="M12,2L4,7v10l8,5 8,-5V7L12,2zM12,4.2L18,8v8l-6,3.8L6,16V8l6,-3.8z"/>
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M11,9h2v6h-2zM9,11h6v2H9z"/>
 </vector>

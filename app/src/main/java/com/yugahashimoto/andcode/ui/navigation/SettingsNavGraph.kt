@@ -456,6 +456,10 @@ fun NavGraphBuilder.settingsNavGraph(
             onInstall = { app.grokBuildController.install() },
             onRefresh = { app.grokBuildController.refresh() },
             onApiKey = { key -> app.grokBuildController.setApiKey(key) },
+            onOpenProviders = {
+                app.runtimeRegistry.select(app.grokBuildTarget.id)
+                navController.navigate(ROUTE_SETTINGS_PROVIDERS)
+            },
             onImportPackage = importPackage.takeIf { !grok.installed },
         )
     }

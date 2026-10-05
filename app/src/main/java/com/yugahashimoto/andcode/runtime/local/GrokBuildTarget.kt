@@ -10,6 +10,7 @@ import com.yugahashimoto.andcode.core.api.OpenCodeModel
 import com.yugahashimoto.andcode.core.api.OpenCodeProvider
 import com.yugahashimoto.andcode.core.api.OpenCodeSession
 import com.yugahashimoto.andcode.core.api.PromptRequest
+import com.yugahashimoto.andcode.core.api.ProviderAuthMethod
 import com.yugahashimoto.andcode.core.api.ProviderCatalog
 import com.yugahashimoto.andcode.runtime.BackendKind
 import com.yugahashimoto.andcode.runtime.LocalAgent
@@ -81,6 +82,9 @@ class GrokBuildTarget(
 
     override suspend fun listWorkspaces(): List<WorkspaceRef> =
         listOf(WorkspaceRef(id = "/workspace", name = "workspace", path = "/workspace"))
+
+    override suspend fun providerAuthMethods(): Map<String, List<ProviderAuthMethod>> =
+        mapOf("xai" to listOf(ProviderAuthMethod(type = "api", label = "API key")))
 
     override suspend fun listProviders(): ProviderCatalog {
         val rootfs = installer.installedRuntime()?.rootfs

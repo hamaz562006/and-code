@@ -496,6 +496,14 @@ class AndCodeApplication : Application() {
         applicationScope.launch { antigravityTarget.connect() }
         applicationScope.launch { piTarget.connect() }
         applicationScope.launch { grokBuildTarget.connect() }
+
+        applicationScope.launch {
+            grokBuildTarget.state.collect { state ->
+                if (state is RuntimeState.Connected) {
+                    runtimeRegistry.selectIfUnset(grokBuildTarget.id)
+                }
+            }
+        }
         // A setup without OpenCode has nothing else to establish a default runtime: the auto-start
         // path only ever selects the OpenCode-local target, so a Codex-only or Pi-only install used
         // to open on no runtime at all and send nowhere. Fill an empty selection once it connects;
