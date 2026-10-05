@@ -329,10 +329,9 @@ internal fun localRuntimeEnvironment(
         put("LOGNAME", "root")
         put("SHELL", "/bin/bash")
         put("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/system/bin:/system/xbin")
+        // Passed through to the guest; used by bionic binaries (Grok Build).
         put("ANDROID_ROOT", "/system")
         put("ANDROID_DATA", "/data")
-        // Visible inside proot for bionic binaries (Grok Build / Termux ports).
-        put("LD_LIBRARY_PATH", ProotHostBinds.BIONIC_LD_LIBRARY_PATH)
         put("JAVA_HOME", "/usr/lib/jvm/java-17-openjdk")
         put("TMPDIR", "/tmp")
         put("XDG_CONFIG_HOME", "/root/.config")
