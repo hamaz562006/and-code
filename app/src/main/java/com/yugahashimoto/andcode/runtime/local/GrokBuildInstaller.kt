@@ -47,17 +47,11 @@ object GrokBuildInstaller {
     /**
      * Runs the Grok binary as a **host** Android process (not under Alpine proot).
      *
-     * The Duro02 build is `aarch64-linux-android` and pulls system media/OpenSLES symbols;
-     * under proot those resolve through broken stub chains (`libmediastub.so`, linkerconfig).
-     * Termux runs the same way — native process + [LD_LIBRARY_PATH] for [LIBCPP_SONAME].
-     */
-    /**
-     * Runs the Grok binary as a **host** Android process (not under Alpine proot).
-     *
-     * Direct `exec` of a file under the app's `files/` tree fails with EACCES (error=13) on
-     * modern Android. Invoke via the system dynamic linker instead (same approach Termux uses
-     * for binaries stored in app data):
-     * `linker64 /data/.../grok --version`
+     * The Duro02 build is `aarch64-linux-android`. Under proot, system media/OpenSLES
+     * dependencies break (`libmediastub.so`, linkerconfig). On the host, direct `exec` of a
+     * file under the app `files/` tree fails with EACCES (error=13). Invoke via the system
+     * dynamic linker instead (Termux-style): `linker64 /data/.../grok --version`, with
+     * [LD_LIBRARY_PATH] pointing at [LOCAL_LIB] for [GrokBuildManifest.LIBCPP_SONAME].
      */
     fun runOnHost(
         rootfs: File,
