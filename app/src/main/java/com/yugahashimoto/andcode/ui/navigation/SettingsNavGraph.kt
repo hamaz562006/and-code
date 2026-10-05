@@ -446,7 +446,6 @@ fun NavGraphBuilder.settingsNavGraph(
         )
     }
 
-    
     composable(ROUTE_SETTINGS_AGENT_GROK_BUILD) {
         val app = LocalContext.current.applicationContext as AndCodeApplication
         val grok by app.grokBuildController.state.collectAsState()
