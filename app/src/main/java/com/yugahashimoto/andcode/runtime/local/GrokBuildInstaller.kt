@@ -122,8 +122,8 @@ object GrokBuildInstaller {
         val wrapper = pathEntry(rootfs)
         wrapper.parentFile?.mkdirs()
         val guestReal = "/$LIB_DIR/$GROK_BINARY"
-        // Termux/Android binary (see Duro02/grok-build-termux). INTERP is linker64; on modern
-        // devices that is a symlink into /apex/com.android.runtime — proot must bind /apex.
+        // Termux/Android binary (Duro02/grok-build-termux). Needs host /system+/apex+/linkerconfig
+        // binds in proot and a bionic-friendly LD_LIBRARY_PATH (libandroidicu lives under APEX i18n).
         val script =
             buildString {
                 appendLine("#!/bin/sh")
@@ -131,7 +131,7 @@ object GrokBuildInstaller {
                 appendLine("export ANDROID_DATA=\"\${ANDROID_DATA:-/data}\"")
                 appendLine("export PREFIX=\"\${PREFIX:-/usr/local}\"")
                 appendLine(
-                    "export LD_LIBRARY_PATH=\"/apex/com.android.runtime/lib64:/system/lib64:/system/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}\"",
+                    "export LD_LIBRARY_PATH=\"/apex/com.android.runtime/lib64:/apex/com.android.i18n/lib64:/apex/com.android.art/lib64:/system/lib64:/system/lib:/system_ext/lib64:/vendor/lib64:/vendor/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}\"",
                 )
                 appendLine("REAL=\"$guestReal\"")
                 appendLine("if [ ! -f \"\$REAL\" ]; then")
@@ -149,7 +149,7 @@ object GrokBuildInstaller {
                 appendLine("if [ -n \"\$LINKER\" ]; then")
                 appendLine("  exec \"\$LINKER\" \"\$REAL\" \"\$@\"")
                 appendLine("fi")
-                appendLine("echo \"grok: Android linker not found (need /system + /apex binds in proot)\" >&2")
+                appendLine("echo \"grok: Android linker not found (need /system + /apex binds)\" >&2")
                 appendLine("exit 127")
             }
         wrapper.writeText(script)

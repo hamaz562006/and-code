@@ -6,21 +6,46 @@ import java.io.File
  * Host paths that must be visible inside proot for Android (bionic) binaries.
  *
  * [Duro02/grok-build-termux](https://github.com/Duro02/grok-build-termux) ships an
- * `aarch64-linux-android` binary whose INTERP is `/system/bin/linker64`. On modern Android that
- * path is a symlink into `/apex/com.android.runtime/...`. Binding only `/system` leaves the
- * symlink target missing, so exec reports "not found".
+ * `aarch64-linux-android` binary. On modern Android:
+ * - `/system/bin/linker64` → symlink into `/apex/com.android.runtime/...`
+ * - dynamic libs such as `libandroidicu.so` live under other APEX packages
+ * - the linker reads namespace config from `/linkerconfig`
+ *
+ * Binding only Alpine guest paths leaves those host locations missing.
  */
 object ProotHostBinds {
-    /** Core mounts every local proot session already used, plus APEX/vendor for bionic. */
     private val HOST_PATHS =
         listOf(
             "/dev",
             "/proc",
             "/sys",
             "/system",
+            "/system_ext",
+            "/product",
             "/apex",
             "/vendor",
+            "/linkerconfig",
         )
+
+    /**
+     * Library search path for bionic binaries run under proot (Termux-style).
+     * Applied in [localRuntimeEnvironment] and the Grok wrapper.
+     */
+    val BIONIC_LD_LIBRARY_PATH: String =
+        listOf(
+            "/apex/com.android.runtime/lib64",
+            "/apex/com.android.i18n/lib64",
+            "/apex/com.android.art/lib64",
+            "/apex/com.android.os.statsd/lib64",
+            "/system/lib64",
+            "/system/lib",
+            "/system_ext/lib64",
+            "/system_ext/lib",
+            "/vendor/lib64",
+            "/vendor/lib",
+            "/product/lib64",
+            "/product/lib",
+        ).joinToString(":")
 
     /**
      * Appends `-b <path>` for each host path that exists on this device.
