@@ -97,7 +97,10 @@ class LocalRuntimeDiagnosticsCollector(
                 if (File(rootfs, "usr/local/bin/agy").isFile) {
                     add(LocalRuntimeToolDefinition("agy", "Antigravity", "/usr/local/bin/agy --version"))
                 }
-                if (File(rootfs, "usr/local/bin/grok").isFile) {
+                if (
+                    File(rootfs, "usr/local/lib/grok-build/grok").isFile ||
+                        File(rootfs, "usr/local/bin/grok").isFile
+                ) {
                     add(LocalRuntimeToolDefinition("grok", "Grok Build", "/usr/local/bin/grok --version"))
                 }
             }
