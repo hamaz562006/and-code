@@ -51,6 +51,14 @@ object GrokBuildInstaller {
      * under proot those resolve through broken stub chains (`libmediastub.so`, linkerconfig).
      * Termux runs the same way — native process + [LD_LIBRARY_PATH] for [LIBCPP_SONAME].
      */
+    /**
+     * Runs the Grok binary as a **host** Android process (not under Alpine proot).
+     *
+     * Direct `exec` of a file under the app's `files/` tree fails with EACCES (error=13) on
+     * modern Android. Invoke via the system dynamic linker instead (same approach Termux uses
+     * for binaries stored in app data):
+     * `linker64 /data/.../grok --version`
+     */
     fun runOnHost(
         rootfs: File,
         args: List<String>,
@@ -60,8 +68,29 @@ object GrokBuildInstaller {
             binaryPath(rootfs).takeIf { it.isFile }
                 ?: pathEntry(rootfs).takeIf { it.isFile && it.length() > 1_000_000L }
                 ?: return LocalRuntimeCommandResult(127, "grok: not installed")
+        // Best-effort exec bits (may still be blocked by SELinux for direct exec).
+        binary.setExecutable(true, false)
+        binary.setReadable(true, false)
+        binary.parentFile?.setExecutable(true, false)
+        runCatching {
+            android.system.Os.chmod(binary.absolutePath, 0b111_101_101) // 0755
+        }
+
         val libDir = File(rootfs, LOCAL_LIB)
-        val command = listOf(binary.absolutePath) + args
+        val linker =
+            listOf(
+                "/system/bin/linker64",
+                "/apex/com.android.runtime/bin/linker64",
+                "/system/bin/linker",
+            ).firstOrNull { File(it).canExecute() || File(it).exists() }
+
+        val command =
+            if (linker != null) {
+                listOf(linker, binary.absolutePath) + args
+            } else {
+                listOf(binary.absolutePath) + args
+            }
+
         return try {
             val process =
                 ProcessBuilder(command)
@@ -91,7 +120,6 @@ object GrokBuildInstaller {
             LocalRuntimeCommandResult(1, error.message ?: "grok: host launch failed")
         }
     }
-
 
     fun installedVersion(rootfs: File): String? =
         File(rootfs, "$BIN_DIR/.$GROK_BINARY-version").takeIf { it.isFile }?.readText()?.trim()?.ifBlank { null }
