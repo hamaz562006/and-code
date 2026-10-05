@@ -123,19 +123,20 @@ object GrokBuildInstaller {
         wrapper.parentFile?.mkdirs()
         // Guest path for the real binary (not the host absolute path).
         val guestReal = "/$LIB_DIR/$GROK_BINARY"
-        wrapper.writeText(
-            """
-            #!/bin/sh
-            # Grok Build is an Android (bionic) binary; Alpine cannot load it without system libs.
-            export ANDROID_ROOT="$${'$'}{ANDROID_ROOT:-/system}"
-            export ANDROID_DATA="$${'$'}{ANDROID_DATA:-/data}"
-            export LD_LIBRARY_PATH="/system/lib64:/system/lib$${'$'}{LD_LIBRARY_PATH:+:$${'$'}LD_LIBRARY_PATH}"
-            exec "$guestReal" "$@"
-            """.trimIndent() + "\n",
-        )
+        val script =
+            buildString {
+                appendLine("#!/bin/sh")
+                appendLine("# Grok Build is an Android (bionic) binary; needs /system linker + libs.")
+                appendLine("export ANDROID_ROOT=\"\${ANDROID_ROOT:-/system}\"")
+                appendLine("export ANDROID_DATA=\"\${ANDROID_DATA:-/data}\"")
+                appendLine(
+                    "export LD_LIBRARY_PATH=\"/system/lib64:/system/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}\"",
+                )
+                appendLine("exec \"$guestReal\" \"\$@\"")
+            }
+        wrapper.writeText(script)
         wrapper.setExecutable(true, false)
         wrapper.setReadable(true, false)
-        // Keep real binary executable bit.
         realBinary.setExecutable(true, false)
     }
 
