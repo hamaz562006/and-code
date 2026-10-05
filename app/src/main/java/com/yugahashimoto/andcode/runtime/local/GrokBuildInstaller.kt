@@ -56,9 +56,10 @@ object GrokBuildInstaller {
         args: List<String>,
         timeoutSeconds: Long = 20L,
     ): LocalRuntimeCommandResult {
-        val binary = binaryPath(rootfs).takeIf { it.isFile }
-            ?: pathEntry(rootfs).takeIf { it.isFile && it.length() > 1_000_000L }
-            ?: return LocalRuntimeCommandResult(127, "grok: not installed")
+        val binary =
+            binaryPath(rootfs).takeIf { it.isFile }
+                ?: pathEntry(rootfs).takeIf { it.isFile && it.length() > 1_000_000L }
+                ?: return LocalRuntimeCommandResult(127, "grok: not installed")
         val libDir = File(rootfs, LOCAL_LIB)
         val command = listOf(binary.absolutePath) + args
         return try {
