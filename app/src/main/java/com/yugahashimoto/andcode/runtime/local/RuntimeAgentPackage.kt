@@ -84,22 +84,31 @@ object RuntimeAgentPackage {
         val paths = linkedSetOf<String>()
         when (agent) {
             LocalAgent.PI -> {
-                // Pi CLI tree (includes node_modules when npm deps were installed).
+                // Pi CLI + full npm package tree under usr/local/lib/pi-coding-agent.
                 addIfExists(paths, rootfs, "usr/local/bin/${PiInstaller.PI_BINARY}")
                 addIfExists(paths, rootfs, "usr/local/bin/.${PiInstaller.PI_BINARY}-version")
                 addIfExists(paths, rootfs, "usr/local/lib/pi-coding-agent")
-                // Runtime packages installed with Pi: nodejs, npm, icu-data-full.
+                // Node.js + npm + shared libs installed with Pi (apk: nodejs, npm, icu-data-full).
                 addIfExists(paths, rootfs, "usr/bin/node")
                 addIfExists(paths, rootfs, "usr/bin/nodejs")
                 addIfExists(paths, rootfs, "usr/bin/npm")
                 addIfExists(paths, rootfs, "usr/bin/npx")
                 addIfExists(paths, rootfs, "usr/lib/node_modules")
+                addIfExists(paths, rootfs, "usr/include/node")
+                addIfExists(paths, rootfs, "usr/share/nodejs")
                 addPrefixed(paths, rootfs, "usr/lib", "libnode")
-                // ICU data (icu-data-full) — required for Node on Alpine.
+                addPrefixed(paths, rootfs, "usr/lib", "node")
+                // ICU data + libs (icu-data-full) required for Node on Alpine.
                 addIfExists(paths, rootfs, "usr/share/icu")
+                addIfExists(paths, rootfs, "usr/bin/icuinfo")
                 addPrefixed(paths, rootfs, "usr/lib", "libicu")
+                addPrefixed(paths, rootfs, "usr/lib", "icu")
+                // musl / common dynamic linker pieces Node may need when restored offline.
+                addIfExists(paths, rootfs, "lib/ld-musl-aarch64.so.1")
+                addIfExists(paths, rootfs, "lib/libc.musl-aarch64.so.1")
                 if (includeConfig) {
                     addIfExists(paths, rootfs, "root/.pi")
+                    addIfExists(paths, rootfs, "root/.config/pi")
                 }
             }
             LocalAgent.CODEX -> {

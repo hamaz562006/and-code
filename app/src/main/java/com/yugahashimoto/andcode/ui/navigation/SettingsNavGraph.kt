@@ -317,8 +317,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onStop = { app.piRuntime.stopAll() },
             onCheckForUpdate = { app.piController.checkForUpdate() },
             onUpdate = { app.piController.updateToLatest() },
-            onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_PI,
-    ROUTE_SETTINGS_MCP_GROK) },
+            onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_PI) },
             onBack = { navController.popBackStack() },
         )
     }
@@ -663,15 +662,23 @@ private fun rememberAgentPackageImporter(): () -> Unit {
                 val result =
                     runCatching {
                         withContext(Dispatchers.IO) {
-                            val rootfs =
-                                app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                    ?: error(app.getString(R.string.agent_import_need_runtime))
                             val tmp =
                                 File(app.cacheDir, "import-${System.currentTimeMillis()}.andcode.zip")
                             context.contentResolver.openInputStream(uri)?.use { input ->
                                 tmp.outputStream().use { input.copyTo(it) }
                             } ?: error("Unable to read package")
                             try {
+                                var rootfs = app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                if (rootfs == null || !rootfs.isDirectory) {
+                                    val peeked = RuntimeAgentPackage.peekManifest(tmp)
+                                    val agent =
+                                        peeked?.let { LocalAgent.fromId(it.agentId) }
+                                            ?: error(app.getString(R.string.agent_import_need_runtime))
+                                    app.localRuntimeInstaller.install(setOf(agent))
+                                    rootfs =
+                                        app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                            ?: error(app.getString(R.string.agent_import_need_runtime))
+                                }
                                 val imported = RuntimeAgentPackage.import(tmp, rootfs)
                                 app.localRuntimeInstaller.recordAgent(imported.agent)
                                 when (imported.agent) {

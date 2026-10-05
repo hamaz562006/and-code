@@ -159,8 +159,10 @@ fun NavGraphBuilder.workspaceNavGraph(
                 }
             }
         val piUi by app.piController.state.collectAsState()
+        val grokUi by app.grokBuildController.state.collectAsState()
         val canExportAgent =
             piUi.installed ||
+                grokUi.installed ||
                 app.localRuntimeManager.hasOpenCode() ||
                 app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.CODEX) ||
                 app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE) ||
@@ -190,10 +192,29 @@ fun NavGraphBuilder.workspaceNavGraph(
                                         app.localRuntimeInstaller.installedRuntime()?.rootfs
                                             ?: error(app.getString(R.string.agent_import_need_runtime))
                                     val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
+                                    val selectedAgent = app.runtimeRegistry.selected.value?.agent
                                     val agent =
                                         when {
+                                            selectedAgent == com.yugahashimoto.andcode.runtime.LocalAgent.PI && piUi.installed ->
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.PI
+                                            selectedAgent == com.yugahashimoto.andcode.runtime.LocalAgent.GROK_BUILD && grokUi.installed ->
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.GROK_BUILD
+                                            selectedAgent == com.yugahashimoto.andcode.runtime.LocalAgent.CODEX &&
+                                                app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.CODEX) ->
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.CODEX
+                                            selectedAgent == com.yugahashimoto.andcode.runtime.LocalAgent.OPEN_CODE &&
+                                                app.localRuntimeManager.hasOpenCode() ->
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.OPEN_CODE
+                                            selectedAgent == com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE &&
+                                                app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE) ->
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE
+                                            selectedAgent == com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY &&
+                                                app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY) ->
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY
                                             piUi.installed ->
                                                 com.yugahashimoto.andcode.runtime.LocalAgent.PI
+                                            grokUi.installed ->
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.GROK_BUILD
                                             app.localRuntimeManager.hasAgent(
                                                 com.yugahashimoto.andcode.runtime.LocalAgent.CODEX,
                                             ) -> com.yugahashimoto.andcode.runtime.LocalAgent.CODEX
@@ -207,6 +228,8 @@ fun NavGraphBuilder.workspaceNavGraph(
                                             ) -> com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY
                                             else -> error(app.getString(R.string.agent_export_not_installed))
                                         }
+                                        }
+
                                     val exported =
                                         RuntimeAgentPackage.export(
                                             agent = agent,
