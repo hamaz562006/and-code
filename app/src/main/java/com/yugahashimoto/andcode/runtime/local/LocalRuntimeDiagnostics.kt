@@ -111,7 +111,14 @@ class LocalRuntimeDiagnosticsCollector(
         val tools =
             if (environmentProvisioned) {
                 definitions.map { definition ->
-                    runCatching { commandExecutor(definition) }
+                    runCatching {
+                        if (definition.id == "grok") {
+                            // Bionic/Termux binary — must run on the Android host, not Alpine proot.
+                            GrokBuildInstaller.runOnHost(rootfs, listOf("--version"))
+                        } else {
+                            commandExecutor(definition)
+                        }
+                    }
                         .fold(
                             onSuccess = { result ->
                                 LocalRuntimeToolCheck(

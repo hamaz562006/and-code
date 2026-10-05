@@ -38,10 +38,59 @@ object GrokBuildInstaller {
 
     fun isInstalledIn(rootfs: File): Boolean {
         val real = binaryPath(rootfs)
-        if (real.isFile && real.length() > 1_000_000L) return true
+        val libCpp = File(rootfs, "$LOCAL_LIB/${GrokBuildManifest.LIBCPP_SONAME}")
+        if (real.isFile && real.length() > 1_000_000L && libCpp.isFile) return true
         val legacy = pathEntry(rootfs)
         return legacy.isFile && legacy.length() > 1_000_000L
     }
+
+    /**
+     * Runs the Grok binary as a **host** Android process (not under Alpine proot).
+     *
+     * The Duro02 build is `aarch64-linux-android` and pulls system media/OpenSLES symbols;
+     * under proot those resolve through broken stub chains (`libmediastub.so`, linkerconfig).
+     * Termux runs the same way — native process + [LD_LIBRARY_PATH] for [LIBCPP_SONAME].
+     */
+    fun runOnHost(
+        rootfs: File,
+        args: List<String>,
+        timeoutSeconds: Long = 20L,
+    ): LocalRuntimeCommandResult {
+        val binary = binaryPath(rootfs).takeIf { it.isFile }
+            ?: pathEntry(rootfs).takeIf { it.isFile && it.length() > 1_000_000L }
+            ?: return LocalRuntimeCommandResult(127, "grok: not installed")
+        val libDir = File(rootfs, LOCAL_LIB)
+        val command = listOf(binary.absolutePath) + args
+        return try {
+            val process =
+                ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .apply {
+                        environment()["LD_LIBRARY_PATH"] =
+                            listOfNotNull(
+                                libDir.absolutePath.takeIf { libDir.isDirectory },
+                                environment()["LD_LIBRARY_PATH"]?.takeIf { it.isNotBlank() },
+                            ).joinToString(":")
+                        environment()["ANDROID_ROOT"] = "/system"
+                        environment()["ANDROID_DATA"] = "/data"
+                        environment()["HOME"] = File(rootfs, "root").absolutePath
+                        environment()["PREFIX"] = File(rootfs, "usr/local").absolutePath
+                    }
+                    .start()
+            val completed = process.waitFor(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
+            if (!completed) {
+                process.destroyForcibly()
+                LocalRuntimeCommandResult(124, "grok: timed out")
+            } else {
+                val output =
+                    process.inputStream.bufferedReader().use { it.readText() }.takeLast(4_000)
+                LocalRuntimeCommandResult(process.exitValue(), output)
+            }
+        } catch (error: Exception) {
+            LocalRuntimeCommandResult(1, error.message ?: "grok: host launch failed")
+        }
+    }
+
 
     fun installedVersion(rootfs: File): String? =
         File(rootfs, "$BIN_DIR/.$GROK_BINARY-version").takeIf { it.isFile }?.readText()?.trim()?.ifBlank { null }
