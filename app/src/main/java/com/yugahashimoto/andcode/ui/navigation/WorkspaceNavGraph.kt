@@ -228,7 +228,6 @@ fun NavGraphBuilder.workspaceNavGraph(
                                             ) -> com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY
                                             else -> error(app.getString(R.string.agent_export_not_installed))
                                         }
-                                        }
 
                                     val exported =
                                         RuntimeAgentPackage.export(
