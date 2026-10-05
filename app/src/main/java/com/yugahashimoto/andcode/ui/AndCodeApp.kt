@@ -100,6 +100,7 @@ import com.yugahashimoto.andcode.runtime.RuntimeState
 import com.yugahashimoto.andcode.runtime.WorkspaceRef
 import com.yugahashimoto.andcode.runtime.local.GitCloneResult
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeOperationResult
+import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.local.RuntimeAgentPackage
 import com.yugahashimoto.andcode.ui.components.SessionStatus
 import com.yugahashimoto.andcode.ui.navigation.ClaudeSettingsActions
@@ -945,9 +946,6 @@ fun AndCodeApp(
                                     val result =
                                         runCatching {
                                             withContext(Dispatchers.IO) {
-                                                val rootfs =
-                                                    app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                                        ?: error(app.getString(R.string.agent_import_need_runtime))
                                                 val tmp =
                                                     File(
                                                         app.cacheDir,
@@ -957,9 +955,25 @@ fun AndCodeApp(
                                                     tmp.outputStream().use { input.copyTo(it) }
                                                 } ?: error("Unable to read package")
                                                 try {
+                                                    var rootfs =
+                                                        app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                                    if (rootfs == null || !rootfs.isDirectory) {
+                                                        // Agent packages need the shared Alpine rootfs.
+                                                        // Peek the agent from the zip, provision env+agent,
+                                                        // then overlay package files (offline agent bits).
+                                                        val peeked = RuntimeAgentPackage.peekManifest(tmp)
+                                                        val agent =
+                                                            peeked?.let { LocalAgent.fromId(it.agentId) }
+                                                                ?: error(app.getString(R.string.agent_import_need_runtime))
+                                                        app.localRuntimeInstaller.install(setOf(agent))
+                                                        rootfs =
+                                                            app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                                                ?: error(app.getString(R.string.agent_import_need_runtime))
+                                                    }
                                                     val imported = RuntimeAgentPackage.import(tmp, rootfs)
                                                     app.localRuntimeInstaller.recordAgent(imported.agent)
                                                     runCatching { app.piController.refresh() }
+                                                    runCatching { app.grokBuildController.refresh() }
                                                     imported
                                                 } finally {
                                                     tmp.delete()

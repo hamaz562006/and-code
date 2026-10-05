@@ -252,6 +252,22 @@ object RuntimeAgentPackage {
         val filesWritten: Int,
     )
 
+    /** Reads the package manifest without writing into a rootfs. */
+    fun peekManifest(packageFile: File): Manifest? {
+        if (!packageFile.isFile) return null
+        ZipInputStream(BufferedInputStream(FileInputStream(packageFile))).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (!entry.isDirectory && entry.name == MANIFEST_NAME) {
+                    val text = zip.readBytes().toString(Charsets.UTF_8)
+                    return json.decodeFromString(Manifest.serializer(), text)
+                }
+                entry = zip.nextEntry
+            }
+        }
+        return null
+    }
+
     /**
      * Restores an agent package into [rootfs] and returns the manifest.
      * Caller should [LocalRuntimeInstaller.recordAgent] afterward.

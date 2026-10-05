@@ -317,7 +317,8 @@ fun NavGraphBuilder.settingsNavGraph(
             onStop = { app.piRuntime.stopAll() },
             onCheckForUpdate = { app.piController.checkForUpdate() },
             onUpdate = { app.piController.updateToLatest() },
-            onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_PI) },
+            onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_PI,
+    ROUTE_SETTINGS_MCP_GROK) },
             onBack = { navController.popBackStack() },
         )
     }
@@ -452,15 +453,22 @@ fun NavGraphBuilder.settingsNavGraph(
         val importPackage = rememberAgentPackageImporter()
         GrokBuildAgentSettingsScreen(
             grok = grok,
-            onBack = { navController.popBackStack() },
             onInstall = { app.grokBuildController.install() },
-            onRefresh = { app.grokBuildController.refresh() },
-            onApiKey = { key -> app.grokBuildController.setApiKey(key) },
+            onRestart = { app.grokBuildController.restart() },
+            onStop = { app.grokBuildController.stop() },
+            onCheckForUpdate = { app.grokBuildController.checkForUpdate() },
+            onUpdate = {
+                // Re-run install to fetch pinned latest binary when an update is offered.
+                app.grokBuildController.install()
+            },
+            onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_GROK) },
             onOpenProviders = {
                 app.runtimeRegistry.select(app.grokBuildTarget.id)
                 navController.navigate(ROUTE_SETTINGS_PROVIDERS)
             },
-            onImportPackage = importPackage.takeIf { !grok.installed },
+            onApiKey = { key -> app.grokBuildController.setApiKey(key) },
+            onImportPackage = importPackage,
+            onBack = { navController.popBackStack() },
         )
     }
 

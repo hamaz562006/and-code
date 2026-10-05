@@ -178,76 +178,136 @@ fun PiAgentSettingsScreen(
 @Composable
 fun GrokBuildAgentSettingsScreen(
     grok: GrokBuildUiState,
-    onBack: () -> Unit,
     onInstall: () -> Unit,
-    onRefresh: () -> Unit,
-    onApiKey: (String) -> Unit,
+    onRestart: (() -> Unit)? = null,
+    onStop: (() -> Unit)? = null,
+    onCheckForUpdate: (() -> Unit)? = null,
+    onUpdate: (() -> Unit)? = null,
+    onOpenMcp: () -> Unit = {},
     onOpenProviders: () -> Unit = {},
-    onImportPackage: (() -> Unit)? = null,
+    onApiKey: (String) -> Unit = {},
+    onImportPackage: () -> Unit = {},
+    onBack: () -> Unit,
 ) {
     var apiKey by remember { mutableStateOf("") }
     AgentSettingsScaffold(title = stringResource(LocalAgent.GROK_BUILD.displayNameRes), onBack = onBack) {
         AgentCardSection {
-            val status =
-                when (grok.install) {
+            val statusText =
+                when (val install = grok.install) {
                     is GrokBuildInstallStatus.Installing ->
-                        stringResource(R.string.runtime_status_setting_up)
+                        install.step?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.install_step_installing_grok_build)
                     is GrokBuildInstallStatus.Failed ->
-                        stringResource(R.string.agent_status_install_failed)
+                        install.message ?: stringResource(R.string.agent_status_install_failed)
                     is GrokBuildInstallStatus.Ready ->
-                        stringResource(R.string.agent_status_ready)
+                        grok.version?.let { stringResource(R.string.grok_build_installed_version, it) }
+                            ?: stringResource(R.string.agent_grok_build_name)
                     else ->
                         if (grok.installed) {
-                            stringResource(R.string.agent_status_ready)
+                            grok.version?.let { stringResource(R.string.grok_build_installed_version, it) }
+                                ?: stringResource(R.string.agent_grok_build_name)
                         } else {
                             stringResource(R.string.runtime_status_not_installed)
                         }
                 }
-            Text(status, style = MaterialTheme.typography.bodyMedium)
-            Text(
-                stringResource(
-                    R.string.agent_version_label,
-                    grok.version?.takeIf { it.isNotBlank() } ?: "—",
-                ),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (grok.install is GrokBuildInstallStatus.Installing) {
-                val progress = (grok.install as GrokBuildInstallStatus.Installing).progress
-                if (progress != null) {
-                    LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
-                } else {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                (grok.install as GrokBuildInstallStatus.Installing).step?.let { step ->
-                    Text(step, style = MaterialTheme.typography.labelSmall)
-                }
-            }
-            if (grok.install is GrokBuildInstallStatus.Failed) {
-                Text(
-                    (grok.install as GrokBuildInstallStatus.Failed).message ?: "",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            if (!grok.installed) {
-                Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.grok_build_install_button))
-                }
-                if (onImportPackage != null) {
-                    OutlinedButton(onClick = onImportPackage, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.agent_import_button))
+            AgentStatusCard(
+                status = statusText,
+                active = grok.isReady(),
+                metrics =
+                    grok.version?.takeIf(String::isNotBlank)?.let { v ->
+                        listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
+                    }.orEmpty(),
+            ) {
+                when (val install = grok.install) {
+                    is GrokBuildInstallStatus.Installing -> {
+                        Text(
+                            install.step?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.install_step_installing_grok_build),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        val progress = install.progress
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
                     }
-                }
-            } else {
-                OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.refresh))
+                    is GrokBuildInstallStatus.Failed -> {
+                        Text(
+                            install.message ?: stringResource(R.string.agent_status_install_failed),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.grok_build_install_button))
+                        }
+                    }
+                    else -> {
+                        if (!grok.installed) {
+                            Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.grok_build_install_button))
+                            }
+                        } else {
+                            Text(
+                                text = stringResource(R.string.setup_agent_grok_build_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            grok.updateMessage?.let { msg ->
+                                Text(
+                                    text = msg,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            grok.updateAvailable?.let { latest ->
+                                Text(
+                                    text = "Update available: ${grok.version ?: "?"} → $latest",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                if (onUpdate != null) {
+                                    Button(onClick = onUpdate, modifier = Modifier.fillMaxWidth()) {
+                                        Text("Update to $latest")
+                                    }
+                                }
+                            }
+                            if (onCheckForUpdate != null) {
+                                OutlinedButton(
+                                    onClick = onCheckForUpdate,
+                                    enabled = !grok.isCheckingUpdate,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(stringResource(R.string.check_for_update_button))
+                                }
+                            }
+                            if (onRestart != null) {
+                                OutlinedButton(onClick = onRestart, modifier = Modifier.fillMaxWidth()) {
+                                    Text(stringResource(R.string.runtime_restart_button))
+                                }
+                            }
+                            if (onStop != null) {
+                                OutlinedButton(onClick = onStop, modifier = Modifier.fillMaxWidth()) {
+                                    Text(stringResource(R.string.runtime_stop_button))
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
+        if (!grok.installed) {
+            AgentPackageSection(installed = false, onImport = onImportPackage)
+        }
         if (grok.installed) {
             AgentCardSection {
-                Text(stringResource(R.string.agent_grok_build_api_key_hint), style = MaterialTheme.typography.labelMedium)
+                Text(
+                    stringResource(R.string.agent_grok_build_api_key_hint),
+                    style = MaterialTheme.typography.labelMedium,
+                )
                 OutlinedTextField(
                     value = apiKey,
                     onValueChange = { apiKey = it },
@@ -273,9 +333,17 @@ fun GrokBuildAgentSettingsScreen(
                     Text(stringResource(R.string.provider_credentials))
                 }
             }
+            SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+                SettingsRow(
+                    icon = Icons.Default.Extension,
+                    title = stringResource(R.string.mcp_settings_row),
+                    onClick = onOpenMcp,
+                )
+            }
         }
     }
 }
+
 
 /** What the Codex sign-in dialog can do; the same callbacks [ProviderAuthDialog] takes for OpenCode's providers. */
 data class CodexSignInActions(
