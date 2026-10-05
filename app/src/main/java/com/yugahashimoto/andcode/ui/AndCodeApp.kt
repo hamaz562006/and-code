@@ -201,6 +201,7 @@ fun AndCodeApp(
     val antigravityState by app.antigravityController.state.collectAsState()
     val codexState by app.codexController.state.collectAsState()
     val piState by app.piController.state.collectAsState()
+    val grokBuildState by app.grokBuildController.state.collectAsState()
     val codexSignInViewModel: CodexSignInViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel(
             key = "setup-codex-sign-in",
