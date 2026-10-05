@@ -121,18 +121,32 @@ object GrokBuildInstaller {
     ) {
         val wrapper = pathEntry(rootfs)
         wrapper.parentFile?.mkdirs()
-        // Guest path for the real binary (not the host absolute path).
         val guestReal = "/$LIB_DIR/$GROK_BINARY"
         val script =
             buildString {
                 appendLine("#!/bin/sh")
-                appendLine("# Grok Build is an Android (bionic) binary; needs /system linker + libs.")
+                appendLine("# Grok Build is a bionic (Android) PIE. Under Alpine/proot, plain exec")
+                appendLine("# reports \"not found\" because the kernel INTERP path is not applied the")
+                appendLine("# same way — invoke linker64 explicitly (proot binds /system).")
                 appendLine("export ANDROID_ROOT=\"\${ANDROID_ROOT:-/system}\"")
                 appendLine("export ANDROID_DATA=\"\${ANDROID_DATA:-/data}\"")
+                appendLine("export PREFIX=\"\${PREFIX:-/usr/local}\"")
                 appendLine(
                     "export LD_LIBRARY_PATH=\"/system/lib64:/system/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}\"",
                 )
-                appendLine("exec \"$guestReal\" \"\$@\"")
+                appendLine("REAL=\"$guestReal\"")
+                appendLine("if [ ! -f \"\$REAL\" ]; then")
+                appendLine("  echo \"grok: binary missing at \$REAL\" >&2")
+                appendLine("  exit 127")
+                appendLine("fi")
+                appendLine("if [ -x /system/bin/linker64 ]; then")
+                appendLine("  exec /system/bin/linker64 \"\$REAL\" \"\$@\"")
+                appendLine("fi")
+                appendLine("if [ -x /system/bin/linker ]; then")
+                appendLine("  exec /system/bin/linker \"\$REAL\" \"\$@\"")
+                appendLine("fi")
+                appendLine("echo \"grok: Android linker not found under /system (is /system bound?)\" >&2")
+                appendLine("exit 127")
             }
         wrapper.writeText(script)
         wrapper.setExecutable(true, false)
