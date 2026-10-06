@@ -25,7 +25,7 @@ import java.util.zip.ZipOutputStream
  */
 object RuntimeAgentPackage {
     const val FORMAT = "andcode-agent-package"
-    const val FORMAT_VERSION = 1
+    const val FORMAT_VERSION = 2
     const val MANIFEST_NAME = "manifest.json"
     const val FILE_EXTENSION = "andcode.zip"
     private const val PAYLOAD_PREFIX = "rootfs/"
@@ -47,6 +47,8 @@ object RuntimeAgentPackage {
         @SerialName("exportedAt") val exportedAt: String,
         @SerialName("paths") val paths: List<String> = emptyList(),
         @SerialName("includeConfig") val includeConfig: Boolean = true,
+        /** When true, [paths] includes a base Alpine runtime so import needs no network. */
+        @SerialName("includeBaseRuntime") val includeBaseRuntime: Boolean = true,
     )
 
     data class ExportResult(
@@ -162,7 +164,21 @@ object RuntimeAgentPackage {
                 }
             }
         }
+        // Always ship a bootable base so import can restore offline (format v2).
+        addBaseRuntime(paths, rootfs)
         return paths.toList()
+    }
+
+    /** Essential Alpine tree excluding caches/tmp — enough to run agents offline. */
+    private fun addBaseRuntime(
+        paths: MutableSet<String>,
+        rootfs: File,
+    ) {
+        for (name in listOf("bin", "sbin", "lib", "usr", "etc", "lib64")) {
+            addIfExists(paths, rootfs, name)
+        }
+        addIfExists(paths, rootfs, "lib/apk")
+        addIfExists(paths, rootfs, "var/lib")
     }
 
     private fun addIfExists(
@@ -220,6 +236,7 @@ object RuntimeAgentPackage {
                 exportedAt = exportedAt,
                 paths = paths,
                 includeConfig = includeConfig,
+                includeBaseRuntime = true,
             )
         val suggested = suggestedFileName(agent, version, abi)
         outputDir.mkdirs()
@@ -319,8 +336,14 @@ object RuntimeAgentPackage {
                     if (
                         relative.startsWith("usr/local/bin/") ||
                         relative.startsWith("usr/bin/") ||
+                        relative.startsWith("bin/") ||
+                        relative.startsWith("sbin/") ||
                         relative.endsWith(".so") ||
-                        relative.contains("/node_modules/.bin/")
+                        relative.contains("/node_modules/.bin/") ||
+                        relative.contains("/grok-build/") ||
+                        relative.endsWith("/grok") ||
+                        relative.endsWith("/pi") ||
+                        relative.endsWith("/codex")
                     ) {
                         dest.setExecutable(true, false)
                     }

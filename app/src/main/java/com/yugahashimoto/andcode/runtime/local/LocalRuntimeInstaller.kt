@@ -355,14 +355,75 @@ class LocalRuntimeInstaller(
             runCatching { json.decodeFromString<LocalRuntimeMetadata>(metadataFile.readText()) }.getOrNull()
         }
 
-    /** Records [agent] as provisioned, so a later reinstall keeps it. */
+    /**
+     * Creates [environment/rootfs] without network so an offline [RuntimeAgentPackage] can be
+     * extracted into it. Host proot tools come from the APK ([EmbeddedCommandSuite]).
+     */
+    fun ensureRootfsForOfflineImport(): File =
+        accessCoordinator.write {
+            val active = File(runtimeDirectory, "environment")
+            val rootfs = File(active, "rootfs")
+            if (rootfs.isDirectory && rootfs.list()?.isNotEmpty() == true) {
+                return@write rootfs
+            }
+            active.mkdirs()
+            rootfs.mkdirs()
+            File(rootfs, "root").mkdirs()
+            File(rootfs, "tmp").apply {
+                mkdirs()
+                setWritable(true, false)
+                setExecutable(true, false)
+            }
+            File(rootfs, "workspace").mkdirs()
+            EmbeddedCommandSuite(context, runtimeDirectory, abi).ensureInstalled()
+            val metadataFile = File(runtimeDirectory, METADATA_FILE)
+            if (!metadataFile.isFile) {
+                val metadata =
+                    LocalRuntimeMetadata(
+                        version = "offline-import",
+                        port = 0,
+                        installedAt = System.currentTimeMillis(),
+                        runtimeVersion = "offline-import",
+                        abi = abi,
+                        components = emptySet(),
+                        fullDevelopmentToolsInstalled = false,
+                        fullDebianDevelopmentToolsInstalled = false,
+                        installedDevelopmentToolGroups = emptySet(),
+                    )
+                val encoded = json.encodeToString(metadata)
+                File(active, METADATA_FILE).writeText(encoded)
+                metadataFile.writeText(encoded)
+            }
+            rootfs
+        }
+
+        /** Records [agent] as provisioned, so a later reinstall keeps it. */
     fun recordAgent(agent: LocalAgent) {
         accessCoordinator.write {
             val metadataFile = File(runtimeDirectory, METADATA_FILE)
-            val metadata =
+            val activeMeta = File(runtimeDirectory, "environment/$METADATA_FILE")
+            val existing =
                 runCatching { json.decodeFromString<LocalRuntimeMetadata>(metadataFile.readText()) }.getOrNull()
-                    ?: return@write
-            metadataFile.writeText(json.encodeToString(metadata.with(agent)))
+                    ?: runCatching { json.decodeFromString<LocalRuntimeMetadata>(activeMeta.readText()) }.getOrNull()
+            val base =
+                existing
+                    ?: LocalRuntimeMetadata(
+                        version = "offline-import",
+                        port = 0,
+                        installedAt = System.currentTimeMillis(),
+                        runtimeVersion = "offline-import",
+                        abi = abi,
+                        components = emptySet(),
+                        fullDevelopmentToolsInstalled = false,
+                        fullDebianDevelopmentToolsInstalled = false,
+                        installedDevelopmentToolGroups = emptySet(),
+                    )
+            val updated = base.with(agent)
+            val encoded = json.encodeToString(updated)
+            metadataFile.parentFile?.mkdirs()
+            metadataFile.writeText(encoded)
+            activeMeta.parentFile?.mkdirs()
+            activeMeta.writeText(encoded)
         }
     }
 

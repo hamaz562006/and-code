@@ -668,16 +668,11 @@ private fun rememberAgentPackageImporter(): () -> Unit {
                                 tmp.outputStream().use { input.copyTo(it) }
                             } ?: error("Unable to read package")
                             try {
+                                // Offline-first: never call network install() during import.
+                                // Packages (format v2) ship agent + base Alpine tree.
                                 var rootfs = app.localRuntimeInstaller.installedRuntime()?.rootfs
                                 if (rootfs == null || !rootfs.isDirectory) {
-                                    val peeked = RuntimeAgentPackage.peekManifest(tmp)
-                                    val agent =
-                                        peeked?.let { LocalAgent.fromId(it.agentId) }
-                                            ?: error(app.getString(R.string.agent_import_need_runtime))
-                                    app.localRuntimeInstaller.install(setOf(agent))
-                                    rootfs =
-                                        app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                            ?: error(app.getString(R.string.agent_import_need_runtime))
+                                    rootfs = app.localRuntimeInstaller.ensureRootfsForOfflineImport()
                                 }
                                 val imported = RuntimeAgentPackage.import(tmp, rootfs)
                                 app.localRuntimeInstaller.recordAgent(imported.agent)
