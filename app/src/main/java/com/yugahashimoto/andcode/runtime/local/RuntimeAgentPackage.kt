@@ -247,15 +247,24 @@ object RuntimeAgentPackage {
             zip.putNextEntry(ZipEntry(MANIFEST_NAME))
             zip.write(json.encodeToString(Manifest.serializer(), manifest).toByteArray(Charsets.UTF_8))
             zip.closeEntry()
+            // Agent-specific paths often nest under base runtime dirs (e.g. usr/); skip duplicates.
+            val written = linkedSetOf<String>()
+            fun putUnique(
+                file: File,
+                entryName: String,
+            ) {
+                if (!written.add(entryName)) return
+                putFile(zip, file, entryName)
+            }
             for (relative in paths) {
                 val source = File(rootfs, relative)
                 if (source.isFile) {
-                    putFile(zip, source, PAYLOAD_PREFIX + relative)
+                    putUnique(source, PAYLOAD_PREFIX + relative)
                 } else if (source.isDirectory) {
                     source.walkTopDown().forEach { child ->
                         if (child.isFile) {
                             val rel = child.relativeTo(rootfs).path.replace(File.separatorChar, '/')
-                            putFile(zip, child, PAYLOAD_PREFIX + rel)
+                            putUnique(child, PAYLOAD_PREFIX + rel)
                         }
                     }
                 }
