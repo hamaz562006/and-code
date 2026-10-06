@@ -125,21 +125,26 @@ class GrokBuildRuntime(
         events.tryEmit(OpenCodeEvent.MessageUpdated(userInfo))
 
         val history =
-            messageStore[sessionId].orEmpty().dropLast(1).takeLast(12).joinToString("
-") { msg ->
-                val role = msg.info.role
-                val body = msg.parts.mapNotNull { it.text }.joinToString("").trim()
-                if (body.isEmpty()) "" else "$role: $body"
-            }.trim()
+            messageStore[sessionId]
+                .orEmpty()
+                .dropLast(1)
+                .takeLast(12)
+                .joinToString("\n") { msg ->
+                    val role = msg.info.role
+                    val body = msg.parts.mapNotNull { it.text }.joinToString("").trim()
+                    if (body.isEmpty()) "" else "$role: $body"
+                }.trim()
         val prompt =
             if (history.isBlank()) {
                 text
             } else {
-                "Previous conversation:
-$history
-
-user: $text
-assistant:"
+                buildString {
+                    append("Previous conversation:\n")
+                    append(history)
+                    append("\n\nuser: ")
+                    append(text)
+                    append("\nassistant:")
+                }
             }
 
         val workspace = File(runtimeDirectory, "workspace").apply { mkdirs() }
