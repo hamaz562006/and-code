@@ -25,9 +25,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
-import java.util.concurrent.TimeUnit
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 /**
  * Host-side helpers for the Grok Build binary in the shared rootfs.
@@ -234,11 +234,7 @@ class GrokBuildRuntime(
         sessions[sessionId]?.let { s ->
             sessions[sessionId] = s.copy(time = s.time.copy(updated = doneAt))
         }
-        if (result.exitCode != 0 && parseAssistantText(result.output).isBlank()) {
-            error(assistantText)
-        }
     }
-
 
     private fun chatCompletions(
         baseUrl: String,
