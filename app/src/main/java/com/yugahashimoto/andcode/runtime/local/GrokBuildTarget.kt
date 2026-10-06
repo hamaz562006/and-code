@@ -185,8 +185,7 @@ class GrokBuildTarget(
             patch
         }
 
-    override suspend fun listSessions(directory: String?): List<OpenCodeSession> =
-        withContext(Dispatchers.IO) { runtime.listSessions() }
+    override suspend fun listSessions(directory: String?): List<OpenCodeSession> = withContext(Dispatchers.IO) { runtime.listSessions() }
 
     override suspend fun createSession(
         title: String?,

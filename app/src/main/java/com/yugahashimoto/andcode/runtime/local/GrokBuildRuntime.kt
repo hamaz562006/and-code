@@ -57,8 +57,7 @@ class GrokBuildRuntime(
         // Headless `-p` runs are one-shot processes; nothing long-lived to kill.
     }
 
-    fun listSessions(): List<OpenCodeSession> =
-        sessions.values.sortedByDescending { it.time.updated ?: it.time.created }
+    fun listSessions(): List<OpenCodeSession> = sessions.values.sortedByDescending { it.time.updated ?: it.time.created }
 
     fun createSession(
         title: String?,
@@ -79,8 +78,7 @@ class GrokBuildRuntime(
         return session
     }
 
-    fun listMessages(sessionId: String): List<OpenCodeMessage> =
-        messageStore[sessionId]?.toList() ?: emptyList()
+    fun listMessages(sessionId: String): List<OpenCodeMessage> = messageStore[sessionId]?.toList() ?: emptyList()
 
     /**
      * One headless turn via `grok -p` on the Android host.
