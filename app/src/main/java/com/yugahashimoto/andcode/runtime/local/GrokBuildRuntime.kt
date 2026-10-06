@@ -139,7 +139,10 @@ class GrokBuildRuntime(
                 null
             }
 
-        fun matchesModel(entry: CustomProviderEntry, mid: String): Boolean =
+        fun matchesModel(
+            entry: CustomProviderEntry,
+            mid: String,
+        ): Boolean =
             mid in entry.modelIds ||
                 entry.modelIds.any { stored ->
                     stored == mid ||
