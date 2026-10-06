@@ -27,6 +27,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 
 /**
@@ -83,24 +87,56 @@ class GrokBuildTarget(
     override suspend fun listWorkspaces(): List<WorkspaceRef> =
         listOf(WorkspaceRef(id = "/workspace", name = "workspace", path = "/workspace"))
 
-    override suspend fun providerAuthMethods(): Map<String, List<ProviderAuthMethod>> =
-        mapOf("xai" to listOf(ProviderAuthMethod(type = "api", label = "API key")))
+    override suspend fun providerAuthMethods(): Map<String, List<ProviderAuthMethod>> {
+        val rootfs = installer.installedRuntime()?.rootfs
+        val customIds = rootfs?.let { runtime.listCustomProviders(it) }.orEmpty().map { it.id }
+        return buildMap {
+            put("xai", listOf(ProviderAuthMethod(type = "api", label = "API key")))
+            customIds.forEach { id ->
+                put(id, listOf(ProviderAuthMethod(type = "api", label = "API key")))
+            }
+        }
+    }
 
     override suspend fun listProviders(): ProviderCatalog {
         val rootfs = installer.installedRuntime()?.rootfs
-        val hasKey = rootfs != null && runtime.hasApiKey(rootfs)
-        val models =
+        val xaiModels =
             mapOf(
                 "grok-4.5" to OpenCodeModel(id = "grok-4.5", providerId = "xai", name = "Grok 4.5"),
                 "grok-4" to OpenCodeModel(id = "grok-4", providerId = "xai", name = "Grok 4"),
                 "grok-3" to OpenCodeModel(id = "grok-3", providerId = "xai", name = "Grok 3"),
             )
-        val provider = OpenCodeProvider(id = "xai", name = "xAI", models = models)
-        return ProviderCatalog(
-            all = listOf(provider),
-            default = if (hasKey) mapOf("xai" to "grok-4.5") else emptyMap(),
-            connected = if (hasKey) listOf("xai") else emptyList(),
-        )
+        val xai = OpenCodeProvider(id = "xai", name = "xAI", models = xaiModels)
+        val custom =
+            rootfs?.let { runtime.listCustomProviders(it) }.orEmpty().map { entry ->
+                OpenCodeProvider(
+                    id = entry.id,
+                    name = entry.name,
+                    models =
+                        entry.modelIds.associateWith { mid ->
+                            OpenCodeModel(id = mid, providerId = entry.id, name = mid)
+                        },
+                )
+            }
+        val all = listOf(xai) + custom
+        val connected =
+            buildList {
+                if (rootfs != null && runtime.hasProviderApiKey(rootfs, "xai")) add("xai")
+                custom.forEach { p ->
+                    if (rootfs != null && runtime.hasProviderApiKey(rootfs, p.id)) add(p.id)
+                }
+            }
+        val default =
+            when {
+                "xai" in connected -> mapOf("xai" to "grok-4.5")
+                connected.isNotEmpty() -> {
+                    val id = connected.first()
+                    val model = all.firstOrNull { it.id == id }?.models?.keys?.firstOrNull()
+                    if (model != null) mapOf(id to model) else emptyMap()
+                }
+                else -> emptyMap()
+            }
+        return ProviderCatalog(all = all, default = default, connected = connected)
     }
 
     override suspend fun listAgents(): List<OpenCodeAgent> =
@@ -112,18 +148,42 @@ class GrokBuildTarget(
         metadata: Map<String, String>,
     ): Boolean =
         withContext(Dispatchers.IO) {
-            if (providerId != "xai") return@withContext false
             val rootfs = installer.installedRuntime()?.rootfs ?: return@withContext false
-            runtime.setApiKey(rootfs, apiKey)
+            runtime.setProviderApiKey(rootfs, providerId, apiKey)
             true
         }
 
     override suspend fun removeProviderAuth(providerId: String): Boolean =
         withContext(Dispatchers.IO) {
-            if (providerId != "xai") return@withContext false
             val rootfs = installer.installedRuntime()?.rootfs ?: return@withContext false
-            runtime.setApiKey(rootfs, null)
+            runtime.setProviderApiKey(rootfs, providerId, null)
             true
+        }
+
+    /**
+     * Accepts the OpenCode-shaped custom-provider patch from Providers UI and stores it under
+     * `root/.grok/providers.json` (Grok has no OpenCode HTTP config API).
+     */
+    override suspend fun updateConfig(patch: JsonObject): kotlinx.serialization.json.JsonElement =
+        withContext(Dispatchers.IO) {
+            val rootfs = installer.installedRuntime()?.rootfs ?: error("Grok environment is not installed")
+            val providers =
+                patch["provider"]?.jsonObject
+                    ?: error("Grok config update expects a provider object")
+            providers.forEach { (providerId, value) ->
+                val obj = value.jsonObject
+                val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: providerId
+                val baseUrl =
+                    obj["options"]?.jsonObject?.get("baseURL")?.jsonPrimitive?.contentOrNull
+                        ?: obj["baseUrl"]?.jsonPrimitive?.contentOrNull
+                        ?: error("Custom provider needs a base URL")
+                val modelIds =
+                    obj["models"]?.jsonObject?.keys?.toList().orEmpty().ifEmpty {
+                        error("Custom provider needs at least one model id")
+                    }
+                runtime.registerCustomProvider(rootfs, providerId, name, baseUrl, modelIds)
+            }
+            patch
         }
 
     override suspend fun listSessions(directory: String?): List<OpenCodeSession> = emptyList()
