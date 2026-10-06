@@ -20,7 +20,12 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
+import java.util.concurrent.TimeUnit
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -122,55 +127,81 @@ class GrokBuildRuntime(
         messageStore.getOrPut(sessionId) { mutableListOf() }.add(userMessage)
         events.tryEmit(OpenCodeEvent.MessageUpdated(userInfo))
 
-        val historyLines =
+        val prior =
             messageStore[sessionId]
                 .orEmpty()
                 .dropLast(1)
                 .takeLast(12)
-                .mapNotNull { msg ->
-                    val body = msg.parts.mapNotNull { it.text }.joinToString("").trim()
-                    if (body.isEmpty()) null else "${msg.info.role}: $body"
-                }
-        val history = historyLines.joinToString("\n")
-        val prompt =
-            if (history.isBlank()) {
-                text
-            } else {
-                "Previous conversation:\n" + history + "\n\nuser: " + text + "\nassistant:"
-            }
 
-        val workspace = File(runtimeDirectory, "workspace").apply { mkdirs() }
-        val args =
-            buildList {
-                add("-p")
-                add(prompt)
-                add("--output-format")
-                add("json")
-                add("--yolo")
-                request.modelId?.takeIf { it.isNotBlank() && !it.contains('/') }?.let {
-                    add("--model")
-                    add(it)
-                }
+        val modelId = request.modelId?.takeIf { it.isNotBlank() }
+        val customs = listCustomProviders(rootfs)
+        val custom =
+            request.providerId?.takeIf { it.isNotBlank() }?.let { pid ->
+                customs.firstOrNull { it.id == pid }
             }
-        val result =
-            GrokBuildInstaller.runOnHost(
-                rootfs = rootfs,
-                args = args,
-                timeoutSeconds = 300L,
-                workingDirectory = workspace,
-                extraEnv =
-                    mapOf(
-                        "XAI_API_KEY" to apiKey,
-                        "HOME" to File(rootfs, "root").absolutePath,
-                    ),
-            )
-
+                ?: modelId?.let { mid -> customs.firstOrNull { mid in it.modelIds } }
         val assistantText =
-            parseAssistantText(result.output).ifBlank {
-                if (result.exitCode != 0) {
-                    "Grok failed (exit ${result.exitCode}): ${result.output.trim().take(1500)}"
-                } else {
-                    result.output.trim().ifBlank { "(empty response)" }
+            if (custom != null) {
+                val key = readProviderApiKey(rootfs, custom.id)
+                require(!key.isNullOrBlank()) {
+                    "Connect provider \"${custom.name}\" with an API key in Provider settings"
+                }
+                require(modelId != null) { "Select a model for provider \"${custom.name}\"" }
+                chatCompletions(
+                    baseUrl = custom.baseUrl,
+                    apiKey = key,
+                    modelId = modelId,
+                    prior = prior,
+                    userText = text,
+                )
+            } else {
+                val key = readApiKey(rootfs)
+                require(!key.isNullOrBlank()) {
+                    "Set an xAI API key in Grok Build agent settings (Provider: xAI)"
+                }
+                val historyLines =
+                    prior.mapNotNull { msg ->
+                        val body = msg.parts.mapNotNull { it.text }.joinToString("").trim()
+                        if (body.isEmpty()) null else "${msg.info.role}: $body"
+                    }
+                val history = historyLines.joinToString("\n")
+                val prompt =
+                    if (history.isBlank()) {
+                        text
+                    } else {
+                        "Previous conversation:\n" + history + "\n\nuser: " + text + "\nassistant:"
+                    }
+                val workspace = File(runtimeDirectory, "workspace").apply { mkdirs() }
+                val args =
+                    buildList {
+                        add("-p")
+                        add(prompt)
+                        add("--output-format")
+                        add("json")
+                        add("--yolo")
+                        (modelId ?: "grok-4.5").takeIf { !it.contains('/') }?.let {
+                            add("--model")
+                            add(it)
+                        }
+                    }
+                val result =
+                    GrokBuildInstaller.runOnHost(
+                        rootfs = rootfs,
+                        args = args,
+                        timeoutSeconds = 300L,
+                        workingDirectory = workspace,
+                        extraEnv =
+                            mapOf(
+                                "XAI_API_KEY" to key,
+                                "HOME" to File(rootfs, "root").absolutePath,
+                            ),
+                    )
+                parseAssistantText(result.output).ifBlank {
+                    if (result.exitCode != 0) {
+                        "Grok failed (exit ${result.exitCode}): ${result.output.trim().take(1500)}"
+                    } else {
+                        result.output.trim().ifBlank { "(empty response)" }
+                    }
                 }
             }
 
@@ -205,6 +236,92 @@ class GrokBuildRuntime(
         }
         if (result.exitCode != 0 && parseAssistantText(result.output).isBlank()) {
             error(assistantText)
+        }
+    }
+
+
+    private fun chatCompletions(
+        baseUrl: String,
+        apiKey: String,
+        modelId: String,
+        prior: List<OpenCodeMessage>,
+        userText: String,
+    ): String {
+        var root = baseUrl.trim().trimEnd('/')
+        for (suffix in listOf("/chat/completions", "/completions")) {
+            if (root.endsWith(suffix)) {
+                root = root.removeSuffix(suffix)
+                break
+            }
+        }
+        if (!root.endsWith("/v1")) {
+            // Accept either API root (.../v1) or host root
+            root = root.trimEnd('/')
+        }
+        val url =
+            when {
+                root.endsWith("/chat/completions") -> root
+                root.endsWith("/v1") -> "$root/chat/completions"
+                else -> "$root/v1/chat/completions"
+            }
+        val messages =
+            buildJsonArray {
+                prior.forEach { msg ->
+                    val body = msg.parts.mapNotNull { it.text }.joinToString("").trim()
+                    if (body.isEmpty()) return@forEach
+                    val role = if (msg.info.role == "assistant") "assistant" else "user"
+                    add(
+                        buildJsonObject {
+                            put("role", role)
+                            put("content", body)
+                        },
+                    )
+                }
+                add(
+                    buildJsonObject {
+                        put("role", "user")
+                        put("content", userText)
+                    },
+                )
+            }
+        val bodyJson =
+            buildJsonObject {
+                put("model", modelId)
+                put("messages", messages)
+            }
+        val client =
+            OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(180, TimeUnit.SECONDS)
+                .writeTimeout(60, TimeUnit.SECONDS)
+                .build()
+        val request =
+            Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer $apiKey")
+                .addHeader("Content-Type", "application/json")
+                .post(bodyJson.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+        client.newCall(request).execute().use { response ->
+            val raw = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                error("Provider HTTP ${response.code}: ${raw.take(1200)}")
+            }
+            val content =
+                runCatching {
+                    json.parseToJsonElement(raw)
+                        .jsonObject["choices"]
+                        ?.jsonArray
+                        ?.firstOrNull()
+                        ?.jsonObject
+                        ?.get("message")
+                        ?.jsonObject
+                        ?.get("content")
+                        ?.jsonPrimitive
+                        ?.contentOrNull
+                }.getOrNull()
+            return content?.trim()?.ifBlank { null }
+                ?: error("Provider returned empty content: ${raw.take(800)}")
         }
     }
 
