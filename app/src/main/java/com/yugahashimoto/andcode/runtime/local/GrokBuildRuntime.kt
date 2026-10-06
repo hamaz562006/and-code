@@ -139,7 +139,8 @@ class GrokBuildRuntime(
                 text
             } else {
                 buildString {
-                    append("Previous conversation:\n")
+                    append("Previous conversation:
+")
                     append(history)
                     append("\n\nuser: ")
                     append(text)
