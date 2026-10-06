@@ -86,8 +86,7 @@ class GrokBuildRuntime(
     fun listMessages(sessionId: String): List<OpenCodeMessage> = messageStore[sessionId]?.toList() ?: emptyList()
 
     /**
-     * One headless turn via `grok -p` on the Android host.
-     * Multi-turn is approximated by prefixing prior user/assistant text into the prompt.
+     * One chat turn: custom OpenAI-compatible providers via HTTP, or xAI via headless `grok -p`.
      */
     fun send(
         rootfs: File,
@@ -97,10 +96,6 @@ class GrokBuildRuntime(
         val text = request.text.trim()
         require(text.isNotEmpty()) { "empty message" }
         require(GrokBuildInstaller.isInstalledIn(rootfs)) { "Grok Build is not installed" }
-        val apiKey = readApiKey(rootfs)
-        require(!apiKey.isNullOrBlank()) {
-            "Set an xAI API key in Grok Build agent settings (or connect a provider)"
-        }
 
         val now = System.currentTimeMillis()
         val userInfo =
@@ -133,9 +128,7 @@ class GrokBuildRuntime(
                 .dropLast(1)
                 .takeLast(12)
 
-        // Chat picker keys are "providerId/modelId". Model ids that themselves contain '/'
-        // (e.g. oc/big-pickle) get split, so match custom providers by id, model list, or
-        // reconstructed "providerId/modelId". Prefer a connected custom over bare xAI.
+        // Picker keys are "providerId/modelId". Model ids with '/' (e.g. oc/big-pickle) get split.
         val reqProviderId = request.providerId?.takeIf { it.isNotBlank() }
         val reqModelId = request.modelId?.takeIf { it.isNotBlank() }
         val customs = listCustomProviders(rootfs)
@@ -146,9 +139,9 @@ class GrokBuildRuntime(
                 null
             }
 
-        fun CustomProviderEntry.matchesModel(mid: String): Boolean =
-            mid in modelIds ||
-                modelIds.any { stored ->
+        fun matchesModel(entry: CustomProviderEntry, mid: String): Boolean =
+            mid in entry.modelIds ||
+                entry.modelIds.any { stored ->
                     stored == mid ||
                         stored.endsWith("/$mid") ||
                         stored.substringAfterLast('/') == mid
@@ -156,18 +149,17 @@ class GrokBuildRuntime(
 
         val custom =
             customs.firstOrNull { reqProviderId != null && it.id == reqProviderId }
-                ?: customs.firstOrNull { reqModelId != null && it.matchesModel(reqModelId) }
+                ?: customs.firstOrNull { reqModelId != null && matchesModel(it, reqModelId) }
                 ?: customs.firstOrNull {
-                    compositeModelId != null && it.matchesModel(compositeModelId)
+                    compositeModelId != null && matchesModel(it, compositeModelId)
                 }
                 ?: customs.firstOrNull { entry ->
-                    // Only one connected custom and no xAI key — use it.
                     hasProviderApiKey(rootfs, entry.id) &&
                         !hasApiKey(rootfs) &&
                         customs.count { hasProviderApiKey(rootfs, it.id) } == 1
                 }
 
-        val resolvedModelId =
+        val resolvedModelId: String =
             when {
                 custom == null -> reqModelId ?: "grok-4.5"
                 reqModelId != null && reqModelId in custom.modelIds -> reqModelId
@@ -180,7 +172,7 @@ class GrokBuildRuntime(
                         it.endsWith("/$reqModelId") || it.substringAfterLast('/') == reqModelId
                     }
                 custom.modelIds.isNotEmpty() -> custom.modelIds.first()
-                else -> reqModelId
+                else -> reqModelId ?: "grok-4.5"
             }
 
         val assistantText =
@@ -188,54 +180,6 @@ class GrokBuildRuntime(
                 val key = readProviderApiKey(rootfs, custom.id)
                 require(!key.isNullOrBlank()) {
                     "Connect provider \"${custom.name}\" with an API key in Provider settings"
-                }
-                require(!resolvedModelId.isNullOrBlank()) {
-                    "Select a model for provider \"${custom.name}\""
-                }
-                chatCompletions(
-                    baseUrl = custom.baseUrl,
-                    apiKey = key,
-                    modelId = resolvedModelId,
-                    prior = prior,
-                    userText = text,
-                )
-            } else {
-ustoms.firstOrNull { reqProviderId != null && it.id == reqProviderId }
-                ?: customs.firstOrNull { reqModelId != null && it.matchesModel(reqModelId) }
-                ?: customs.firstOrNull {
-                    compositeModelId != null && it.matchesModel(compositeModelId)
-                }
-                ?: customs.firstOrNull { entry ->
-                    // Only one connected custom and no xAI key — use it.
-                    hasProviderApiKey(rootfs, entry.id) &&
-                        !hasApiKey(rootfs) &&
-                        customs.count { hasProviderApiKey(rootfs, it.id) } == 1
-                }
-
-        val resolvedModelId =
-            when {
-                custom == null -> reqModelId ?: "grok-4.5"
-                reqModelId != null && reqModelId in custom.modelIds -> reqModelId
-                compositeModelId != null && compositeModelId in custom.modelIds -> compositeModelId
-                reqModelId != null &&
-                    custom.modelIds.any {
-                        it.endsWith("/$reqModelId") || it.substringAfterLast('/') == reqModelId
-                    } ->
-                    custom.modelIds.first {
-                        it.endsWith("/$reqModelId") || it.substringAfterLast('/') == reqModelId
-                    }
-                custom.modelIds.isNotEmpty() -> custom.modelIds.first()
-                else -> reqModelId
-            }
-
-        val assistantText =
-            if (custom != null) {
-                val key = readProviderApiKey(rootfs, custom.id)
-                require(!key.isNullOrBlank()) {
-                    "Connect provider \"${custom.name}\" with an API key in Provider settings"
-                }
-                require(!resolvedModelId.isNullOrBlank()) {
-                    "Select a model for provider \"${custom.name}\""
                 }
                 chatCompletions(
                     baseUrl = custom.baseUrl,
