@@ -133,24 +133,114 @@ class GrokBuildRuntime(
                 .dropLast(1)
                 .takeLast(12)
 
-        val modelId = request.modelId?.takeIf { it.isNotBlank() }
+        // Chat picker keys are "providerId/modelId". Model ids that themselves contain '/'
+        // (e.g. oc/big-pickle) get split, so match custom providers by id, model list, or
+        // reconstructed "providerId/modelId". Prefer a connected custom over bare xAI.
+        val reqProviderId = request.providerId?.takeIf { it.isNotBlank() }
+        val reqModelId = request.modelId?.takeIf { it.isNotBlank() }
         val customs = listCustomProviders(rootfs)
-        val custom =
-            request.providerId?.takeIf { it.isNotBlank() }?.let { pid ->
-                customs.firstOrNull { it.id == pid }
+        val compositeModelId =
+            if (reqProviderId != null && reqModelId != null) {
+                "$reqProviderId/$reqModelId"
+            } else {
+                null
             }
-                ?: modelId?.let { mid -> customs.firstOrNull { mid in it.modelIds } }
+
+        fun CustomProviderEntry.matchesModel(mid: String): Boolean =
+            mid in modelIds ||
+                modelIds.any { stored ->
+                    stored == mid ||
+                        stored.endsWith("/$mid") ||
+                        stored.substringAfterLast('/') == mid
+                }
+
+        val custom =
+            customs.firstOrNull { reqProviderId != null && it.id == reqProviderId }
+                ?: customs.firstOrNull { reqModelId != null && it.matchesModel(reqModelId) }
+                ?: customs.firstOrNull {
+                    compositeModelId != null && it.matchesModel(compositeModelId)
+                }
+                ?: customs.firstOrNull { entry ->
+                    // Only one connected custom and no xAI key — use it.
+                    hasProviderApiKey(rootfs, entry.id) &&
+                        !hasApiKey(rootfs) &&
+                        customs.count { hasProviderApiKey(rootfs, it.id) } == 1
+                }
+
+        val resolvedModelId =
+            when {
+                custom == null -> reqModelId ?: "grok-4.5"
+                reqModelId != null && reqModelId in custom.modelIds -> reqModelId
+                compositeModelId != null && compositeModelId in custom.modelIds -> compositeModelId
+                reqModelId != null &&
+                    custom.modelIds.any {
+                        it.endsWith("/$reqModelId") || it.substringAfterLast('/') == reqModelId
+                    } ->
+                    custom.modelIds.first {
+                        it.endsWith("/$reqModelId") || it.substringAfterLast('/') == reqModelId
+                    }
+                custom.modelIds.isNotEmpty() -> custom.modelIds.first()
+                else -> reqModelId
+            }
+
         val assistantText =
             if (custom != null) {
                 val key = readProviderApiKey(rootfs, custom.id)
                 require(!key.isNullOrBlank()) {
                     "Connect provider \"${custom.name}\" with an API key in Provider settings"
                 }
-                require(modelId != null) { "Select a model for provider \"${custom.name}\"" }
+                require(!resolvedModelId.isNullOrBlank()) {
+                    "Select a model for provider \"${custom.name}\""
+                }
                 chatCompletions(
                     baseUrl = custom.baseUrl,
                     apiKey = key,
-                    modelId = modelId,
+                    modelId = resolvedModelId,
+                    prior = prior,
+                    userText = text,
+                )
+            } else {
+ustoms.firstOrNull { reqProviderId != null && it.id == reqProviderId }
+                ?: customs.firstOrNull { reqModelId != null && it.matchesModel(reqModelId) }
+                ?: customs.firstOrNull {
+                    compositeModelId != null && it.matchesModel(compositeModelId)
+                }
+                ?: customs.firstOrNull { entry ->
+                    // Only one connected custom and no xAI key — use it.
+                    hasProviderApiKey(rootfs, entry.id) &&
+                        !hasApiKey(rootfs) &&
+                        customs.count { hasProviderApiKey(rootfs, it.id) } == 1
+                }
+
+        val resolvedModelId =
+            when {
+                custom == null -> reqModelId ?: "grok-4.5"
+                reqModelId != null && reqModelId in custom.modelIds -> reqModelId
+                compositeModelId != null && compositeModelId in custom.modelIds -> compositeModelId
+                reqModelId != null &&
+                    custom.modelIds.any {
+                        it.endsWith("/$reqModelId") || it.substringAfterLast('/') == reqModelId
+                    } ->
+                    custom.modelIds.first {
+                        it.endsWith("/$reqModelId") || it.substringAfterLast('/') == reqModelId
+                    }
+                custom.modelIds.isNotEmpty() -> custom.modelIds.first()
+                else -> reqModelId
+            }
+
+        val assistantText =
+            if (custom != null) {
+                val key = readProviderApiKey(rootfs, custom.id)
+                require(!key.isNullOrBlank()) {
+                    "Connect provider \"${custom.name}\" with an API key in Provider settings"
+                }
+                require(!resolvedModelId.isNullOrBlank()) {
+                    "Select a model for provider \"${custom.name}\""
+                }
+                chatCompletions(
+                    baseUrl = custom.baseUrl,
+                    apiKey = key,
+                    modelId = resolvedModelId,
                     prior = prior,
                     userText = text,
                 )
@@ -179,7 +269,7 @@ class GrokBuildRuntime(
                         add("--output-format")
                         add("json")
                         add("--yolo")
-                        (modelId ?: "grok-4.5").takeIf { !it.contains('/') }?.let {
+                        resolvedModelId.takeIf { it.isNotBlank() && !it.contains('/') }?.let {
                             add("--model")
                             add(it)
                         }
