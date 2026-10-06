@@ -2,13 +2,13 @@ package com.yugahashimoto.andcode.runtime.local
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.put
 import java.io.File
 
@@ -21,7 +21,12 @@ import java.io.File
 class GrokBuildRuntime(
     val runtimeDirectory: File,
 ) {
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true; prettyPrint = true }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+            prettyPrint = true
+        }
     private val envRelative = "root/.grok/env"
     private val keyFileRelative = "root/.grok/api_key"
     private val providersRelative = "root/.grok/providers.json"
