@@ -397,7 +397,7 @@ class LocalRuntimeInstaller(
             rootfs
         }
 
-        /** Records [agent] as provisioned, so a later reinstall keeps it. */
+    /** Records [agent] as provisioned, so a later reinstall keeps it. */
     fun recordAgent(agent: LocalAgent) {
         accessCoordinator.write {
             val metadataFile = File(runtimeDirectory, METADATA_FILE)
