@@ -83,7 +83,7 @@ class GrokBuildRuntime(
         messageStore[sessionId]?.toList() ?: emptyList()
 
     /**
-     * One headless turn via `grok -p … --output-format json --yolo` on the Android host.
+     * One headless turn via `grok -p` on the Android host.
      * Multi-turn is approximated by prefixing prior user/assistant text into the prompt.
      */
     fun send(
@@ -124,28 +124,21 @@ class GrokBuildRuntime(
         messageStore.getOrPut(sessionId) { mutableListOf() }.add(userMessage)
         events.tryEmit(OpenCodeEvent.MessageUpdated(userInfo))
 
-        val history =
+        val historyLines =
             messageStore[sessionId]
                 .orEmpty()
                 .dropLast(1)
                 .takeLast(12)
-                .joinToString("\n") { msg ->
-                    val role = msg.info.role
+                .mapNotNull { msg ->
                     val body = msg.parts.mapNotNull { it.text }.joinToString("").trim()
-                    if (body.isEmpty()) "" else "$role: $body"
-                }.trim()
+                    if (body.isEmpty()) null else "${msg.info.role}: $body"
+                }
+        val history = historyLines.joinToString("\n")
         val prompt =
             if (history.isBlank()) {
                 text
             } else {
-                buildString {
-                    append("Previous conversation:
-")
-                    append(history)
-                    append("\n\nuser: ")
-                    append(text)
-                    append("\nassistant:")
-                }
+                "Previous conversation:\n" + history + "\n\nuser: " + text + "\nassistant:"
             }
 
         val workspace = File(runtimeDirectory, "workspace").apply { mkdirs() }
@@ -220,7 +213,6 @@ class GrokBuildRuntime(
     private fun parseAssistantText(raw: String): String {
         val trimmed = raw.trim()
         if (trimmed.isEmpty()) return ""
-        // Prefer last JSON object line / whole body
         val candidates =
             listOf(trimmed) +
                 trimmed.lines().map { it.trim() }.filter { it.startsWith("{") && it.endsWith("}") }
@@ -231,12 +223,10 @@ class GrokBuildRuntime(
                 }.getOrNull()
             if (!text.isNullOrBlank()) return text
         }
-        // Strip linker warnings if present
         return trimmed
             .lines()
             .filterNot { it.startsWith("WARNING: linker:") }
-            .joinToString("
-")
+            .joinToString("\n")
             .trim()
     }
 
