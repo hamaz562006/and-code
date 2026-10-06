@@ -53,16 +53,23 @@ object GrokBuildInstaller {
      * dynamic linker instead (Termux-style): `linker64 /data/.../grok --version`, with
      * [LD_LIBRARY_PATH] pointing at [LOCAL_LIB] for [GrokBuildManifest.LIBCPP_SONAME].
      */
+    /**
+     * Runs the Grok binary as a **host** Android process (not under Alpine proot).
+     *
+     * Direct `exec` under the app `files/` tree fails with EACCES (error=13). Invoke via
+     * the system dynamic linker: `linker64 /data/.../grok [args]`.
+     */
     fun runOnHost(
         rootfs: File,
         args: List<String>,
         timeoutSeconds: Long = 20L,
+        workingDirectory: File? = null,
+        extraEnv: Map<String, String> = emptyMap(),
     ): LocalRuntimeCommandResult {
         val binary =
             binaryPath(rootfs).takeIf { it.isFile }
                 ?: pathEntry(rootfs).takeIf { it.isFile && it.length() > 1_000_000L }
                 ?: return LocalRuntimeCommandResult(127, "grok: not installed")
-        // Best-effort exec bits (may still be blocked by SELinux for direct exec).
         binary.setExecutable(true, false)
         binary.setReadable(true, false)
         binary.parentFile?.setExecutable(true, false)
@@ -90,6 +97,7 @@ object GrokBuildInstaller {
                 ProcessBuilder(command)
                     .redirectErrorStream(true)
                     .apply {
+                        workingDirectory?.takeIf { it.isDirectory }?.let { directory(it) }
                         environment()["LD_LIBRARY_PATH"] =
                             listOfNotNull(
                                 libDir.absolutePath.takeIf { libDir.isDirectory },
@@ -99,15 +107,16 @@ object GrokBuildInstaller {
                         environment()["ANDROID_DATA"] = "/data"
                         environment()["HOME"] = File(rootfs, "root").absolutePath
                         environment()["PREFIX"] = File(rootfs, "usr/local").absolutePath
+                        extraEnv.forEach { (k, v) -> environment()[k] = v }
                     }
                     .start()
             val completed = process.waitFor(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
             if (!completed) {
                 process.destroyForcibly()
-                LocalRuntimeCommandResult(124, "grok: timed out")
+                LocalRuntimeCommandResult(124, "grok: timed out after ${timeoutSeconds}s")
             } else {
                 val output =
-                    process.inputStream.bufferedReader().use { it.readText() }.takeLast(4_000)
+                    process.inputStream.bufferedReader().use { it.readText() }.takeLast(32_000)
                 LocalRuntimeCommandResult(process.exitValue(), output)
             }
         } catch (error: Exception) {

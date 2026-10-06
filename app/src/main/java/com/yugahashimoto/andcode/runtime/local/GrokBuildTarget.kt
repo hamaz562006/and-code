@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -36,7 +35,7 @@ import java.io.File
 /**
  * Grok Build as a [RuntimeTarget].
  *
- * Install + API-key auth are complete. Interactive chat (ACP `grok agent stdio`) is not wired yet.
+ * Install, API-key auth, and headless chat (`grok -p`) are wired on the Android host.
  * Guest Browser stays off: no localhost HTTP server.
  */
 class GrokBuildTarget(
@@ -186,20 +185,28 @@ class GrokBuildTarget(
             patch
         }
 
-    override suspend fun listSessions(directory: String?): List<OpenCodeSession> = emptyList()
+    override suspend fun listSessions(directory: String?): List<OpenCodeSession> =
+        withContext(Dispatchers.IO) { runtime.listSessions() }
 
     override suspend fun createSession(
         title: String?,
         directory: String?,
-    ): OpenCodeSession = error("Grok Build chat sessions are not wired yet; install and API key work from agent settings")
+    ): OpenCodeSession =
+        withContext(Dispatchers.IO) {
+            runtime.createSession(title, directory)
+        }
 
-    override suspend fun listMessages(sessionId: String): List<OpenCodeMessage> = emptyList()
+    override suspend fun listMessages(sessionId: String): List<OpenCodeMessage> =
+        withContext(Dispatchers.IO) { runtime.listMessages(sessionId) }
 
     override suspend fun sendMessage(
         sessionId: String,
         request: PromptRequest,
     ) {
-        error("Grok Build interactive chat is not wired yet (API-key auth is ready)")
+        withContext(Dispatchers.IO) {
+            val rootfs = installer.installedRuntime()?.rootfs ?: error("Linux environment is not installed")
+            runtime.send(rootfs, sessionId, request)
+        }
     }
 
     override suspend fun abortSession(sessionId: String): Boolean = false
@@ -221,5 +228,5 @@ class GrokBuildTarget(
         path: String,
     ): OpenCodeFileContent = withContext(Dispatchers.IO) { files.read(directory, path) }
 
-    override fun events(): Flow<OpenCodeEvent> = emptyFlow()
+    override fun events(): Flow<OpenCodeEvent> = runtime.events()
 }
