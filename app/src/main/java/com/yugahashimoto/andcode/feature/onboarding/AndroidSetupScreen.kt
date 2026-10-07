@@ -1036,7 +1036,10 @@ private fun RuntimeDownloadStep(
                 Text(stringResource(R.string.agent_hermes_name), fontWeight = FontWeight.SemiBold)
                 val step = stepFor(LocalAgent.HERMES)
                 when {
+                    // Hermes-tagged step from LocalRuntimeInstaller
                     step != null -> SharedInstallProgress(step)
+                    // Shared Alpine bootstrap (agent == null) while Hermes is selected
+                    installing != null -> SharedInstallProgress(installing)
                     hermes.install is HermesInstallStatus.Installing -> {
                         val inst = hermes.install as HermesInstallStatus.Installing
                         Text(
@@ -1065,13 +1068,17 @@ private fun RuntimeDownloadStep(
                                 ?: stringResource(R.string.agent_status_install_failed),
                             color = MaterialTheme.colorScheme.error,
                         )
-                    hermes.isReady() ->
+                    runtimeStatus is LocalRuntimeStatus.Broken ->
+                        Text(
+                            (runtimeStatus as LocalRuntimeStatus.Broken).message
+                                ?: stringResource(R.string.agent_status_install_failed),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    hermes.isReady() || hermes.installed ->
                         ReadyAgentRow(
                             stringResource(R.string.agent_hermes_name) +
                                 (hermes.version?.let { " $it" } ?: ""),
                         )
-                    installing != null ->
-                        Text(stringResource(R.string.install_step_installing_hermes))
                     else ->
                         Text(
                             stringResource(R.string.setup_runtime_not_installed),

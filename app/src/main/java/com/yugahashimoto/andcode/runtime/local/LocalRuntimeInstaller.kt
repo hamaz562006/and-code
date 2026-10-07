@@ -265,12 +265,17 @@ class LocalRuntimeInstaller(
                 }
 
                 if (LocalAgent.HERMES in requestedAgents) {
+                    // Hermes Termux deb is ~160MB — give it a wide progress span so setup UI
+                    // does not sit on an idle "Not installed" label during the long download.
                     val hermesLabel = context.getString(R.string.install_step_installing_hermes)
-                    onHermes(0.88f, hermesLabel)
+                    val hermesStart = 0.35f
+                    val hermesEnd = 0.95f
+                    onHermes(hermesStart, hermesLabel)
                     HermesInstaller.install(runtimeDirectory) { fraction ->
-                        onHermes(0.88f + fraction.coerceIn(0f, 1f) * 0.05f, hermesLabel)
+                        val span = hermesEnd - hermesStart
+                        onHermes(hermesStart + fraction.coerceIn(0f, 1f) * span, hermesLabel)
                     }
-                    onHermes(0.93f, hermesLabel)
+                    onHermes(hermesEnd, hermesLabel)
                 }
                 val metadata =
                     LocalRuntimeMetadata(
