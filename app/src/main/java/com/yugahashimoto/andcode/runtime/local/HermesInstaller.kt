@@ -111,7 +111,7 @@ object HermesInstaller {
         env["PREFIX"] = File(installRoot(runtimeDirectory), "usr").absolutePath
         env["PATH"] =
             File(installRoot(runtimeDirectory), "usr/bin").absolutePath +
-                ":" + (env["PATH"] ?: "")
+            ":" + (env["PATH"] ?: "")
         extraEnv.forEach { (k, v) -> env[k] = v }
         val process = pb.start()
         val output = process.inputStream.bufferedReader().use { it.readText() }

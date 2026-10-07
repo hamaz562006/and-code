@@ -32,8 +32,7 @@ class HermesRuntime(
         // One-shot processes only.
     }
 
-    fun listSessions(): List<OpenCodeSession> =
-        sessions.values.sortedByDescending { it.time.updated ?: it.time.created }
+    fun listSessions(): List<OpenCodeSession> = sessions.values.sortedByDescending { it.time.updated ?: it.time.created }
 
     fun createSession(title: String?): OpenCodeSession {
         val id = "hermes-${UUID.randomUUID()}"
@@ -50,8 +49,7 @@ class HermesRuntime(
         return session
     }
 
-    fun listMessages(sessionId: String): List<OpenCodeMessage> =
-        messageStore[sessionId]?.toList() ?: emptyList()
+    fun listMessages(sessionId: String): List<OpenCodeMessage> = messageStore[sessionId]?.toList() ?: emptyList()
 
     fun send(
         sessionId: String,
