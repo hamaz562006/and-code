@@ -888,5 +888,44 @@ class SettingsViewModel(
                         ),
                 ),
             )
+
+        val HERMES_SEED_PROVIDERS =
+            listOf(
+                OpenCodeProvider(
+                    id = "openrouter",
+                    name = "OpenRouter",
+                    models =
+                        mapOf(
+                            "openrouter/auto" to
+                                OpenCodeModel(id = "openrouter/auto", providerId = "openrouter", name = "Auto"),
+                        ),
+                ),
+                OpenCodeProvider(
+                    id = "anthropic",
+                    name = "Anthropic",
+                    models =
+                        mapOf(
+                            "claude-sonnet-4-5" to
+                                OpenCodeModel(
+                                    id = "claude-sonnet-4-5",
+                                    providerId = "anthropic",
+                                    name = "Claude Sonnet 4.5",
+                                ),
+                        ),
+                ),
+                OpenCodeProvider(
+                    id = "openai",
+                    name = "OpenAI",
+                    models =
+                        mapOf(
+                            "gpt-4.1" to OpenCodeModel(id = "gpt-4.1", providerId = "openai", name = "GPT-4.1"),
+                        ),
+                ),
+                OpenCodeProvider(
+                    id = "nous",
+                    name = "Nous Portal",
+                    models = emptyMap(),
+                ),
+            )
     }
 }
