@@ -42,7 +42,7 @@ class HermesTarget(
         RuntimeCapabilities(
             permissions = false,
             toolEvents = false,
-            providerModelList = false,
+            providerModelList = true,
         )
 
     private val mutableState = MutableStateFlow<RuntimeState>(RuntimeState.Disconnected)
@@ -116,18 +116,58 @@ class HermesTarget(
                 listOf(
                     OpenCodeProvider(
                         id = "openrouter",
-                        name = "OpenRouter (via Hermes)",
-                        models = emptyMap(),
+                        name = "OpenRouter",
+                        models =
+                            mapOf(
+                                "openrouter/auto" to
+                                    com.yugahashimoto.andcode.core.api.OpenCodeModel(
+                                        id = "openrouter/auto",
+                                        providerId = "openrouter",
+                                        name = "Auto",
+                                    ),
+                            ),
+                    ),
+                    OpenCodeProvider(
+                        id = "anthropic",
+                        name = "Anthropic",
+                        models =
+                            mapOf(
+                                "claude-sonnet-4-5" to
+                                    com.yugahashimoto.andcode.core.api.OpenCodeModel(
+                                        id = "claude-sonnet-4-5",
+                                        providerId = "anthropic",
+                                        name = "Claude Sonnet 4.5",
+                                    ),
+                            ),
+                    ),
+                    OpenCodeProvider(
+                        id = "openai",
+                        name = "OpenAI",
+                        models =
+                            mapOf(
+                                "gpt-4.1" to
+                                    com.yugahashimoto.andcode.core.api.OpenCodeModel(
+                                        id = "gpt-4.1",
+                                        providerId = "openai",
+                                        name = "GPT-4.1",
+                                    ),
+                            ),
                     ),
                     OpenCodeProvider(
                         id = "nous",
-                        name = "Nous Portal (via Hermes)",
+                        name = "Nous Portal",
                         models = emptyMap(),
                     ),
                 ),
-            default = emptyMap(),
             connected = emptyList(),
+            default =
+                mapOf(
+                    "openrouter" to "openrouter/auto",
+                    "anthropic" to "claude-sonnet-4-5",
+                    "openai" to "gpt-4.1",
+                ),
         )
+
 
     override suspend fun listAgents(): List<OpenCodeAgent> =
         listOf(OpenCodeAgent(name = "hermes", description = "Hermes", mode = "primary", native = true))
@@ -140,6 +180,23 @@ class HermesTarget(
                 path = File(runtime.runtimeDirectory, "workspace").absolutePath,
             ),
         )
+
+    
+    override suspend fun setProviderApiKey(
+        providerId: String,
+        apiKey: String,
+        metadata: Map<String, String>,
+    ): Boolean =
+        withContext(Dispatchers.IO) {
+            runtime.setApiKey(providerId, apiKey)
+            true
+        }
+
+    override suspend fun removeProviderAuth(providerId: String): Boolean =
+        withContext(Dispatchers.IO) {
+            runtime.setApiKey(providerId, null)
+            true
+        }
 
     override suspend fun listFiles(
         directory: String,

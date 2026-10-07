@@ -170,6 +170,17 @@ object HermesInstaller {
             ":" +
             (env["PATH"] ?: "")
         extraEnv.forEach { (k, v) -> env[k] = v }
+        // Load HERMES_HOME/.env into the process (API keys written by Settings).
+        val envFile = File(hermesHome, ".env")
+        if (envFile.isFile) {
+            envFile.readLines().forEach { line ->
+                val trimmed = line.trim()
+                if (trimmed.isEmpty() || trimmed.startsWith("#") || !trimmed.contains("=")) return@forEach
+                val key = trimmed.substringBefore("=").trim()
+                val value = trimmed.substringAfter("=").trim()
+                if (key.isNotEmpty()) env[key] = value
+            }
+        }
         val process = pb.start()
         val output = process.inputStream.bufferedReader().use { it.readText() }
         val completed = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)

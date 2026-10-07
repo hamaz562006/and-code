@@ -207,6 +207,7 @@ class SettingsViewModel(
                         core.selected?.agent == LocalAgent.OPEN_CODE ||
                         core.selected?.agent == LocalAgent.PI ||
                         core.selected?.agent == LocalAgent.GROK_BUILD ||
+                        core.selected?.agent == LocalAgent.HERMES ||
                         core.selected?.agent == null
                     ) {
                         core.runtime.providers
@@ -225,6 +226,12 @@ class SettingsViewModel(
                 } else {
                     emptyList()
                 }
+            val hermesSeed =
+                if (core.selected?.agent == LocalAgent.HERMES && managed.all.isEmpty()) {
+                    HERMES_SEED_PROVIDERS
+                } else {
+                    emptyList()
+                }
             val customAsProviders =
                 customProviders.definitions().map { def ->
                     OpenCodeProvider(
@@ -236,12 +243,12 @@ class SettingsViewModel(
                             },
                     )
                 }
-            val baseAvailable = managed.all.ifEmpty { piSeed.ifEmpty { grokSeed } }
+            val baseAvailable = managed.all.ifEmpty { piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed } } }
             val mergedAvailable =
                 (baseAvailable + customAsProviders).distinctBy { it.id }
             SettingsUiState(
                 providers =
-                    (core.runtime.providers.all.ifEmpty { piSeed.ifEmpty { grokSeed } }).filter { it.id in chatConnected },
+                    (core.runtime.providers.all.ifEmpty { piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed } } }).filter { it.id in chatConnected },
                 availableProviders = mergedAvailable,
                 connectedProviderIds = (managed.connected.toSet() + oauth.locallyConnected) - oauth.locallyDisconnected,
                 agents = core.runtime.agents.filter { it.mode == null || it.mode == "primary" },
@@ -423,6 +430,7 @@ class SettingsViewModel(
         val selected = registry.selected.value
         if (selected?.agent == LocalAgent.PI) return selected
         if (selected?.agent == LocalAgent.GROK_BUILD) return selected
+        if (selected?.agent == LocalAgent.HERMES) return selected
         if (selected?.agent == LocalAgent.OPEN_CODE) return selected
         return registry.targetFor(LocalAgent.OPEN_CODE)
     }

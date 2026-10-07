@@ -133,4 +133,51 @@ class HermesRuntime(
             error(assistantText)
         }
     }
+
+    fun hermesHome(): File = File(runtimeDirectory, "hermes-home").apply { mkdirs() }
+
+    /** Writes provider API keys into HERMES_HOME/.env for the bundled CLI. */
+    fun setApiKey(providerId: String, apiKey: String?) {
+        val home = hermesHome()
+        val envFile = File(home, ".env")
+        val keyName =
+            when (providerId.lowercase()) {
+                "openrouter" -> "OPENROUTER_API_KEY"
+                "anthropic" -> "ANTHROPIC_API_KEY"
+                "openai" -> "OPENAI_API_KEY"
+                "nous" -> "NOUS_API_KEY"
+                else -> providerId.uppercase().replace("-", "_") + "_API_KEY"
+            }
+        val existing =
+            if (envFile.isFile) {
+                envFile.readLines().filter { line ->
+                    val k = line.substringBefore("=").trim()
+                    k.isNotEmpty() && k != keyName && !line.trimStart().startsWith("#")
+                }
+            } else {
+                emptyList()
+            }
+        val lines =
+            if (apiKey.isNullOrBlank()) {
+                existing
+            } else {
+                existing + "$keyName=$apiKey"
+            }
+        envFile.writeText(lines.joinToString("\n") + if (lines.isNotEmpty()) "\n" else "")
+    }
+
+    fun hasApiKey(providerId: String): Boolean {
+        val envFile = File(hermesHome(), ".env")
+        if (!envFile.isFile) return false
+        val keyName =
+            when (providerId.lowercase()) {
+                "openrouter" -> "OPENROUTER_API_KEY"
+                "anthropic" -> "ANTHROPIC_API_KEY"
+                "openai" -> "OPENAI_API_KEY"
+                "nous" -> "NOUS_API_KEY"
+                else -> providerId.uppercase().replace("-", "_") + "_API_KEY"
+            }
+        return envFile.readLines().any { it.trim().startsWith("$keyName=") && it.substringAfter("=").isNotBlank() }
+    }
+
 }

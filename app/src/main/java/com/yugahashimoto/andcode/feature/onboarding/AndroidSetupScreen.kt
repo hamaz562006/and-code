@@ -1422,13 +1422,20 @@ private fun SignInStep(
                         onDisconnectProvider = onDisconnectProvider,
                         header = false,
                     )
-                LocalAgent.HERMES ->
-                    ProviderConnectionStep(
-                        settingsState = settingsState,
-                        onOpenProviderAuth = onOpenProviderAuth,
-                        onDisconnectProvider = onDisconnectProvider,
-                        header = false,
+                LocalAgent.HERMES -> {
+                    Text(
+                        stringResource(R.string.agent_hermes_name),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                     )
+                    Text(
+                        "Hermes runs on-device (no OpenCode localhost). " +
+                            "After setup, open Settings → Providers while Hermes is selected " +
+                            "to add OpenRouter, Anthropic, OpenAI, or Nous API keys.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }

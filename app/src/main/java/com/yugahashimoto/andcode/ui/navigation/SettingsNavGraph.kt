@@ -30,6 +30,7 @@ import com.yugahashimoto.andcode.feature.settings.CodexSignInActions
 import com.yugahashimoto.andcode.feature.settings.CodexSignInViewModel
 import com.yugahashimoto.andcode.feature.settings.GitHubSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.GrokBuildAgentSettingsScreen
+import com.yugahashimoto.andcode.feature.settings.HermesAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ModelVisibilityScreen
 import com.yugahashimoto.andcode.feature.settings.OpenCodeAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.OpenCodeAgentSettingsViewModel
@@ -300,6 +301,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenCodex = { navController.navigate(ROUTE_SETTINGS_AGENT_CODEX) },
             onOpenPi = { navController.navigate(ROUTE_SETTINGS_AGENT_PI) },
             onOpenGrokBuild = { navController.navigate(ROUTE_SETTINGS_AGENT_GROK_BUILD) },
+            onOpenHermes = { navController.navigate(ROUTE_SETTINGS_AGENT_HERMES) },
             onBack = { navController.popBackStack() },
         )
     }
@@ -471,7 +473,18 @@ fun NavGraphBuilder.settingsNavGraph(
         )
     }
 
-    composable(ROUTE_SETTINGS_AGENT_CODEX) {
+    
+    composable(ROUTE_SETTINGS_AGENT_HERMES) {
+        val hermesState by app.hermesController.state.collectAsState()
+        HermesAgentSettingsScreen(
+            hermes = hermesState,
+            onInstall = { app.hermesController.install() },
+            onRefresh = { app.hermesController.refresh() },
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+composable(ROUTE_SETTINGS_AGENT_CODEX) {
         val app = context.applicationContext as com.yugahashimoto.andcode.AndCodeApplication
         val codex by app.codexController.state.collectAsState()
         val signInViewModel: CodexSignInViewModel =
