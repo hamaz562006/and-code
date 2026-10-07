@@ -203,6 +203,7 @@ fun AndCodeApp(
     val codexState by app.codexController.state.collectAsState()
     val piState by app.piController.state.collectAsState()
     val grokBuildState by app.grokBuildController.state.collectAsState()
+    val hermesState by app.hermesController.state.collectAsState()
     val codexSignInViewModel: CodexSignInViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel(
             key = "setup-codex-sign-in",
@@ -1058,6 +1059,7 @@ fun AndCodeApp(
                             codex = codexState,
                             pi = piState,
                             grok = grokBuildState,
+                            hermes = hermesState,
                             codexSignInDialog = codexSignInDialog,
                             codexSignIn =
                                 CodexSignInActions(

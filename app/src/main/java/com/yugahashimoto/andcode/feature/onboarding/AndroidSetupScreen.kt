@@ -82,6 +82,8 @@ import com.yugahashimoto.andcode.runtime.local.CodexInstallStatus
 import com.yugahashimoto.andcode.runtime.local.CodexUiState
 import com.yugahashimoto.andcode.runtime.local.GrokBuildInstallStatus
 import com.yugahashimoto.andcode.runtime.local.GrokBuildUiState
+import com.yugahashimoto.andcode.runtime.local.HermesInstallStatus
+import com.yugahashimoto.andcode.runtime.local.HermesUiState
 import com.yugahashimoto.andcode.runtime.local.PiInstallStatus
 import com.yugahashimoto.andcode.runtime.local.PiUiState
 import com.yugahashimoto.andcode.ui.theme.AndCodeTheme
@@ -123,6 +125,7 @@ fun AndroidSetupScreen(
     codex: CodexUiState = CodexUiState(),
     pi: PiUiState = PiUiState(),
     grok: GrokBuildUiState = GrokBuildUiState(),
+    hermes: HermesUiState = HermesUiState(),
     /** Codex signs in through its own dialog state, not [settingsState]'s, which is OpenCode's. */
     codexSignInDialog: ProviderAuthDialogState? = null,
     codexSignIn: CodexSignInActions =
@@ -188,6 +191,7 @@ fun AndroidSetupScreen(
     val codexSelected = LocalAgent.CODEX in selectedAgents
     val piSelected = LocalAgent.PI in selectedAgents
     val grokSelected = LocalAgent.GROK_BUILD in selectedAgents
+    val hermesSelected = LocalAgent.HERMES in selectedAgents
     val openCodeReady = runtimeStatus is LocalRuntimeStatus.Ready || runtimeStatus is LocalRuntimeStatus.Stopped
     val antigravityReady = antigravitySelected && antigravity.installed && !antigravity.busy
     val codexReady = codex.installed && codex.install !is CodexInstallStatus.Installing && codex.install !is CodexInstallStatus.Failed
@@ -196,6 +200,7 @@ fun AndroidSetupScreen(
     // runtime status. isReady() also excludes a reinstall in flight and a failure.
     val piReady = pi.isReady()
     val grokReady = grok.isReady()
+    val hermesReady = hermes.isReady()
     // Only what is selected *and* actually on the device: an agent whose binary is missing has no
     // sign-in to offer, and Claude Code's card would shell out to /usr/bin/claude and fail there.
     // OpenCode, Claude Code, Antigravity - the same order the picker lists them in, so the guide
@@ -208,6 +213,7 @@ fun AndroidSetupScreen(
             LocalAgent.CODEX.takeIf { codexSelected && codex.installed },
             LocalAgent.PI.takeIf { piSelected && pi.installed },
             LocalAgent.GROK_BUILD.takeIf { grokSelected && grok.installed },
+            LocalAgent.HERMES.takeIf { hermesSelected && hermes.installed },
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
@@ -232,6 +238,7 @@ fun AndroidSetupScreen(
             (!codexSelected || codexReady) &&
             (!piSelected || piReady) &&
             (!grokSelected || grokReady) &&
+            (!hermesSelected || hermesReady) &&
             fullToolsReady
     val installComplete = agentsInstallComplete && !fullToolsInstallPending
 
@@ -286,6 +293,15 @@ fun AndroidSetupScreen(
         }
     }
 
+    var hermesInstallWasRunning by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(hermesSelected, packageInstallRunning) {
+        val justFinished = hermesInstallWasRunning && !packageInstallRunning
+        hermesInstallWasRunning = packageInstallRunning
+        if (hermesSelected && justFinished) {
+            (context.applicationContext as? AndCodeApplication)?.hermesController?.refresh()
+        }
+    }
+
     LaunchedEffect(openCodeReady, openCodeSelected, settingsState.availableProviders, settingsState.providerAuthMethods) {
         if (!openCodeSelected || !openCodeReady) return@LaunchedEffect
         if (settingsState.availableProviders.isNotEmpty() && settingsState.providerAuthMethods.isNotEmpty()) return@LaunchedEffect
@@ -337,6 +353,7 @@ fun AndroidSetupScreen(
                     codex.install is CodexInstallStatus.Failed ||
                     pi.install is PiInstallStatus.Failed ||
                     grok.install is GrokBuildInstallStatus.Failed ||
+                    hermes.install is HermesInstallStatus.Failed ||
                     fullDevelopmentToolsInstallFailed
                 ) {
                     SetupPrimaryAction(stringResource(R.string.claude_retry_install_button), true) {
@@ -443,6 +460,8 @@ fun AndroidSetupScreen(
                         piSelected = piSelected,
                         grokSelected = grokSelected,
                         grok = grok,
+                        hermesSelected = hermesSelected,
+                        hermes = hermes,
                     )
                 4 ->
                     SignInStep(
@@ -875,6 +894,8 @@ private fun RuntimeDownloadStep(
     piSelected: Boolean,
     grokSelected: Boolean = false,
     grok: GrokBuildUiState = GrokBuildUiState(),
+    hermesSelected: Boolean = false,
+    hermes: HermesUiState = HermesUiState(),
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
     // each step is shown under the agent it names. Without this the OpenCode panel displayed
@@ -1001,6 +1022,55 @@ private fun RuntimeDownloadStep(
                         )
                     installing != null ->
                         Text(stringResource(R.string.install_step_installing_grok_build))
+                    else ->
+                        Text(
+                            stringResource(R.string.setup_runtime_not_installed),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                }
+            }
+        }
+        if (hermesSelected) {
+            SetupPanel {
+                Text(stringResource(R.string.agent_hermes_name), fontWeight = FontWeight.SemiBold)
+                val step = stepFor(LocalAgent.HERMES)
+                when {
+                    step != null -> SharedInstallProgress(step)
+                    hermes.install is HermesInstallStatus.Installing -> {
+                        val inst = hermes.install as HermesInstallStatus.Installing
+                        Text(
+                            inst.step?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.install_step_installing_hermes),
+                            fontWeight = FontWeight.Medium,
+                        )
+                        val progress = inst.progress
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Text(
+                                text = "${(progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    hermes.install is HermesInstallStatus.Failed ->
+                        Text(
+                            (hermes.install as HermesInstallStatus.Failed).message
+                                ?: stringResource(R.string.agent_status_install_failed),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    hermes.isReady() ->
+                        ReadyAgentRow(
+                            stringResource(R.string.agent_hermes_name) +
+                                (hermes.version?.let { " $it" } ?: ""),
+                        )
+                    installing != null ->
+                        Text(stringResource(R.string.install_step_installing_hermes))
                     else ->
                         Text(
                             stringResource(R.string.setup_runtime_not_installed),
