@@ -55,7 +55,6 @@ class HermesController(
     }
 
     private fun rehydrate() {
-        // Never clobber an in-flight install — refresh can race the setup UI.
         if (mutableState.value.install is HermesInstallStatus.Installing) return
         val dir = runtime.runtimeDirectory
         val installed = HermesInstaller.isInstalledIn(dir)
@@ -74,13 +73,14 @@ class HermesController(
 
     /**
      * Installs Hermes, provisioning the shared Linux environment first when there is none yet.
-     * Mirrors [GrokBuildController.install] / [PiController.install].
+     * Follows the same control flow as [GrokBuildController.install].
      */
     fun install(
         agents: Set<LocalAgent> = setOf(LocalAgent.HERMES),
         developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
     ) {
         if (mutableState.value.install is HermesInstallStatus.Installing) return
+        // Flip UI to Installing *before* launching the coroutine so step 3 never sits on Idle.
         mutableState.update {
             it.copy(install = HermesInstallStatus.Installing(0f, "Preparing Hermes…"))
         }
@@ -90,30 +90,17 @@ class HermesController(
                     val existing = installer.installedMetadata()
                     val othersMissing = (agents - LocalAgent.HERMES).any { existing?.has(it) != true }
                     if (installer.installedRuntime() == null || othersMissing) {
+                        // Shared Alpine rootfs + any other selected agents + Hermes deb (via installer).
                         installer.install(agents + LocalAgent.HERMES, developmentToolGroups) { progress, step, _ ->
                             mutableState.update {
                                 it.copy(install = HermesInstallStatus.Installing(progress, step))
                             }
                         }
-                    } else {
-                        if (developmentToolGroups.isNotEmpty()) {
-                            installer.installDevelopmentToolGroups(developmentToolGroups)
-                        }
-                        HermesInstaller.install(runtime.runtimeDirectory) { fraction ->
-                            mutableState.update {
-                                it.copy(
-                                    install =
-                                        HermesInstallStatus.Installing(
-                                            progress = fraction,
-                                            step = "Installing Hermes package…",
-                                        ),
-                                )
-                            }
-                        }
-                        installer.recordAgent(LocalAgent.HERMES)
+                    } else if (developmentToolGroups.isNotEmpty()) {
+                        installer.installDevelopmentToolGroups(developmentToolGroups)
                     }
-                    // LocalRuntimeInstaller already runs HermesInstaller when HERMES is requested;
-                    // if we only provisioned via installer.install above, ensure binary is present.
+
+                    // Always ensure the host-side Hermes package is present (idempotent if already done).
                     if (!HermesInstaller.isInstalledIn(runtime.runtimeDirectory)) {
                         HermesInstaller.install(runtime.runtimeDirectory) { fraction ->
                             mutableState.update {
@@ -121,17 +108,22 @@ class HermesController(
                                     install =
                                         HermesInstallStatus.Installing(
                                             progress = fraction,
-                                            step = "Installing Hermes package…",
+                                            step = "Downloading Hermes (~160 MB)…",
                                         ),
                                 )
                             }
                         }
-                        installer.recordAgent(LocalAgent.HERMES)
+                    }
+                    installer.recordAgent(LocalAgent.HERMES)
+
+                    val version = HermesInstaller.installedVersion(runtime.runtimeDirectory)
+                    require(HermesInstaller.isInstalledIn(runtime.runtimeDirectory)) {
+                        "Hermes binary missing after install"
                     }
                     mutableState.update {
                         it.copy(
                             installed = true,
-                            version = HermesInstaller.installedVersion(runtime.runtimeDirectory),
+                            version = version,
                             install = HermesInstallStatus.Ready,
                         )
                     }
@@ -140,8 +132,13 @@ class HermesController(
                     throw e
                 } catch (error: Throwable) {
                     val detail = error.cause?.message?.takeIf { it.isNotBlank() }
-                    val message = listOfNotNull(error.message, detail).joinToString(": ").ifBlank { null }
-                    mutableState.update { it.copy(install = HermesInstallStatus.Failed(message)) }
+                    val message =
+                        listOfNotNull(error.message, detail).joinToString(": ").ifBlank {
+                            "Hermes install failed"
+                        }
+                    mutableState.update {
+                        it.copy(install = HermesInstallStatus.Failed(message))
+                    }
                 }
             }
         }

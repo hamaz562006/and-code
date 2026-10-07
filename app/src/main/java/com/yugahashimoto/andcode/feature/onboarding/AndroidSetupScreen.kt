@@ -303,6 +303,18 @@ fun AndroidSetupScreen(
         }
     }
 
+    // Safety net: if setup reaches the download step with Hermes selected but install never
+    // started (or was reset to Idle), kick it off once. Mirrors the step-2 onStartSetup path.
+    var hermesAutoStartAttempted by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(currentStep, hermesSelected, hermes.install, hermes.installed, packageInstallRunning) {
+        if (currentStep != 3 || !hermesSelected || hermes.installed) return@LaunchedEffect
+        if (hermes.install is HermesInstallStatus.Installing || packageInstallRunning) return@LaunchedEffect
+        if (hermes.install is HermesInstallStatus.Failed) return@LaunchedEffect
+        if (hermesAutoStartAttempted) return@LaunchedEffect
+        hermesAutoStartAttempted = true
+        onStartSetup(selectedAgents, selectedDevGroups)
+    }
+
     LaunchedEffect(openCodeReady, openCodeSelected, settingsState.availableProviders, settingsState.providerAuthMethods) {
         if (!openCodeSelected || !openCodeReady) return@LaunchedEffect
         if (settingsState.availableProviders.isNotEmpty() && settingsState.providerAuthMethods.isNotEmpty()) return@LaunchedEffect
@@ -347,28 +359,16 @@ fun AndroidSetupScreen(
             3 ->
                 if (installComplete) {
                     SetupPrimaryAction(stringResource(R.string.setup_next_action), true) { currentStep = 4 }
-                } else if (
-                    runtimeStatus is LocalRuntimeStatus.Broken ||
-                    claude.install is ClaudeInstallStatus.Failed ||
-                    antigravity.error != null ||
-                    codex.install is CodexInstallStatus.Failed ||
-                    pi.install is PiInstallStatus.Failed ||
-                    grok.install is GrokBuildInstallStatus.Failed ||
-                    hermes.install is HermesInstallStatus.Failed ||
-                    fullDevelopmentToolsInstallFailed
-                ) {
+                } else if (packageInstallRunning) {
+                    null
+                } else {
+                    // Idle, failed, or stuck "Not installed" — always allow starting/retrying install.
                     SetupPrimaryAction(stringResource(R.string.claude_retry_install_button), true) {
                         onStartSetup(
-                            // A failed Codex install is retried with the whole selection too: the
-                            // failure may have discarded the other agents with it, and
-                            // CodexController.install already installs Codex alone when the rest are
-                            // there.
                             if (antigravity.error != null) setOf(LocalAgent.ANTIGRAVITY) else selectedAgents,
                             selectedDevGroups,
                         )
                     }
-                } else {
-                    null
                 }
             // "Next" walks the sign-in tabs before it leaves the step, so signing in to three
             // agents is three taps of one button rather than a hunt for the chip the user has not
