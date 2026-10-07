@@ -34,7 +34,9 @@ data class HermesUiState(
 }
 
 /**
- * Owns Hermes install state. Package is the Termux aarch64 `.deb` run on the host.
+ * Single owner of Hermes install state — same control flow as [PiController].
+ *
+ * Package is the Termux aarch64 `.deb` extracted onto the Android host.
  */
 class HermesController(
     private val runtime: HermesRuntime,
@@ -55,52 +57,80 @@ class HermesController(
     }
 
     private fun rehydrate() {
-        if (mutableState.value.install is HermesInstallStatus.Installing) return
         val dir = runtime.runtimeDirectory
         val installed = HermesInstaller.isInstalledIn(dir)
         val version = HermesInstaller.installedVersion(dir)
+        if (!installed) {
+            mutableState.update {
+                it.copy(
+                    installed = false,
+                    version = null,
+                    // Keep Installing / Failed so setup does not flash "Not installed".
+                    install =
+                        when (it.install) {
+                            is HermesInstallStatus.Installing -> it.install
+                            is HermesInstallStatus.Failed -> it.install
+                            else -> HermesInstallStatus.Idle
+                        },
+                )
+            }
+            return
+        }
         mutableState.update {
             it.copy(
-                installed = installed,
+                installed = true,
                 version = version,
-                install = if (installed) HermesInstallStatus.Ready else HermesInstallStatus.Idle,
+                install =
+                    if (it.install is HermesInstallStatus.Installing) {
+                        it.install
+                    } else {
+                        HermesInstallStatus.Ready
+                    },
             )
         }
-        if (installed) {
-            scope.launch { runCatching { target.connect() } }
-        }
+        scope.launch { runCatching { target.connect() } }
     }
 
     /**
      * Installs Hermes, provisioning the shared Linux environment first when there is none yet.
-     * Follows the same control flow as [GrokBuildController.install].
+     * Identical structure to [PiController.install].
      */
     fun install(
         agents: Set<LocalAgent> = setOf(LocalAgent.HERMES),
         developmentToolGroups: Set<DevelopmentToolGroup> = emptySet(),
     ) {
         if (mutableState.value.install is HermesInstallStatus.Installing) return
-        // Flip UI to Installing *before* launching the coroutine so step 3 never sits on Idle.
-        mutableState.update {
-            it.copy(install = HermesInstallStatus.Installing(0f, "Preparing Hermes…"))
-        }
+        mutableState.update { it.copy(install = HermesInstallStatus.Installing()) }
         scope.launch {
             runtimeWork.withLease("hermes-install") {
                 try {
                     val existing = installer.installedMetadata()
                     val othersMissing = (agents - LocalAgent.HERMES).any { existing?.has(it) != true }
                     if (installer.installedRuntime() == null || othersMissing) {
-                        // Shared Alpine rootfs + any other selected agents + Hermes deb (via installer).
                         installer.install(agents + LocalAgent.HERMES, developmentToolGroups) { progress, step, _ ->
                             mutableState.update {
                                 it.copy(install = HermesInstallStatus.Installing(progress, step))
                             }
                         }
-                    } else if (developmentToolGroups.isNotEmpty()) {
-                        installer.installDevelopmentToolGroups(developmentToolGroups)
+                    } else {
+                        if (developmentToolGroups.isNotEmpty()) {
+                            installer.installDevelopmentToolGroups(developmentToolGroups)
+                        }
+                        HermesInstaller.install(runtime.runtimeDirectory) { fraction ->
+                            mutableState.update {
+                                it.copy(
+                                    install =
+                                        HermesInstallStatus.Installing(
+                                            progress = fraction,
+                                            step = "Installing Hermes…",
+                                        ),
+                                )
+                            }
+                        }
+                        installer.recordAgent(LocalAgent.HERMES)
                     }
-
-                    // Always ensure the host-side Hermes package is present (idempotent if already done).
+                    // installer.install already runs HermesInstaller when HERMES is requested;
+                    // if shared env existed and we only did HermesInstaller above, still OK.
                     if (!HermesInstaller.isInstalledIn(runtime.runtimeDirectory)) {
                         HermesInstaller.install(runtime.runtimeDirectory) { fraction ->
                             mutableState.update {
@@ -108,37 +138,21 @@ class HermesController(
                                     install =
                                         HermesInstallStatus.Installing(
                                             progress = fraction,
-                                            step = "Downloading Hermes (~160 MB)…",
+                                            step = "Installing Hermes…",
                                         ),
                                 )
                             }
                         }
+                        installer.recordAgent(LocalAgent.HERMES)
                     }
-                    installer.recordAgent(LocalAgent.HERMES)
-
-                    val version = HermesInstaller.installedVersion(runtime.runtimeDirectory)
-                    require(HermesInstaller.isInstalledIn(runtime.runtimeDirectory)) {
-                        "Hermes binary missing after install"
-                    }
-                    mutableState.update {
-                        it.copy(
-                            installed = true,
-                            version = version,
-                            install = HermesInstallStatus.Ready,
-                        )
-                    }
-                    runCatching { target.connect() }
+                    mutableState.update { it.copy(install = HermesInstallStatus.Ready) }
+                    runCatching { rehydrate() }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (error: Throwable) {
                     val detail = error.cause?.message?.takeIf { it.isNotBlank() }
-                    val message =
-                        listOfNotNull(error.message, detail).joinToString(": ").ifBlank {
-                            "Hermes install failed"
-                        }
-                    mutableState.update {
-                        it.copy(install = HermesInstallStatus.Failed(message))
-                    }
+                    val message = listOfNotNull(error.message, detail).joinToString(": ").ifBlank { null }
+                    mutableState.update { it.copy(install = HermesInstallStatus.Failed(message)) }
                 }
             }
         }

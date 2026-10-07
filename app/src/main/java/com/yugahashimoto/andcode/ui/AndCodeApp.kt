@@ -1040,10 +1040,8 @@ fun AndCodeApp(
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.GROK_BUILD in agents) {
                                     app.grokBuildController.install(agents, developmentToolGroups)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.HERMES in agents) {
-                                    // Drive install through LocalRuntimeManager so step 3 sees
-                                    // LocalRuntimeStatus.Installing (shared + Hermes package).
-                                    workspaceViewModel.setupLocalRuntime(agents, developmentToolGroups)
-                                    app.hermesController.refresh()
+                                    // Same path as Pi / Grok: controller owns install state for setup UI.
+                                    app.hermesController.install(agents, developmentToolGroups)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE in agents) {
                                     workspaceViewModel.installClaudeCode(developmentToolGroups)
                                 }

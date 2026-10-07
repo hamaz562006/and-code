@@ -1036,12 +1036,9 @@ private fun RuntimeDownloadStep(
                 Text(stringResource(R.string.agent_hermes_name), fontWeight = FontWeight.SemiBold)
                 val step = stepFor(LocalAgent.HERMES)
                 when {
-                    // Hermes-tagged step from LocalRuntimeInstaller
                     step != null -> SharedInstallProgress(step)
-                    // Shared Alpine bootstrap (agent == null) while Hermes is selected
-                    installing != null -> SharedInstallProgress(installing)
                     hermes.install is HermesInstallStatus.Installing -> {
-                        val inst = hermes.install as HermesInstallStatus.Installing
+                        val inst = hermes.install
                         Text(
                             inst.step?.takeIf { it.isNotBlank() }
                                 ?: stringResource(R.string.install_step_installing_hermes),
@@ -1064,21 +1061,18 @@ private fun RuntimeDownloadStep(
                     }
                     hermes.install is HermesInstallStatus.Failed ->
                         Text(
-                            (hermes.install as HermesInstallStatus.Failed).message
+                            hermes.install.message
                                 ?: stringResource(R.string.agent_status_install_failed),
                             color = MaterialTheme.colorScheme.error,
                         )
-                    runtimeStatus is LocalRuntimeStatus.Broken ->
-                        Text(
-                            (runtimeStatus as LocalRuntimeStatus.Broken).reason
-                                .ifBlank { stringResource(R.string.agent_status_install_failed) },
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    hermes.isReady() || hermes.installed ->
+                    hermes.isReady() ->
                         ReadyAgentRow(
                             stringResource(R.string.agent_hermes_name) +
                                 (hermes.version?.let { " $it" } ?: ""),
                         )
+                    // Shared install is running but has not reached Hermes' own step yet.
+                    installing != null ->
+                        Text(stringResource(R.string.install_step_installing_hermes))
                     else ->
                         Text(
                             stringResource(R.string.setup_runtime_not_installed),
