@@ -343,25 +343,13 @@ object RuntimeAgentPackage {
                     val dest = File(rootfs, relative)
                     dest.parentFile?.mkdirs()
                     FileOutputStream(dest).use { out -> zip.copyTo(out) }
-                    if (
-                        relative.startsWith("usr/local/bin/") ||
-                        relative.startsWith("usr/bin/") ||
-                        relative.startsWith("bin/") ||
-                        relative.startsWith("sbin/") ||
-                        relative.endsWith(".so") ||
-                        relative.contains("/node_modules/.bin/") ||
-                        relative.contains("/grok-build/") ||
-                        relative.endsWith("/grok") ||
-                        relative.endsWith("/pi") ||
-                        relative.endsWith("/codex")
-                    ) {
-                        dest.setExecutable(true, false)
-                    }
                     written++
                 }
                 entry = zip.nextEntry
             }
         }
+        // Zip extraction drops Unix +x; proot then fails with execve("/bin/sh"): Permission denied.
+        restoreExecutablePermissions(rootfs)
         val m = manifest ?: error("Package is missing $MANIFEST_NAME")
         require(m.format == FORMAT) { "Unsupported package format: ${m.format}" }
         require(m.formatVersion <= FORMAT_VERSION) { "Package format version ${m.formatVersion} is newer than this app" }

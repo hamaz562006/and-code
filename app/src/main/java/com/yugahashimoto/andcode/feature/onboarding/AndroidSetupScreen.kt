@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -149,9 +150,26 @@ fun AndroidSetupScreen(
     onBack: () -> Unit,
     onFinish: () -> Unit,
     onImportAgentPackage: () -> Unit = {},
+    isImportingAgentPackage: Boolean = false,
+    importAgentPackageSucceeded: Boolean = false,
 ) {
     val context = LocalContext.current
-    var selectedAgents by rememberSaveable(
+    if (isImportingAgentPackage) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.agent_import_preparing_title)) },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(stringResource(R.string.agent_import_preparing_body))
+                }
+            },
+            confirmButton = {},
+        )
+    }
+
+        var selectedAgents by rememberSaveable(
         stateSaver =
             listSaver<Set<LocalAgent>, String>(
                 save = { agents -> agents.map(LocalAgent::id) },
@@ -281,9 +299,16 @@ fun AndroidSetupScreen(
             1 ->
                 SetupPrimaryAction(
                     label = stringResource(R.string.setup_next_action),
-                    enabled = selectedAgents.isNotEmpty(),
+                    enabled =
+                        (selectedAgents.isNotEmpty() || importAgentPackageSucceeded) &&
+                            !isImportingAgentPackage,
                     onClick = {
-                        currentStep = 2
+                        if (importAgentPackageSucceeded && selectedAgents.isEmpty()) {
+                            // Offline import restored files — no download step needed.
+                            onFinish()
+                        } else {
+                            currentStep = 2
+                        }
                     },
                 )
             2 ->
@@ -395,6 +420,8 @@ fun AndroidSetupScreen(
                                 if (agent in selectedAgents) selectedAgents - agent else selectedAgents + agent
                         },
                         onImportPackage = onImportAgentPackage,
+                        isImportingPackage = isImportingAgentPackage,
+                        importPackageSucceeded = importAgentPackageSucceeded,
                     )
                 2 ->
                     DevelopmentToolsStep(
@@ -616,6 +643,8 @@ private fun AgentSelectionStep(
     selectedAgents: Set<LocalAgent>,
     onToggle: (LocalAgent) -> Unit,
     onImportPackage: () -> Unit = {},
+    isImportingPackage: Boolean = false,
+    importPackageSucceeded: Boolean = false,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         StepHeader(
@@ -673,18 +702,47 @@ private fun AgentSelectionStep(
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        // Offline restore without selecting a download — needs an existing Linux environment.
+        // Offline restore: pick a previously exported .andcode.zip (no network).
         OutlinedButton(
             onClick = onImportPackage,
+            enabled = !isImportingPackage,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(stringResource(R.string.agent_import_button))
+            if (isImportingPackage) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                )
+                Spacer(modifier = Modifier.size(10.dp))
+            }
+            Text(
+                if (isImportingPackage) {
+                    stringResource(R.string.agent_import_preparing_title)
+                } else {
+                    stringResource(R.string.agent_import_button)
+                },
+            )
         }
-        Text(
-            text = stringResource(R.string.agent_import_description),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (isImportingPackage) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text(
+                text = stringResource(R.string.agent_import_preparing_body),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else if (importPackageSucceeded) {
+            Text(
+                text = stringResource(R.string.agent_import_done_continue),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        } else {
+            Text(
+                text = stringResource(R.string.agent_import_description),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

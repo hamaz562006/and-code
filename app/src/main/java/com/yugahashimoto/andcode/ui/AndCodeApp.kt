@@ -939,10 +939,16 @@ fun AndCodeApp(
                         val localRuntimeStatus by app.localRuntimeManager.state.collectAsState()
                         val localRuntimeLastOperation by app.localRuntimeManager.lastOperation.collectAsState()
                         val setupScope = rememberCoroutineScope()
+                        var isSetupImporting by remember { mutableStateOf(false) }
+                        var setupImportError by remember { mutableStateOf<String?>(null) }
+                        var setupImportDone by remember { mutableStateOf(false) }
                         val setupImportLauncher =
                             rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
                                 if (uri == null) return@rememberLauncherForActivityResult
                                 setupScope.launch {
+                                    isSetupImporting = true
+                                    setupImportError = null
+                                    setupImportDone = false
                                     val result =
                                         runCatching {
                                             withContext(Dispatchers.IO) {
@@ -955,33 +961,30 @@ fun AndCodeApp(
                                                     tmp.outputStream().use { input.copyTo(it) }
                                                 } ?: error("Unable to read package")
                                                 try {
+                                                    // Offline-first: never network-install during import.
                                                     var rootfs =
                                                         app.localRuntimeInstaller.installedRuntime()?.rootfs
                                                     if (rootfs == null || !rootfs.isDirectory) {
-                                                        // Agent packages need the shared Alpine rootfs.
-                                                        // Peek the agent from the zip, provision env+agent,
-                                                        // then overlay package files (offline agent bits).
-                                                        val peeked = RuntimeAgentPackage.peekManifest(tmp)
-                                                        val agent =
-                                                            peeked?.let { LocalAgent.fromId(it.agentId) }
-                                                                ?: error(app.getString(R.string.agent_import_need_runtime))
-                                                        app.localRuntimeInstaller.install(setOf(agent))
                                                         rootfs =
-                                                            app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                                                ?: error(app.getString(R.string.agent_import_need_runtime))
+                                                            app.localRuntimeInstaller.ensureRootfsForOfflineImport()
                                                     }
                                                     val imported = RuntimeAgentPackage.import(tmp, rootfs)
                                                     app.localRuntimeInstaller.recordAgent(imported.agent)
                                                     runCatching { app.piController.refresh() }
                                                     runCatching { app.grokBuildController.refresh() }
+                                                    runCatching { app.codexController.refresh() }
+                                                    runCatching { app.claudeCodeController.refresh() }
+                                                    runCatching { app.antigravityController.refresh() }
                                                     imported
                                                 } finally {
                                                     tmp.delete()
                                                 }
                                             }
                                         }
+                                    isSetupImporting = false
                                     result
                                         .onSuccess { imported ->
+                                            setupImportDone = true
                                             android.widget.Toast
                                                 .makeText(
                                                     context,
@@ -993,12 +996,14 @@ fun AndCodeApp(
                                                     android.widget.Toast.LENGTH_LONG,
                                                 ).show()
                                         }.onFailure { error ->
+                                            setupImportError =
+                                                error.message?.takeIf { it.isNotBlank() } ?: "error"
                                             android.widget.Toast
                                                 .makeText(
                                                     context,
                                                     app.getString(
                                                         R.string.agent_import_failed,
-                                                        error.message ?: "error",
+                                                        setupImportError ?: "error",
                                                     ),
                                                     android.widget.Toast.LENGTH_LONG,
                                                 ).show()
@@ -1089,8 +1094,10 @@ fun AndCodeApp(
                             onDisconnectGitHub = settingsViewModel::disconnectGitHub,
                             onBack = { navController.popBackStack() },
                             onFinish = completeOnboardingAndGoToChat,
+                            isImportingAgentPackage = isSetupImporting,
+                            importAgentPackageSucceeded = setupImportDone,
                             onImportAgentPackage = {
-                                setupImportLauncher.launch(
+                                if (!isSetupImporting) setupImportLauncher.launch(
                                     arrayOf("application/zip", "application/octet-stream", "*/*"),
                                 )
                             },
