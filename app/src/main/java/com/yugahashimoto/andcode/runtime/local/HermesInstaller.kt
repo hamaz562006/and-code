@@ -25,12 +25,10 @@ object HermesInstaller {
     fun installRoot(runtimeDirectory: File): File = File(runtimeDirectory, HermesManifest.INSTALL_DIR)
 
     /** Bundled agent tree (venv, app, tools). */
-    fun agentRoot(runtimeDirectory: File): File =
-        File(installRoot(runtimeDirectory), "usr/lib/hermes-agent")
+    fun agentRoot(runtimeDirectory: File): File = File(installRoot(runtimeDirectory), "usr/lib/hermes-agent")
 
     /** Real CLI entry (shell wrapper around bundled Python). */
-    fun binaryFile(runtimeDirectory: File): File =
-        File(agentRoot(runtimeDirectory), "bin/${HermesManifest.BINARY_NAME}")
+    fun binaryFile(runtimeDirectory: File): File = File(agentRoot(runtimeDirectory), "bin/${HermesManifest.BINARY_NAME}")
 
     fun isInstalledIn(runtimeDirectory: File): Boolean = binaryFile(runtimeDirectory).isFile
 
@@ -167,10 +165,10 @@ object HermesInstaller {
         env["PREFIX"] = File(installRoot(runtimeDirectory), "usr").absolutePath
         env["PATH"] =
             File(installRoot(runtimeDirectory), "usr/bin").absolutePath +
-                ":" +
-                File(agent, "bin").absolutePath +
-                ":" +
-                (env["PATH"] ?: "")
+            ":" +
+            File(agent, "bin").absolutePath +
+            ":" +
+            (env["PATH"] ?: "")
         extraEnv.forEach { (k, v) -> env[k] = v }
         val process = pb.start()
         val output = process.inputStream.bufferedReader().use { it.readText() }
