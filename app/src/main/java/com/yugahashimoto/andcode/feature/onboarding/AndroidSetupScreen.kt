@@ -1070,8 +1070,8 @@ private fun RuntimeDownloadStep(
                         )
                     runtimeStatus is LocalRuntimeStatus.Broken ->
                         Text(
-                            (runtimeStatus as LocalRuntimeStatus.Broken).message
-                                ?: stringResource(R.string.agent_status_install_failed),
+                            (runtimeStatus as LocalRuntimeStatus.Broken).reason
+                                .ifBlank { stringResource(R.string.agent_status_install_failed) },
                             color = MaterialTheme.colorScheme.error,
                         )
                     hermes.isReady() || hermes.installed ->
