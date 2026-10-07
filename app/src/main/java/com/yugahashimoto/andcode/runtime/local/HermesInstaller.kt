@@ -12,18 +12,25 @@ import java.util.concurrent.TimeUnit
 /**
  * Installs the official Hermes Agent Termux `.deb` onto the Android host.
  *
- * Layout after install:
- *   `{runtimeDirectory}/hermes/usr/bin/hermes`
- *   `{runtimeDirectory}/hermes/usr/lib/hermes-agent/...`
+ * Deb layout (canary aarch64):
+ *   data/data/data/com.termux/files/usr/lib/hermes-agent/{bin,app,venv,tools,...}
  *
- * The package is Android/bionic. Chat uses `hermes chat -q` / `hermes -z` on the host.
+ * After install:
+ *   `{runtimeDirectory}/hermes/usr/lib/hermes-agent/bin/hermes`
+ *   `{runtimeDirectory}/hermes/usr/bin/hermes` (thin launcher)
  */
 object HermesInstaller {
     private const val VERSION_MARKER = ".hermes-version"
 
     fun installRoot(runtimeDirectory: File): File = File(runtimeDirectory, HermesManifest.INSTALL_DIR)
 
-    fun binaryFile(runtimeDirectory: File): File = File(installRoot(runtimeDirectory), "usr/bin/${HermesManifest.BINARY_NAME}")
+    /** Bundled agent tree (venv, app, tools). */
+    fun agentRoot(runtimeDirectory: File): File =
+        File(installRoot(runtimeDirectory), "usr/lib/hermes-agent")
+
+    /** Real CLI entry (shell wrapper around bundled Python). */
+    fun binaryFile(runtimeDirectory: File): File =
+        File(agentRoot(runtimeDirectory), "bin/${HermesManifest.BINARY_NAME}")
 
     fun isInstalledIn(runtimeDirectory: File): Boolean = binaryFile(runtimeDirectory).isFile
 
@@ -63,22 +70,32 @@ object HermesInstaller {
                 FileInputStream(deb).use { input ->
                     RuntimeArchive.extractDebianPackage(input, staging)
                 }
-                onProgress(0.90f)
-                val termuxUsr = File(staging, "data/data/com.termux/files/usr")
-                val plainUsr = File(staging, "usr")
-                val usr =
-                    when {
-                        termuxUsr.isDirectory -> termuxUsr
-                        plainUsr.isDirectory -> plainUsr
-                        else -> error("Hermes package did not contain a usr/ tree")
-                    }
+                onProgress(0.88f)
+                val usr = findUsrTree(staging)
                 val destUsr = File(root, "usr")
                 destUsr.deleteRecursively()
                 usr.copyRecursively(destUsr)
+                onProgress(0.94f)
+
+                // Termux shebangs point at /data/data/com.termux/files/usr/bin/sh — rewrite for host.
+                val agentBin = File(destUsr, "lib/hermes-agent/bin")
+                agentBin.listFiles()?.forEach { f ->
+                    if (f.isFile) rewriteShebangToSystemSh(f)
+                }
+                // Thin launcher on PATH: usr/bin/hermes → lib/hermes-agent/bin/hermes
+                val pathBin = File(destUsr, "bin").apply { mkdirs() }
+                val launcher = File(pathBin, HermesManifest.BINARY_NAME)
+                val realBin = File(destUsr, "lib/hermes-agent/bin/${HermesManifest.BINARY_NAME}")
+                launcher.writeText(
+                    "#!/system/bin/sh\n" +
+                        "exec \"${realBin.absolutePath}\" \"\$@\"\n",
+                )
+                launcher.setExecutable(true, false)
+
                 File(root, VERSION_MARKER).writeText(HermesManifest.VERSION + "\n")
-                listOf("bin", "lib").forEach { sub ->
-                    File(destUsr, sub).walkTopDown().forEach { f ->
-                        if (f.isFile || f.isDirectory) f.setExecutable(true, false)
+                listOf(agentBin, pathBin).forEach { dir ->
+                    dir.walkTopDown().forEach { f ->
+                        if (f.isFile) f.setExecutable(true, false)
                     }
                 }
                 require(binaryFile(runtimeDirectory).isFile) {
@@ -91,6 +108,43 @@ object HermesInstaller {
             }
         }
 
+    /**
+     * Deb packages nest Termux paths under one or more `data/` prefixes
+     * (`data/data/com.termux/...` or `data/data/data/com.termux/...`).
+     */
+    private fun findUsrTree(staging: File): File {
+        val candidates =
+            listOf(
+                File(staging, "data/data/data/com.termux/files/usr"),
+                File(staging, "data/data/com.termux/files/usr"),
+                File(staging, "data/com.termux/files/usr"),
+                File(staging, "usr"),
+            )
+        candidates.firstOrNull { it.isDirectory }?.let { return it }
+        val walked =
+            staging
+                .walkTopDown()
+                .maxDepth(10)
+                .firstOrNull { dir ->
+                    dir.isDirectory &&
+                        dir.name == "usr" &&
+                        dir.parentFile?.name == "files" &&
+                        dir.parentFile?.parentFile?.name == "com.termux"
+                }
+        return walked ?: error("Hermes package did not contain a Termux usr/ tree under $staging")
+    }
+
+    private fun rewriteShebangToSystemSh(file: File) {
+        val text =
+            runCatching { file.readText(Charsets.UTF_8) }.getOrNull() ?: return
+        if (!text.startsWith("#!")) return
+        val nl = text.indexOf('\n')
+        if (nl < 0) return
+        val body = text.substring(nl + 1)
+        file.writeText("#!/system/bin/sh\n$body")
+        file.setExecutable(true, false)
+    }
+
     fun runOnHost(
         runtimeDirectory: File,
         args: List<String>,
@@ -100,9 +154,11 @@ object HermesInstaller {
     ): HostResult {
         val binary = binaryFile(runtimeDirectory)
         require(binary.isFile) { "Hermes is not installed" }
+        val agent = agentRoot(runtimeDirectory)
         val hermesHome = File(runtimeDirectory, "hermes-home").apply { mkdirs() }
+        // Always launch via system sh — wrappers may not have the exec bit on some FS.
         val pb =
-            ProcessBuilder(listOf(binary.absolutePath) + args)
+            ProcessBuilder(listOf("/system/bin/sh", binary.absolutePath) + args)
                 .directory(workingDirectory ?: hermesHome)
                 .redirectErrorStream(true)
         val env = pb.environment()
@@ -111,7 +167,10 @@ object HermesInstaller {
         env["PREFIX"] = File(installRoot(runtimeDirectory), "usr").absolutePath
         env["PATH"] =
             File(installRoot(runtimeDirectory), "usr/bin").absolutePath +
-            ":" + (env["PATH"] ?: "")
+                ":" +
+                File(agent, "bin").absolutePath +
+                ":" +
+                (env["PATH"] ?: "")
         extraEnv.forEach { (k, v) -> env[k] = v }
         val process = pb.start()
         val output = process.inputStream.bufferedReader().use { it.readText() }
@@ -123,7 +182,10 @@ object HermesInstaller {
         return HostResult(process.exitValue(), output)
     }
 
-    data class HostResult(val exitCode: Int, val output: String)
+    data class HostResult(
+        val exitCode: Int,
+        val output: String,
+    )
 
     private fun download(
         client: OkHttpClient,
@@ -131,13 +193,13 @@ object HermesInstaller {
         dest: File,
         onProgress: (Float) -> Unit,
     ) {
-        val req = Request.Builder().url(url).get().build()
-        client.newCall(req).execute().use { response ->
-            require(response.isSuccessful) { "Download failed HTTP ${response.code}" }
+        val tmp = File(dest.parentFile, dest.name + ".part")
+        if (tmp.exists()) tmp.delete()
+        val request = Request.Builder().url(url).get().build()
+        client.newCall(request).execute().use { response ->
+            require(response.isSuccessful) { "Download failed HTTP ${response.code} for $url" }
             val body = response.body ?: error("Empty body")
             val total = body.contentLength().takeIf { it > 0 } ?: HermesManifest.DEB_SIZE_BYTES
-            dest.parentFile?.mkdirs()
-            val tmp = File(dest.path + ".part")
             body.byteStream().use { input ->
                 FileOutputStream(tmp).use { out ->
                     val buf = ByteArray(64 * 1024)
