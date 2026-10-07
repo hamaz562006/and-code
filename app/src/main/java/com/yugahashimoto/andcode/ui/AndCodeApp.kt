@@ -96,6 +96,7 @@ import com.yugahashimoto.andcode.feature.settings.SettingsViewModel
 import com.yugahashimoto.andcode.feature.wakeword.WakeWordService
 import com.yugahashimoto.andcode.feature.wakeword.WakeWordSettingsPolicy
 import com.yugahashimoto.andcode.feature.workspace.WorkspaceViewModel
+import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.RuntimeState
 import com.yugahashimoto.andcode.runtime.WorkspaceRef
 import com.yugahashimoto.andcode.runtime.local.GitCloneResult
@@ -201,6 +202,7 @@ fun AndCodeApp(
     val antigravityState by app.antigravityController.state.collectAsState()
     val codexState by app.codexController.state.collectAsState()
     val piState by app.piController.state.collectAsState()
+    val grokBuildState by app.grokBuildController.state.collectAsState()
     val codexSignInViewModel: CodexSignInViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel(
             key = "setup-codex-sign-in",
@@ -937,16 +939,19 @@ fun AndCodeApp(
                         val localRuntimeStatus by app.localRuntimeManager.state.collectAsState()
                         val localRuntimeLastOperation by app.localRuntimeManager.lastOperation.collectAsState()
                         val setupScope = rememberCoroutineScope()
+                        var isSetupImporting by remember { mutableStateOf(false) }
+                        var setupImportError by remember { mutableStateOf<String?>(null) }
+                        var setupImportDone by remember { mutableStateOf(false) }
                         val setupImportLauncher =
                             rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
                                 if (uri == null) return@rememberLauncherForActivityResult
                                 setupScope.launch {
+                                    isSetupImporting = true
+                                    setupImportError = null
+                                    setupImportDone = false
                                     val result =
                                         runCatching {
                                             withContext(Dispatchers.IO) {
-                                                val rootfs =
-                                                    app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                                        ?: error(app.getString(R.string.agent_import_need_runtime))
                                                 val tmp =
                                                     File(
                                                         app.cacheDir,
@@ -956,17 +961,30 @@ fun AndCodeApp(
                                                     tmp.outputStream().use { input.copyTo(it) }
                                                 } ?: error("Unable to read package")
                                                 try {
+                                                    // Offline-first: never network-install during import.
+                                                    var rootfs =
+                                                        app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                                    if (rootfs == null || !rootfs.isDirectory) {
+                                                        rootfs =
+                                                            app.localRuntimeInstaller.ensureRootfsForOfflineImport()
+                                                    }
                                                     val imported = RuntimeAgentPackage.import(tmp, rootfs)
                                                     app.localRuntimeInstaller.recordAgent(imported.agent)
                                                     runCatching { app.piController.refresh() }
+                                                    runCatching { app.grokBuildController.refresh() }
+                                                    runCatching { app.codexController.refresh() }
+                                                    runCatching { app.claudeCodeController.refresh() }
+                                                    runCatching { app.antigravityController.refresh() }
                                                     imported
                                                 } finally {
                                                     tmp.delete()
                                                 }
                                             }
                                         }
+                                    isSetupImporting = false
                                     result
                                         .onSuccess { imported ->
+                                            setupImportDone = true
                                             android.widget.Toast
                                                 .makeText(
                                                     context,
@@ -978,12 +996,14 @@ fun AndCodeApp(
                                                     android.widget.Toast.LENGTH_LONG,
                                                 ).show()
                                         }.onFailure { error ->
+                                            setupImportError =
+                                                error.message?.takeIf { it.isNotBlank() } ?: "error"
                                             android.widget.Toast
                                                 .makeText(
                                                     context,
                                                     app.getString(
                                                         R.string.agent_import_failed,
-                                                        error.message ?: "error",
+                                                        setupImportError ?: "error",
                                                     ),
                                                     android.widget.Toast.LENGTH_LONG,
                                                 ).show()
@@ -1016,6 +1036,8 @@ fun AndCodeApp(
                                     app.codexController.install(agents, developmentToolGroups)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.PI in agents) {
                                     app.piController.install(agents, developmentToolGroups)
+                                } else if (com.yugahashimoto.andcode.runtime.LocalAgent.GROK_BUILD in agents) {
+                                    app.grokBuildController.install(agents, developmentToolGroups)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE in agents) {
                                     workspaceViewModel.installClaudeCode(developmentToolGroups)
                                 }
@@ -1033,6 +1055,7 @@ fun AndCodeApp(
                             onSignOutAntigravity = app.antigravityController::logout,
                             codex = codexState,
                             pi = piState,
+                            grok = grokBuildState,
                             codexSignInDialog = codexSignInDialog,
                             codexSignIn =
                                 CodexSignInActions(
@@ -1071,10 +1094,14 @@ fun AndCodeApp(
                             onDisconnectGitHub = settingsViewModel::disconnectGitHub,
                             onBack = { navController.popBackStack() },
                             onFinish = completeOnboardingAndGoToChat,
+                            isImportingAgentPackage = isSetupImporting,
+                            importAgentPackageSucceeded = setupImportDone,
                             onImportAgentPackage = {
-                                setupImportLauncher.launch(
-                                    arrayOf("application/zip", "application/octet-stream", "*/*"),
-                                )
+                                if (!isSetupImporting) {
+                                    setupImportLauncher.launch(
+                                        arrayOf("application/zip", "application/octet-stream", "*/*"),
+                                    )
+                                }
                             },
                         )
                     }

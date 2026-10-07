@@ -261,6 +261,7 @@ fun WorkspacesScreen(
                                     LocalAgent.ANTIGRAVITY -> target.state is RuntimeState.Connected
                                     LocalAgent.CODEX -> target.state is RuntimeState.Connected
                                     LocalAgent.PI -> target.state is RuntimeState.Connected
+                                    LocalAgent.GROK_BUILD -> target.state is RuntimeState.Connected
                                     null -> true
                                 },
                         ) {
@@ -856,6 +857,8 @@ private fun targetSubtitle(
         localAgentSubtitle(target.state, R.string.antigravity_installed_version, R.string.runtime_status_not_installed)
     } else if (target.agent == LocalAgent.PI) {
         localAgentSubtitle(target.state, R.string.pi_installed_version, R.string.runtime_status_not_installed)
+    } else if (target.agent == LocalAgent.GROK_BUILD) {
+        localAgentSubtitle(target.state, R.string.grok_build_installed_version, R.string.runtime_status_not_installed)
     } else {
         when (target.type) {
             RuntimeType.REMOTE ->

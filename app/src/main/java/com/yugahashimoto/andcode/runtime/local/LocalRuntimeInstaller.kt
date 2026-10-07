@@ -65,6 +65,7 @@ class LocalRuntimeInstaller(
             val onAntigravity: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.ANTIGRAVITY) }
             val onCodex: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.CODEX) }
             val onPi: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.PI) }
+            val onGrok: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.GROK_BUILD) }
             runtimeDirectory.mkdirs()
             onShared(0.02f, context.getString(R.string.install_step_preparing_command_env))
             val existingMetadata = installedMetadata()
@@ -233,6 +234,23 @@ class LocalRuntimeInstaller(
                     )
                     onPi(piDoneAt, piDownloadLabel)
                 }
+
+                if (LocalAgent.GROK_BUILD in requestedAgents) {
+                    val grokStart = if (!withOpenCode) 0.90f else 0.96f
+                    val grokEnd = if (!withOpenCode) 0.98f else 0.99f
+                    val grokLabel = context.getString(R.string.install_step_installing_grok_build)
+                    onGrok(grokStart, grokLabel)
+                    GrokBuildInstaller.install(
+                        rootfs = rootfs,
+                        runtimeDirectory = runtimeDirectory,
+                        httpClient = httpClient,
+                        onProgress = { fraction ->
+                            val span = grokEnd - grokStart
+                            onGrok(grokStart + fraction.coerceIn(0f, 1f) * span, grokLabel)
+                        },
+                    )
+                    onGrok(grokEnd, grokLabel)
+                }
                 if (LocalAgent.ANTIGRAVITY in requestedAgents) {
                     onAntigravity(0.94f, context.getString(R.string.install_step_downloading_antigravity))
                     val antigravityRelease = resolveAntigravityRelease(abi, httpClient)
@@ -337,14 +355,75 @@ class LocalRuntimeInstaller(
             runCatching { json.decodeFromString<LocalRuntimeMetadata>(metadataFile.readText()) }.getOrNull()
         }
 
+    /**
+     * Creates [environment/rootfs] without network so an offline [RuntimeAgentPackage] can be
+     * extracted into it. Host proot tools come from the APK ([EmbeddedCommandSuite]).
+     */
+    fun ensureRootfsForOfflineImport(): File =
+        accessCoordinator.write {
+            val active = File(runtimeDirectory, "environment")
+            val rootfs = File(active, "rootfs")
+            if (rootfs.isDirectory && rootfs.list()?.isNotEmpty() == true) {
+                return@write rootfs
+            }
+            active.mkdirs()
+            rootfs.mkdirs()
+            File(rootfs, "root").mkdirs()
+            File(rootfs, "tmp").apply {
+                mkdirs()
+                setWritable(true, false)
+                setExecutable(true, false)
+            }
+            File(rootfs, "workspace").mkdirs()
+            EmbeddedCommandSuite(context, runtimeDirectory, abi).ensureInstalled()
+            val metadataFile = File(runtimeDirectory, METADATA_FILE)
+            if (!metadataFile.isFile) {
+                val metadata =
+                    LocalRuntimeMetadata(
+                        version = "offline-import",
+                        port = 0,
+                        installedAt = System.currentTimeMillis(),
+                        runtimeVersion = "offline-import",
+                        abi = abi,
+                        components = emptySet(),
+                        fullDevelopmentToolsInstalled = false,
+                        fullDebianDevelopmentToolsInstalled = false,
+                        installedDevelopmentToolGroups = emptySet(),
+                    )
+                val encoded = json.encodeToString(metadata)
+                File(active, METADATA_FILE).writeText(encoded)
+                metadataFile.writeText(encoded)
+            }
+            rootfs
+        }
+
     /** Records [agent] as provisioned, so a later reinstall keeps it. */
     fun recordAgent(agent: LocalAgent) {
         accessCoordinator.write {
             val metadataFile = File(runtimeDirectory, METADATA_FILE)
-            val metadata =
+            val activeMeta = File(runtimeDirectory, "environment/$METADATA_FILE")
+            val existing =
                 runCatching { json.decodeFromString<LocalRuntimeMetadata>(metadataFile.readText()) }.getOrNull()
-                    ?: return@write
-            metadataFile.writeText(json.encodeToString(metadata.with(agent)))
+                    ?: runCatching { json.decodeFromString<LocalRuntimeMetadata>(activeMeta.readText()) }.getOrNull()
+            val base =
+                existing
+                    ?: LocalRuntimeMetadata(
+                        version = "offline-import",
+                        port = 0,
+                        installedAt = System.currentTimeMillis(),
+                        runtimeVersion = "offline-import",
+                        abi = abi,
+                        components = emptySet(),
+                        fullDevelopmentToolsInstalled = false,
+                        fullDebianDevelopmentToolsInstalled = false,
+                        installedDevelopmentToolGroups = emptySet(),
+                    )
+            val updated = base.with(agent)
+            val encoded = json.encodeToString(updated)
+            metadataFile.parentFile?.mkdirs()
+            metadataFile.writeText(encoded)
+            activeMeta.parentFile?.mkdirs()
+            activeMeta.writeText(encoded)
         }
     }
 
@@ -532,6 +611,10 @@ class LocalRuntimeInstaller(
                 "/sys",
                 "-b",
                 "/system",
+                "-b",
+                "/apex",
+                "-b",
+                "/vendor",
                 "-w",
                 "/root",
                 "/bin/sh",
@@ -586,6 +669,10 @@ class LocalRuntimeInstaller(
                 "/sys",
                 "-b",
                 "/system",
+                "-b",
+                "/apex",
+                "-b",
+                "/vendor",
                 "-b",
                 "${apkCache.absolutePath}:/var/cache/apk",
                 "-w",

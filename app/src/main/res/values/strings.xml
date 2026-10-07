@@ -900,6 +900,15 @@
     <string name="agent_antigravity_name">Antigravity</string>
     <string name="agent_codex_name">Codex</string>
     <string name="agent_pi_name">Pi</string>
+    <string name="agent_grok_build_name">Grok Build</string>
+    <string name="agent_grok_build_description">xAI coding agent (API key, no browser login). Termux aarch64 build.</string>
+    <string name="setup_agent_grok_build_desc">xAI Grok Build via API key (no browser login). ~70 MB download.</string>
+    <string name="install_step_installing_grok_build">Installing Grok Build…</string>
+    <string name="agent_grok_build_api_key_hint">XAI API key from console.x.ai</string>
+    <string name="agent_grok_build_api_key_saved">API key saved</string>
+    <string name="grok_build_install_button">Install Grok Build</string>
+    <string name="grok_build_installed_version">Grok Build %1$s</string>
+
     <string name="runtime_error_install_failed">Could not install the local runtime</string>
     <string name="runtime_error_reinstall_failed">Could not reinstall the local runtime</string>
     <string name="runtime_error_start_failed">Could not start local runtime</string>
@@ -1242,6 +1251,11 @@
     <string name="agent_export_description">Save a full offline package: this agent plus the dependencies installed with it, so it can be restored without re-downloading.</string>
     <string name="agent_export_button">Export package</string>
     <string name="agent_export_preparing">Preparing package…</string>
+    <string name="agent_export_preparing_title">Preparing export</string>
+    <string name="agent_export_preparing_body">Building an offline package with the agent and its dependencies. This can take a minute…</string>
+    <string name="agent_import_preparing_title">Importing package</string>
+    <string name="agent_import_preparing_body">Restoring files into the Linux environment. Please wait…</string>
+    <string name="agent_import_done_continue">Continue</string>
     <string name="agent_import_title">Import agent package</string>
     <string name="agent_import_description">Restore an agent from a previously exported .andcode.zip package. The Linux environment must already be installed.</string>
     <string name="agent_import_button">Import package</string>

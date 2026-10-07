@@ -25,7 +25,7 @@ import java.util.zip.ZipOutputStream
  */
 object RuntimeAgentPackage {
     const val FORMAT = "andcode-agent-package"
-    const val FORMAT_VERSION = 1
+    const val FORMAT_VERSION = 2
     const val MANIFEST_NAME = "manifest.json"
     const val FILE_EXTENSION = "andcode.zip"
     private const val PAYLOAD_PREFIX = "rootfs/"
@@ -47,6 +47,8 @@ object RuntimeAgentPackage {
         @SerialName("exportedAt") val exportedAt: String,
         @SerialName("paths") val paths: List<String> = emptyList(),
         @SerialName("includeConfig") val includeConfig: Boolean = true,
+        /** When true, [paths] includes a base Alpine runtime so import needs no network. */
+        @SerialName("includeBaseRuntime") val includeBaseRuntime: Boolean = true,
     )
 
     data class ExportResult(
@@ -84,22 +86,31 @@ object RuntimeAgentPackage {
         val paths = linkedSetOf<String>()
         when (agent) {
             LocalAgent.PI -> {
-                // Pi CLI tree (includes node_modules when npm deps were installed).
+                // Pi CLI + full npm package tree under usr/local/lib/pi-coding-agent.
                 addIfExists(paths, rootfs, "usr/local/bin/${PiInstaller.PI_BINARY}")
                 addIfExists(paths, rootfs, "usr/local/bin/.${PiInstaller.PI_BINARY}-version")
                 addIfExists(paths, rootfs, "usr/local/lib/pi-coding-agent")
-                // Runtime packages installed with Pi: nodejs, npm, icu-data-full.
+                // Node.js + npm + shared libs installed with Pi (apk: nodejs, npm, icu-data-full).
                 addIfExists(paths, rootfs, "usr/bin/node")
                 addIfExists(paths, rootfs, "usr/bin/nodejs")
                 addIfExists(paths, rootfs, "usr/bin/npm")
                 addIfExists(paths, rootfs, "usr/bin/npx")
                 addIfExists(paths, rootfs, "usr/lib/node_modules")
+                addIfExists(paths, rootfs, "usr/include/node")
+                addIfExists(paths, rootfs, "usr/share/nodejs")
                 addPrefixed(paths, rootfs, "usr/lib", "libnode")
-                // ICU data (icu-data-full) — required for Node on Alpine.
+                addPrefixed(paths, rootfs, "usr/lib", "node")
+                // ICU data + libs (icu-data-full) required for Node on Alpine.
                 addIfExists(paths, rootfs, "usr/share/icu")
+                addIfExists(paths, rootfs, "usr/bin/icuinfo")
                 addPrefixed(paths, rootfs, "usr/lib", "libicu")
+                addPrefixed(paths, rootfs, "usr/lib", "icu")
+                // musl / common dynamic linker pieces Node may need when restored offline.
+                addIfExists(paths, rootfs, "lib/ld-musl-aarch64.so.1")
+                addIfExists(paths, rootfs, "lib/libc.musl-aarch64.so.1")
                 if (includeConfig) {
                     addIfExists(paths, rootfs, "root/.pi")
+                    addIfExists(paths, rootfs, "root/.config/pi")
                 }
             }
             LocalAgent.CODEX -> {
@@ -143,8 +154,31 @@ object RuntimeAgentPackage {
                     addIfExists(paths, rootfs, "root/.config/antigravity")
                 }
             }
+            LocalAgent.GROK_BUILD -> {
+                addIfExists(paths, rootfs, "usr/local/bin/${GrokBuildInstaller.GROK_BINARY}")
+                addIfExists(paths, rootfs, "usr/local/bin/.${GrokBuildInstaller.GROK_BINARY}-version")
+                addIfExists(paths, rootfs, "usr/local/lib/grok-build")
+                addIfExists(paths, rootfs, "usr/local/lib/libc++_shared.so")
+                if (includeConfig) {
+                    addIfExists(paths, rootfs, "root/.grok")
+                }
+            }
         }
+        // Always ship a bootable base so import can restore offline (format v2).
+        addBaseRuntime(paths, rootfs)
         return paths.toList()
+    }
+
+    /** Essential Alpine tree excluding caches/tmp — enough to run agents offline. */
+    private fun addBaseRuntime(
+        paths: MutableSet<String>,
+        rootfs: File,
+    ) {
+        for (name in listOf("bin", "sbin", "lib", "usr", "etc", "lib64")) {
+            addIfExists(paths, rootfs, name)
+        }
+        addIfExists(paths, rootfs, "lib/apk")
+        addIfExists(paths, rootfs, "var/lib")
     }
 
     private fun addIfExists(
@@ -183,6 +217,8 @@ object RuntimeAgentPackage {
         val version =
             when (agent) {
                 LocalAgent.PI -> PiInstaller.installedVersion(rootfs) ?: PiInstaller.PI_VERSION
+                LocalAgent.GROK_BUILD ->
+                    GrokBuildInstaller.installedVersion(rootfs) ?: GrokBuildManifest.VERSION
                 else -> "installed"
             }
         val paths = collectPaths(agent, rootfs, includeConfig)
@@ -200,6 +236,7 @@ object RuntimeAgentPackage {
                 exportedAt = exportedAt,
                 paths = paths,
                 includeConfig = includeConfig,
+                includeBaseRuntime = true,
             )
         val suggested = suggestedFileName(agent, version, abi)
         outputDir.mkdirs()
@@ -210,15 +247,25 @@ object RuntimeAgentPackage {
             zip.putNextEntry(ZipEntry(MANIFEST_NAME))
             zip.write(json.encodeToString(Manifest.serializer(), manifest).toByteArray(Charsets.UTF_8))
             zip.closeEntry()
+            // Agent-specific paths often nest under base runtime dirs (e.g. usr/); skip duplicates.
+            val written = linkedSetOf<String>()
+
+            fun putUnique(
+                file: File,
+                entryName: String,
+            ) {
+                if (!written.add(entryName)) return
+                putFile(zip, file, entryName)
+            }
             for (relative in paths) {
                 val source = File(rootfs, relative)
                 if (source.isFile) {
-                    putFile(zip, source, PAYLOAD_PREFIX + relative)
+                    putUnique(source, PAYLOAD_PREFIX + relative)
                 } else if (source.isDirectory) {
                     source.walkTopDown().forEach { child ->
                         if (child.isFile) {
                             val rel = child.relativeTo(rootfs).path.replace(File.separatorChar, '/')
-                            putFile(zip, child, PAYLOAD_PREFIX + rel)
+                            putUnique(child, PAYLOAD_PREFIX + rel)
                         }
                     }
                 }
@@ -242,6 +289,22 @@ object RuntimeAgentPackage {
         val agent: LocalAgent,
         val filesWritten: Int,
     )
+
+    /** Reads the package manifest without writing into a rootfs. */
+    fun peekManifest(packageFile: File): Manifest? {
+        if (!packageFile.isFile) return null
+        ZipInputStream(BufferedInputStream(FileInputStream(packageFile))).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (!entry.isDirectory && entry.name == MANIFEST_NAME) {
+                    val text = zip.readBytes().toString(Charsets.UTF_8)
+                    return json.decodeFromString(Manifest.serializer(), text)
+                }
+                entry = zip.nextEntry
+            }
+        }
+        return null
+    }
 
     /**
      * Restores an agent package into [rootfs] and returns the manifest.
@@ -280,19 +343,13 @@ object RuntimeAgentPackage {
                     val dest = File(rootfs, relative)
                     dest.parentFile?.mkdirs()
                     FileOutputStream(dest).use { out -> zip.copyTo(out) }
-                    if (
-                        relative.startsWith("usr/local/bin/") ||
-                        relative.startsWith("usr/bin/") ||
-                        relative.endsWith(".so") ||
-                        relative.contains("/node_modules/.bin/")
-                    ) {
-                        dest.setExecutable(true, false)
-                    }
                     written++
                 }
                 entry = zip.nextEntry
             }
         }
+        // Zip extraction drops Unix +x; proot then fails with execve("/bin/sh"): Permission denied.
+        restoreExecutablePermissions(rootfs)
         val m = manifest ?: error("Package is missing $MANIFEST_NAME")
         require(m.format == FORMAT) { "Unsupported package format: ${m.format}" }
         require(m.formatVersion <= FORMAT_VERSION) { "Package format version ${m.formatVersion} is newer than this app" }
@@ -303,5 +360,47 @@ object RuntimeAgentPackage {
             LocalAgent.fromId(m.agentId)
                 ?: error("Unknown agent id in package: ${m.agentId}")
         return ImportResult(m, agent, written)
+    }
+
+    /**
+     * Re-apply execute bits after ZIP extract. Without this, Alpine's /bin/sh and busybox
+     * are non-executable and every proot shell command fails.
+     */
+    private fun restoreExecutablePermissions(rootfs: File) {
+        val dirPrefixes =
+            listOf(
+                "bin",
+                "sbin",
+                "lib",
+                "lib64",
+                "usr/bin",
+                "usr/sbin",
+                "usr/lib",
+                "usr/local/bin",
+                "usr/local/lib",
+                "usr/libexec",
+            )
+        for (prefix in dirPrefixes) {
+            val dir = File(rootfs, prefix)
+            if (!dir.exists()) continue
+            dir.walkTopDown().forEach { file ->
+                if (file.isDirectory) {
+                    file.setReadable(true, false)
+                    file.setExecutable(true, false)
+                } else if (file.isFile) {
+                    file.setReadable(true, false)
+                    file.setExecutable(true, false)
+                    runCatching {
+                        android.system.Os.chmod(file.absolutePath, 0b111_101_101) // 0755
+                    }
+                }
+            }
+        }
+        rootfs.setExecutable(true, false)
+        File(rootfs, "root").takeIf { it.isDirectory }?.setExecutable(true, false)
+        File(rootfs, "tmp").takeIf { it.isDirectory }?.apply {
+            setWritable(true, false)
+            setExecutable(true, false)
+        }
     }
 }

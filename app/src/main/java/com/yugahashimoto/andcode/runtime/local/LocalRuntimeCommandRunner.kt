@@ -29,6 +29,12 @@ class LocalRuntimeCommandRunner(
             val runtime =
                 installedRuntimeProvider()
                     ?: return@read LocalRuntimeCommandResult(127, messages.notInstalled)
+            // Grok Build is a Termux/Android (bionic) binary — Alpine proot cannot satisfy its
+            // system media / linkerconfig dependencies. Run simple `grok …` invocations on host.
+            val hostGrokArgs = hostGrokArgsOrNull(commandText)
+            if (hostGrokArgs != null) {
+                return@read GrokBuildInstaller.runOnHost(runtime.rootfs, hostGrokArgs, timeoutSeconds)
+            }
             val prootTmp = File(runtimeDirectory, "proot-tmp").apply { mkdirs() }
             val outputFile = File.createTempFile("diagnostic-", ".log", File(runtimeDirectory, "logs").apply { mkdirs() })
             try {
@@ -40,14 +46,7 @@ class LocalRuntimeCommandRunner(
                         add("-0")
                         add("-r")
                         add(runtime.rootfs.absolutePath)
-                        add("-b")
-                        add("/dev")
-                        add("-b")
-                        add("/proc")
-                        add("-b")
-                        add("/sys")
-                        add("-b")
-                        add("/system")
+                        ProotHostBinds.appendBindArgs(this)
                         // So a shell command can reach the device's files once the user allows it.
                         addAll(DeviceStorage.bindArguments())
                         add("-w")
@@ -80,4 +79,20 @@ class LocalRuntimeCommandRunner(
                 outputFile.delete()
             }
         }
+
+    /**
+     * Returns argv after `grok` when [commandText] is a plain grok invocation (no shell metacharacters).
+     * Complex pipelines stay in proot and will fail for this binary by design.
+     */
+    private fun hostGrokArgsOrNull(commandText: String): List<String>? {
+        val trimmed = commandText.trim()
+        if (trimmed.isEmpty()) return null
+        if (trimmed.any { it in charArrayOf('|', ';', '&', '>', '<', '`') }) return null
+        if ("&&" in trimmed || "||" in trimmed) return null
+        val parts = trimmed.split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (parts.isEmpty()) return null
+        val head = parts.first()
+        if (head != "grok" && head != "/usr/local/bin/grok") return null
+        return parts.drop(1)
+    }
 }

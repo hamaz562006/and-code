@@ -179,6 +179,7 @@ val appModule =
                         // not see. Resolved lazily, after AndCodeApplication.onCreate has built it.
                         (androidContext().applicationContext as AndCodeApplication).codexTarget,
                         (androidContext().applicationContext as AndCodeApplication).piTarget,
+                        (androidContext().applicationContext as AndCodeApplication).grokBuildTarget,
                     ),
             )
         }

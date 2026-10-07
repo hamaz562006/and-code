@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -79,6 +80,8 @@ import com.yugahashimoto.andcode.runtime.local.ClaudeInstallStatus
 import com.yugahashimoto.andcode.runtime.local.ClaudePermissionMode
 import com.yugahashimoto.andcode.runtime.local.CodexInstallStatus
 import com.yugahashimoto.andcode.runtime.local.CodexUiState
+import com.yugahashimoto.andcode.runtime.local.GrokBuildInstallStatus
+import com.yugahashimoto.andcode.runtime.local.GrokBuildUiState
 import com.yugahashimoto.andcode.runtime.local.PiInstallStatus
 import com.yugahashimoto.andcode.runtime.local.PiUiState
 import com.yugahashimoto.andcode.ui.theme.AndCodeTheme
@@ -119,6 +122,7 @@ fun AndroidSetupScreen(
     onSelectAntigravityPermissionMode: (com.yugahashimoto.andcode.runtime.local.AntigravityPermissionMode) -> Unit = {},
     codex: CodexUiState = CodexUiState(),
     pi: PiUiState = PiUiState(),
+    grok: GrokBuildUiState = GrokBuildUiState(),
     /** Codex signs in through its own dialog state, not [settingsState]'s, which is OpenCode's. */
     codexSignInDialog: ProviderAuthDialogState? = null,
     codexSignIn: CodexSignInActions =
@@ -146,8 +150,25 @@ fun AndroidSetupScreen(
     onBack: () -> Unit,
     onFinish: () -> Unit,
     onImportAgentPackage: () -> Unit = {},
+    isImportingAgentPackage: Boolean = false,
+    importAgentPackageSucceeded: Boolean = false,
 ) {
     val context = LocalContext.current
+    if (isImportingAgentPackage) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.agent_import_preparing_title)) },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(stringResource(R.string.agent_import_preparing_body))
+                }
+            },
+            confirmButton = {},
+        )
+    }
+
     var selectedAgents by rememberSaveable(
         stateSaver =
             listSaver<Set<LocalAgent>, String>(
@@ -166,6 +187,7 @@ fun AndroidSetupScreen(
     val antigravitySelected = LocalAgent.ANTIGRAVITY in selectedAgents
     val codexSelected = LocalAgent.CODEX in selectedAgents
     val piSelected = LocalAgent.PI in selectedAgents
+    val grokSelected = LocalAgent.GROK_BUILD in selectedAgents
     val openCodeReady = runtimeStatus is LocalRuntimeStatus.Ready || runtimeStatus is LocalRuntimeStatus.Stopped
     val antigravityReady = antigravitySelected && antigravity.installed && !antigravity.busy
     val codexReady = codex.installed && codex.install !is CodexInstallStatus.Installing && codex.install !is CodexInstallStatus.Failed
@@ -173,6 +195,7 @@ fun AndroidSetupScreen(
     // Pi is an agent of its own: its readiness comes from PiController alone and never from OpenCode's
     // runtime status. isReady() also excludes a reinstall in flight and a failure.
     val piReady = pi.isReady()
+    val grokReady = grok.isReady()
     // Only what is selected *and* actually on the device: an agent whose binary is missing has no
     // sign-in to offer, and Claude Code's card would shell out to /usr/bin/claude and fail there.
     // OpenCode, Claude Code, Antigravity - the same order the picker lists them in, so the guide
@@ -184,6 +207,7 @@ fun AndroidSetupScreen(
             LocalAgent.ANTIGRAVITY.takeIf { antigravitySelected && antigravity.installed },
             LocalAgent.CODEX.takeIf { codexSelected && codex.installed },
             LocalAgent.PI.takeIf { piSelected && pi.installed },
+            LocalAgent.GROK_BUILD.takeIf { grokSelected && grok.installed },
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
@@ -197,6 +221,7 @@ fun AndroidSetupScreen(
             claude.install is ClaudeInstallStatus.Installing ||
             codex.install is CodexInstallStatus.Installing ||
             pi.install is PiInstallStatus.Installing ||
+            grok.install is GrokBuildInstallStatus.Installing ||
             antigravity.busy
     val selectedDevGroups = selectedDevToolGroupIds.mapNotNull { DevelopmentToolGroup.fromId(it) }.toSet()
     val fullToolsReady = selectedDevGroups.isEmpty() || fullDevelopmentToolsInstalled
@@ -206,6 +231,7 @@ fun AndroidSetupScreen(
             (!antigravitySelected || antigravityReady) &&
             (!codexSelected || codexReady) &&
             (!piSelected || piReady) &&
+            (!grokSelected || grokReady) &&
             fullToolsReady
     val installComplete = agentsInstallComplete && !fullToolsInstallPending
 
@@ -273,9 +299,16 @@ fun AndroidSetupScreen(
             1 ->
                 SetupPrimaryAction(
                     label = stringResource(R.string.setup_next_action),
-                    enabled = selectedAgents.isNotEmpty(),
+                    enabled =
+                        (selectedAgents.isNotEmpty() || importAgentPackageSucceeded) &&
+                            !isImportingAgentPackage,
                     onClick = {
-                        currentStep = 2
+                        if (importAgentPackageSucceeded && selectedAgents.isEmpty()) {
+                            // Offline import restored files — no download step needed.
+                            onFinish()
+                        } else {
+                            currentStep = 2
+                        }
                     },
                 )
             2 ->
@@ -303,6 +336,7 @@ fun AndroidSetupScreen(
                     antigravity.error != null ||
                     codex.install is CodexInstallStatus.Failed ||
                     pi.install is PiInstallStatus.Failed ||
+                    grok.install is GrokBuildInstallStatus.Failed ||
                     fullDevelopmentToolsInstallFailed
                 ) {
                     SetupPrimaryAction(stringResource(R.string.claude_retry_install_button), true) {
@@ -386,6 +420,8 @@ fun AndroidSetupScreen(
                                 if (agent in selectedAgents) selectedAgents - agent else selectedAgents + agent
                         },
                         onImportPackage = onImportAgentPackage,
+                        isImportingPackage = isImportingAgentPackage,
+                        importPackageSucceeded = importAgentPackageSucceeded,
                     )
                 2 ->
                     DevelopmentToolsStep(
@@ -405,6 +441,8 @@ fun AndroidSetupScreen(
                         antigravitySelected = antigravitySelected,
                         codexSelected = codexSelected,
                         piSelected = piSelected,
+                        grokSelected = grokSelected,
+                        grok = grok,
                     )
                 4 ->
                     SignInStep(
@@ -605,6 +643,8 @@ private fun AgentSelectionStep(
     selectedAgents: Set<LocalAgent>,
     onToggle: (LocalAgent) -> Unit,
     onImportPackage: () -> Unit = {},
+    isImportingPackage: Boolean = false,
+    importPackageSucceeded: Boolean = false,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         StepHeader(
@@ -642,6 +682,12 @@ private fun AgentSelectionStep(
             selected = LocalAgent.PI in selectedAgents,
             onToggle = { onToggle(LocalAgent.PI) },
         )
+        AgentOption(
+            title = stringResource(R.string.agent_grok_build_name),
+            description = stringResource(R.string.setup_agent_grok_build_desc),
+            selected = LocalAgent.GROK_BUILD in selectedAgents,
+            onToggle = { onToggle(LocalAgent.GROK_BUILD) },
+        )
         if (selectedAgents.size >= 2) {
             Text(
                 text = stringResource(R.string.setup_runtime_shared_note),
@@ -656,18 +702,47 @@ private fun AgentSelectionStep(
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        // Offline restore without selecting a download — needs an existing Linux environment.
+        // Offline restore: pick a previously exported .andcode.zip (no network).
         OutlinedButton(
             onClick = onImportPackage,
+            enabled = !isImportingPackage,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(stringResource(R.string.agent_import_button))
+            if (isImportingPackage) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                )
+                Spacer(modifier = Modifier.size(10.dp))
+            }
+            Text(
+                if (isImportingPackage) {
+                    stringResource(R.string.agent_import_preparing_title)
+                } else {
+                    stringResource(R.string.agent_import_button)
+                },
+            )
         }
-        Text(
-            text = stringResource(R.string.agent_import_description),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (isImportingPackage) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text(
+                text = stringResource(R.string.agent_import_preparing_body),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else if (importPackageSucceeded) {
+            Text(
+                text = stringResource(R.string.agent_import_done_continue),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        } else {
+            Text(
+                text = stringResource(R.string.agent_import_description),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -792,6 +867,8 @@ private fun RuntimeDownloadStep(
     antigravitySelected: Boolean,
     codexSelected: Boolean,
     piSelected: Boolean,
+    grokSelected: Boolean = false,
+    grok: GrokBuildUiState = GrokBuildUiState(),
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
     // each step is shown under the agent it names. Without this the OpenCode panel displayed
@@ -871,6 +948,58 @@ private fun RuntimeDownloadStep(
                     installing != null -> Text(stringResource(R.string.install_step_installing_pi))
                     // Nothing is installing: do not claim "Installing Pi" for something that is not.
                     else -> Text(stringResource(R.string.setup_runtime_not_installed), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
+        if (grokSelected) {
+            SetupPanel {
+                Text(stringResource(R.string.agent_grok_build_name), fontWeight = FontWeight.SemiBold)
+                val step = stepFor(LocalAgent.GROK_BUILD)
+                when {
+                    step != null -> SharedInstallProgress(step)
+                    grok.install is GrokBuildInstallStatus.Installing -> {
+                        val inst = grok.install
+                        Text(
+                            inst.step?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.install_step_installing_grok_build),
+                            fontWeight = FontWeight.Medium,
+                        )
+                        val progress = inst.progress
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Text(
+                                text = "${(progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    grok.install is GrokBuildInstallStatus.Failed ->
+                        Text(
+                            (grok.install as GrokBuildInstallStatus.Failed).message
+                                ?: stringResource(R.string.agent_status_install_failed),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    grok.isReady() ->
+                        ReadyAgentRow(
+                            stringResource(
+                                R.string.grok_build_installed_version,
+                                grok.version.orEmpty(),
+                            ),
+                        )
+                    installing != null ->
+                        Text(stringResource(R.string.install_step_installing_grok_build))
+                    else ->
+                        Text(
+                            stringResource(R.string.setup_runtime_not_installed),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                 }
             }
         }
@@ -1202,6 +1331,13 @@ private fun SignInStep(
                         onSignOut = onSignOutCodex,
                     )
                 LocalAgent.PI ->
+                    ProviderConnectionStep(
+                        settingsState = settingsState,
+                        onOpenProviderAuth = onOpenProviderAuth,
+                        onDisconnectProvider = onDisconnectProvider,
+                        header = false,
+                    )
+                LocalAgent.GROK_BUILD ->
                     ProviderConnectionStep(
                         settingsState = settingsState,
                         onOpenProviderAuth = onOpenProviderAuth,

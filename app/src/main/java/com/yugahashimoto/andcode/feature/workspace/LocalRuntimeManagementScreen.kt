@@ -86,6 +86,25 @@ fun LocalRuntimeManagementScreen(
 ) {
     val busy = state.runtimeStatus.isBusy() || state.isDeleting
     val exportBusy = busy || isExportingPackage
+
+    if (isExportingPackage) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.agent_export_preparing_title)) },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(stringResource(R.string.agent_export_preparing_body))
+                }
+            },
+            confirmButton = {},
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -172,6 +191,13 @@ fun LocalRuntimeManagementScreen(
                             enabled = !exportBusy,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
+                            if (isExportingPackage) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                                Spacer(modifier = Modifier.size(10.dp))
+                            }
                             Text(
                                 if (isExportingPackage) {
                                     stringResource(R.string.agent_export_preparing)

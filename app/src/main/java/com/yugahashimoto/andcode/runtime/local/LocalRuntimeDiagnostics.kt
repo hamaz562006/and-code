@@ -97,6 +97,12 @@ class LocalRuntimeDiagnosticsCollector(
                 if (File(rootfs, "usr/local/bin/agy").isFile) {
                     add(LocalRuntimeToolDefinition("agy", "Antigravity", "/usr/local/bin/agy --version"))
                 }
+                if (
+                    File(rootfs, "usr/local/lib/grok-build/grok").isFile ||
+                    File(rootfs, "usr/local/bin/grok").isFile
+                ) {
+                    add(LocalRuntimeToolDefinition("grok", "Grok Build", "/usr/local/bin/grok --version"))
+                }
             }
         val definitions =
             agentTools +
@@ -105,7 +111,14 @@ class LocalRuntimeDiagnosticsCollector(
         val tools =
             if (environmentProvisioned) {
                 definitions.map { definition ->
-                    runCatching { commandExecutor(definition) }
+                    runCatching {
+                        if (definition.id == "grok") {
+                            // Bionic/Termux binary — must run on the Android host, not Alpine proot.
+                            GrokBuildInstaller.runOnHost(rootfs, listOf("--version"))
+                        } else {
+                            commandExecutor(definition)
+                        }
+                    }
                         .fold(
                             onSuccess = { result ->
                                 LocalRuntimeToolCheck(

@@ -29,6 +29,7 @@ import com.yugahashimoto.andcode.feature.settings.CodexAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.CodexSignInActions
 import com.yugahashimoto.andcode.feature.settings.CodexSignInViewModel
 import com.yugahashimoto.andcode.feature.settings.GitHubSettingsScreen
+import com.yugahashimoto.andcode.feature.settings.GrokBuildAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ModelVisibilityScreen
 import com.yugahashimoto.andcode.feature.settings.OpenCodeAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.OpenCodeAgentSettingsViewModel
@@ -298,6 +299,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenAntigravity = { navController.navigate(ROUTE_SETTINGS_AGENT_ANTIGRAVITY) },
             onOpenCodex = { navController.navigate(ROUTE_SETTINGS_AGENT_CODEX) },
             onOpenPi = { navController.navigate(ROUTE_SETTINGS_AGENT_PI) },
+            onOpenGrokBuild = { navController.navigate(ROUTE_SETTINGS_AGENT_GROK_BUILD) },
             onBack = { navController.popBackStack() },
         )
     }
@@ -440,6 +442,31 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenUrl = { url ->
                 UrlLauncher.openUrl(context, url)
             },
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable(ROUTE_SETTINGS_AGENT_GROK_BUILD) {
+        val app = LocalContext.current.applicationContext as AndCodeApplication
+        val grok by app.grokBuildController.state.collectAsState()
+        val importPackage = rememberAgentPackageImporter()
+        GrokBuildAgentSettingsScreen(
+            grok = grok,
+            onInstall = { app.grokBuildController.install() },
+            onRestart = { app.grokBuildController.restart() },
+            onStop = { app.grokBuildController.stop() },
+            onCheckForUpdate = { app.grokBuildController.checkForUpdate() },
+            onUpdate = {
+                // Re-run install to fetch pinned latest binary when an update is offered.
+                app.grokBuildController.install()
+            },
+            onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_GROK) },
+            onOpenProviders = {
+                app.runtimeRegistry.select(app.grokBuildTarget.id)
+                navController.navigate(ROUTE_SETTINGS_PROVIDERS)
+            },
+            onApiKey = { key -> app.grokBuildController.setApiKey(key) },
+            onImportPackage = importPackage,
             onBack = { navController.popBackStack() },
         )
     }
@@ -635,19 +662,23 @@ private fun rememberAgentPackageImporter(): () -> Unit {
                 val result =
                     runCatching {
                         withContext(Dispatchers.IO) {
-                            val rootfs =
-                                app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                    ?: error(app.getString(R.string.agent_import_need_runtime))
                             val tmp =
                                 File(app.cacheDir, "import-${System.currentTimeMillis()}.andcode.zip")
                             context.contentResolver.openInputStream(uri)?.use { input ->
                                 tmp.outputStream().use { input.copyTo(it) }
                             } ?: error("Unable to read package")
                             try {
+                                // Offline-first: never call network install() during import.
+                                // Packages (format v2) ship agent + base Alpine tree.
+                                var rootfs = app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                if (rootfs == null || !rootfs.isDirectory) {
+                                    rootfs = app.localRuntimeInstaller.ensureRootfsForOfflineImport()
+                                }
                                 val imported = RuntimeAgentPackage.import(tmp, rootfs)
                                 app.localRuntimeInstaller.recordAgent(imported.agent)
                                 when (imported.agent) {
                                     LocalAgent.PI -> runCatching { app.piController.refresh() }
+                                    LocalAgent.GROK_BUILD -> runCatching { app.grokBuildController.refresh() }
                                     LocalAgent.CODEX -> runCatching { app.codexController.refresh() }
                                     LocalAgent.CLAUDE_CODE -> runCatching { app.claudeCodeController.refresh() }
                                     LocalAgent.ANTIGRAVITY -> runCatching { app.antigravityController.refresh() }

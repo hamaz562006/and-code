@@ -206,6 +206,7 @@ class SettingsViewModel(
                     ?: if (
                         core.selected?.agent == LocalAgent.OPEN_CODE ||
                         core.selected?.agent == LocalAgent.PI ||
+                        core.selected?.agent == LocalAgent.GROK_BUILD ||
                         core.selected?.agent == null
                     ) {
                         core.runtime.providers
@@ -215,6 +216,12 @@ class SettingsViewModel(
             val piSeed =
                 if (core.selected?.agent == LocalAgent.PI && managed.all.isEmpty()) {
                     PI_SEED_PROVIDERS
+                } else {
+                    emptyList()
+                }
+            val grokSeed =
+                if (core.selected?.agent == LocalAgent.GROK_BUILD && managed.all.isEmpty()) {
+                    GROK_SEED_PROVIDERS
                 } else {
                     emptyList()
                 }
@@ -229,12 +236,12 @@ class SettingsViewModel(
                             },
                     )
                 }
-            val baseAvailable = managed.all.ifEmpty { piSeed }
+            val baseAvailable = managed.all.ifEmpty { piSeed.ifEmpty { grokSeed } }
             val mergedAvailable =
                 (baseAvailable + customAsProviders).distinctBy { it.id }
             SettingsUiState(
                 providers =
-                    (core.runtime.providers.all.ifEmpty { piSeed }).filter { it.id in chatConnected },
+                    (core.runtime.providers.all.ifEmpty { piSeed.ifEmpty { grokSeed } }).filter { it.id in chatConnected },
                 availableProviders = mergedAvailable,
                 connectedProviderIds = (managed.connected.toSet() + oauth.locallyConnected) - oauth.locallyDisconnected,
                 agents = core.runtime.agents.filter { it.mode == null || it.mode == "primary" },
@@ -415,6 +422,7 @@ class SettingsViewModel(
     private fun providerTarget(): RuntimeTarget? {
         val selected = registry.selected.value
         if (selected?.agent == LocalAgent.PI) return selected
+        if (selected?.agent == LocalAgent.GROK_BUILD) return selected
         if (selected?.agent == LocalAgent.OPEN_CODE) return selected
         return registry.targetFor(LocalAgent.OPEN_CODE)
     }
@@ -858,5 +866,19 @@ class SettingsViewModel(
 
         val PI_SEED_PROVIDERS =
             com.yugahashimoto.andcode.runtime.local.PiModels.catalog().all
+
+        val GROK_SEED_PROVIDERS =
+            listOf(
+                OpenCodeProvider(
+                    id = "xai",
+                    name = "xAI",
+                    models =
+                        mapOf(
+                            "grok-4.5" to OpenCodeModel(id = "grok-4.5", providerId = "xai", name = "Grok 4.5"),
+                            "grok-4" to OpenCodeModel(id = "grok-4", providerId = "xai", name = "Grok 4"),
+                            "grok-3" to OpenCodeModel(id = "grok-3", providerId = "xai", name = "Grok 3"),
+                        ),
+                ),
+            )
     }
 }

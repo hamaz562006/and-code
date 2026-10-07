@@ -107,6 +107,7 @@ class RuntimeAutoStartInitializer : Initializer<RuntimeAutoStartInitializer.Resu
                                         LocalAgent.ANTIGRAVITY,
                                         LocalAgent.CODEX,
                                         LocalAgent.PI,
+                                        LocalAgent.GROK_BUILD,
                                     ).any(metadata::has)
                                 } == true
                             }.getOrDefault(false),
