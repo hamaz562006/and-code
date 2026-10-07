@@ -228,6 +228,7 @@ fun AndroidSetupScreen(
             codex.install is CodexInstallStatus.Installing ||
             pi.install is PiInstallStatus.Installing ||
             grok.install is GrokBuildInstallStatus.Installing ||
+            hermes.install is HermesInstallStatus.Installing ||
             antigravity.busy
     val selectedDevGroups = selectedDevToolGroupIds.mapNotNull { DevelopmentToolGroup.fromId(it) }.toSet()
     val fullToolsReady = selectedDevGroups.isEmpty() || fullDevelopmentToolsInstalled
