@@ -903,6 +903,9 @@
     <string name="agent_antigravity_name">Antigravity</string>
     <string name="agent_codex_name">Codex</string>
     <string name="agent_pi_name">Pi</string>
+    <string name="agent_hermes_name">Hermes</string>
+    <string name="setup_agent_hermes_desc">Nous Research Hermes Agent (Termux aarch64 package). ~160 MB download.</string>
+    <string name="install_step_installing_hermes">Installing Hermes…</string>
     <string name="runtime_error_install_failed">Impossible d’installer l’environnement local</string>
     <string name="runtime_error_reinstall_failed">Impossible de réinstaller l’environnement local</string>
     <string name="runtime_error_start_failed">Impossible de démarrer OpenCode local</string>

@@ -93,6 +93,7 @@ fun AgentSettingsScreen(
     onOpenCodex: () -> Unit,
     onOpenPi: () -> Unit,
     onOpenGrokBuild: () -> Unit,
+    onOpenHermes: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(R.string.settings_agents_row), onBack = onBack) {
@@ -107,6 +108,7 @@ fun AgentSettingsScreen(
             SettingsDivider()
             AgentRow(LocalAgent.PI, onOpenPi)
             AgentRow(LocalAgent.GROK_BUILD, onOpenGrokBuild)
+            AgentRow(LocalAgent.HERMES, onOpenHermes)
         }
     }
 }

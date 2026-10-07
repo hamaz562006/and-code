@@ -36,5 +36,6 @@ fun runtimeAgentIcon(agent: LocalAgent?): Int =
         LocalAgent.CODEX -> R.drawable.ic_agent_codex
         LocalAgent.PI -> R.drawable.ic_agent_pi
         LocalAgent.GROK_BUILD -> R.drawable.ic_agent_grok_build
+        LocalAgent.HERMES -> R.drawable.ic_agent_pi
         null -> R.drawable.ic_runtime_remote
     }

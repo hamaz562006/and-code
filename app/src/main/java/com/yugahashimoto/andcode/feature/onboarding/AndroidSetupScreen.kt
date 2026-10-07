@@ -688,6 +688,12 @@ private fun AgentSelectionStep(
             selected = LocalAgent.GROK_BUILD in selectedAgents,
             onToggle = { onToggle(LocalAgent.GROK_BUILD) },
         )
+        AgentOption(
+            title = stringResource(R.string.agent_hermes_name),
+            description = stringResource(R.string.setup_agent_hermes_desc),
+            selected = LocalAgent.HERMES in selectedAgents,
+            onToggle = { onToggle(LocalAgent.HERMES) },
+        )
         if (selectedAgents.size >= 2) {
             Text(
                 text = stringResource(R.string.setup_runtime_shared_note),
@@ -1338,6 +1344,13 @@ private fun SignInStep(
                         header = false,
                     )
                 LocalAgent.GROK_BUILD ->
+                    ProviderConnectionStep(
+                        settingsState = settingsState,
+                        onOpenProviderAuth = onOpenProviderAuth,
+                        onDisconnectProvider = onDisconnectProvider,
+                        header = false,
+                    )
+                LocalAgent.HERMES ->
                     ProviderConnectionStep(
                         settingsState = settingsState,
                         onOpenProviderAuth = onOpenProviderAuth,

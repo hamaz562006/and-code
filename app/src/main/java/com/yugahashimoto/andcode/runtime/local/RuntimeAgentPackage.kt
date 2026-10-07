@@ -124,6 +124,10 @@ object RuntimeAgentPackage {
                     addIfExists(paths, rootfs, "root/.codex")
                 }
             }
+            LocalAgent.HERMES -> {
+                // Host install under runtimeDirectory/hermes — not under Alpine rootfs.
+                // Offline export for Hermes is wired in a follow-up (host tree packaging).
+            }
             LocalAgent.OPEN_CODE -> {
                 addIfExists(paths, rootfs, "usr/local/bin/opencode")
                 addIfExists(paths, rootfs, "usr/local/lib/opencode")

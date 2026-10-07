@@ -262,6 +262,7 @@ fun WorkspacesScreen(
                                     LocalAgent.CODEX -> target.state is RuntimeState.Connected
                                     LocalAgent.PI -> target.state is RuntimeState.Connected
                                     LocalAgent.GROK_BUILD -> target.state is RuntimeState.Connected
+                                    LocalAgent.HERMES -> target.state is RuntimeState.Connected
                                     null -> true
                                 },
                         ) {

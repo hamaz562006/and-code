@@ -66,6 +66,7 @@ class LocalRuntimeInstaller(
             val onCodex: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.CODEX) }
             val onPi: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.PI) }
             val onGrok: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.GROK_BUILD) }
+            val onHermes: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.HERMES) }
             runtimeDirectory.mkdirs()
             onShared(0.02f, context.getString(R.string.install_step_preparing_command_env))
             val existingMetadata = installedMetadata()
@@ -263,6 +264,14 @@ class LocalRuntimeInstaller(
                     )
                 }
 
+                if (LocalAgent.HERMES in requestedAgents) {
+                    val hermesLabel = context.getString(R.string.install_step_installing_hermes)
+                    onHermes(0.88f, hermesLabel)
+                    HermesInstaller.install(runtimeDirectory) { fraction ->
+                        onHermes(0.88f + fraction.coerceIn(0f, 1f) * 0.05f, hermesLabel)
+                    }
+                    onHermes(0.93f, hermesLabel)
+                }
                 val metadata =
                     LocalRuntimeMetadata(
                         version = if (withOpenCode) manifest.openCodeVersion else "",
