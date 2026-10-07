@@ -473,7 +473,6 @@ fun NavGraphBuilder.settingsNavGraph(
         )
     }
 
-    
     composable(ROUTE_SETTINGS_AGENT_HERMES) {
         val app = LocalContext.current.applicationContext as AndCodeApplication
         val hermesState by app.hermesController.state.collectAsState()

@@ -137,7 +137,10 @@ class HermesRuntime(
     fun hermesHome(): File = File(runtimeDirectory, "hermes-home").apply { mkdirs() }
 
     /** Writes provider API keys into HERMES_HOME/.env for the bundled CLI. */
-    fun setApiKey(providerId: String, apiKey: String?) {
+    fun setApiKey(
+        providerId: String,
+        apiKey: String?,
+    ) {
         val home = hermesHome()
         val envFile = File(home, ".env")
         val keyName =
@@ -179,5 +182,4 @@ class HermesRuntime(
             }
         return envFile.readLines().any { it.trim().startsWith("$keyName=") && it.substringAfter("=").isNotBlank() }
     }
-
 }

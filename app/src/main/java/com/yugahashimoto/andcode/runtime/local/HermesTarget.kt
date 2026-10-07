@@ -168,7 +168,6 @@ class HermesTarget(
                 ),
         )
 
-
     override suspend fun listAgents(): List<OpenCodeAgent> =
         listOf(OpenCodeAgent(name = "hermes", description = "Hermes", mode = "primary", native = true))
 
@@ -181,7 +180,6 @@ class HermesTarget(
             ),
         )
 
-    
     override suspend fun setProviderApiKey(
         providerId: String,
         apiKey: String,
