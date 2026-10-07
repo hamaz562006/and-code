@@ -475,6 +475,7 @@ fun NavGraphBuilder.settingsNavGraph(
 
     
     composable(ROUTE_SETTINGS_AGENT_HERMES) {
+        val app = LocalContext.current.applicationContext as AndCodeApplication
         val hermesState by app.hermesController.state.collectAsState()
         HermesAgentSettingsScreen(
             hermes = hermesState,
@@ -484,7 +485,7 @@ fun NavGraphBuilder.settingsNavGraph(
         )
     }
 
-composable(ROUTE_SETTINGS_AGENT_CODEX) {
+    composable(ROUTE_SETTINGS_AGENT_CODEX) {
         val app = context.applicationContext as com.yugahashimoto.andcode.AndCodeApplication
         val codex by app.codexController.state.collectAsState()
         val signInViewModel: CodexSignInViewModel =
