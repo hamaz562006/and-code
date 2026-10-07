@@ -169,7 +169,7 @@ fun AndroidSetupScreen(
         )
     }
 
-        var selectedAgents by rememberSaveable(
+    var selectedAgents by rememberSaveable(
         stateSaver =
             listSaver<Set<LocalAgent>, String>(
                 save = { agents -> agents.map(LocalAgent::id) },

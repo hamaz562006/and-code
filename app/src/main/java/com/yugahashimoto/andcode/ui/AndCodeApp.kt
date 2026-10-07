@@ -1097,9 +1097,11 @@ fun AndCodeApp(
                             isImportingAgentPackage = isSetupImporting,
                             importAgentPackageSucceeded = setupImportDone,
                             onImportAgentPackage = {
-                                if (!isSetupImporting) setupImportLauncher.launch(
-                                    arrayOf("application/zip", "application/octet-stream", "*/*"),
-                                )
+                                if (!isSetupImporting) {
+                                    setupImportLauncher.launch(
+                                        arrayOf("application/zip", "application/octet-stream", "*/*"),
+                                    )
+                                }
                             },
                         )
                     }

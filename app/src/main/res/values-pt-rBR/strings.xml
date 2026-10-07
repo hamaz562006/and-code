@@ -1218,6 +1218,11 @@
     <string name="agent_export_description">Save a full offline package of this agent (binaries and optional config) so it can be restored without downloading.</string>
     <string name="agent_export_button">Export package</string>
     <string name="agent_export_preparing">Preparing package…</string>
+    <string name="agent_export_preparing_title">Preparing export</string>
+    <string name="agent_export_preparing_body">Building an offline package with the agent and its dependencies. This can take a minute…</string>
+    <string name="agent_import_preparing_title">Importing package</string>
+    <string name="agent_import_preparing_body">Restoring files into the Linux environment. Please wait…</string>
+    <string name="agent_import_done_continue">Continue</string>
     <string name="agent_import_title">Import agent package</string>
     <string name="agent_import_description">Restore an agent from a previously exported .andcode.zip package. The Linux environment must already be installed.</string>
     <string name="agent_import_button">Import package</string>

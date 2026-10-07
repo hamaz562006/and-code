@@ -361,4 +361,46 @@ object RuntimeAgentPackage {
                 ?: error("Unknown agent id in package: ${m.agentId}")
         return ImportResult(m, agent, written)
     }
+
+    /**
+     * Re-apply execute bits after ZIP extract. Without this, Alpine's /bin/sh and busybox
+     * are non-executable and every proot shell command fails.
+     */
+    private fun restoreExecutablePermissions(rootfs: File) {
+        val dirPrefixes =
+            listOf(
+                "bin",
+                "sbin",
+                "lib",
+                "lib64",
+                "usr/bin",
+                "usr/sbin",
+                "usr/lib",
+                "usr/local/bin",
+                "usr/local/lib",
+                "usr/libexec",
+            )
+        for (prefix in dirPrefixes) {
+            val dir = File(rootfs, prefix)
+            if (!dir.exists()) continue
+            dir.walkTopDown().forEach { file ->
+                if (file.isDirectory) {
+                    file.setReadable(true, false)
+                    file.setExecutable(true, false)
+                } else if (file.isFile) {
+                    file.setReadable(true, false)
+                    file.setExecutable(true, false)
+                    runCatching {
+                        android.system.Os.chmod(file.absolutePath, 0b111_101_101) // 0755
+                    }
+                }
+            }
+        }
+        rootfs.setExecutable(true, false)
+        File(rootfs, "root").takeIf { it.isDirectory }?.setExecutable(true, false)
+        File(rootfs, "tmp").takeIf { it.isDirectory }?.apply {
+            setWritable(true, false)
+            setExecutable(true, false)
+        }
+    }
 }
