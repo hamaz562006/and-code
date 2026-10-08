@@ -69,6 +69,7 @@ class McpViewModel(
                             LocalAgent.CODEX,
                             LocalAgent.PI,
                             LocalAgent.GROK_BUILD,
+                            LocalAgent.HERMES,
                         ),
                 supportsOAuth = agent == LocalAgent.OPEN_CODE,
             ),

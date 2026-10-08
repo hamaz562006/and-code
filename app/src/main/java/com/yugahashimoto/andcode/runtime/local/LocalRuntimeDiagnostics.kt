@@ -103,6 +103,10 @@ class LocalRuntimeDiagnosticsCollector(
                 ) {
                     add(LocalRuntimeToolDefinition("grok", "Grok Build", "/usr/local/bin/grok --version"))
                 }
+                // Hermes is host-side (Termux deb under runtime/hermes), not Alpine rootfs.
+                if (HermesInstaller.isInstalledIn(runtimeDirectory)) {
+                    add(LocalRuntimeToolDefinition("hermes", "Hermes", "hermes --version"))
+                }
             }
         val definitions =
             agentTools +
@@ -112,11 +116,20 @@ class LocalRuntimeDiagnosticsCollector(
             if (environmentProvisioned) {
                 definitions.map { definition ->
                     runCatching {
-                        if (definition.id == "grok") {
-                            // Bionic/Termux binary — must run on the Android host, not Alpine proot.
-                            GrokBuildInstaller.runOnHost(rootfs, listOf("--version"))
-                        } else {
-                            commandExecutor(definition)
+                        when (definition.id) {
+                            "grok" ->
+                                // Bionic/Termux binary — must run on the Android host, not Alpine proot.
+                                GrokBuildInstaller.runOnHost(rootfs, listOf("--version"))
+                            "hermes" -> {
+                                val result =
+                                    HermesInstaller.runOnHost(
+                                        runtimeDirectory,
+                                        listOf("--version"),
+                                        timeoutSeconds = 20L,
+                                    )
+                                LocalRuntimeCommandResult(result.exitCode, result.output)
+                            }
+                            else -> commandExecutor(definition)
                         }
                     }
                         .fold(

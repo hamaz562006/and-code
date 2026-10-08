@@ -991,6 +991,7 @@ fun HermesAgentSettingsScreen(
     onInstall: () -> Unit = {},
     onRefresh: () -> Unit = {},
     onOpenProviders: (() -> Unit)? = null,
+    onOpenMcp: (() -> Unit)? = null,
     onImportPackage: (() -> Unit)? = null,
     onBack: () -> Unit,
 ) {
@@ -1064,6 +1065,11 @@ fun HermesAgentSettingsScreen(
                             if (onOpenProviders != null) {
                                 Button(onClick = onOpenProviders, modifier = Modifier.fillMaxWidth()) {
                                     Text(stringResource(R.string.server_info_tab_providers))
+                                }
+                            }
+                            if (onOpenMcp != null) {
+                                OutlinedButton(onClick = onOpenMcp, modifier = Modifier.fillMaxWidth()) {
+                                    Text(stringResource(R.string.mcp_settings_row))
                                 }
                             }
                         }

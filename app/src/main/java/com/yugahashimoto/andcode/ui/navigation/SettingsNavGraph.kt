@@ -480,6 +480,7 @@ fun NavGraphBuilder.settingsNavGraph(
             hermes = hermesState,
             onInstall = { app.hermesController.install() },
             onRefresh = { app.hermesController.refresh() },
+            onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_HERMES) },
             onOpenProviders = {
                 app.runtimeRegistry.select(app.hermesTarget.id)
                 navController.navigate(ROUTE_SETTINGS_PROVIDERS)
@@ -611,6 +612,15 @@ fun NavGraphBuilder.settingsNavGraph(
         com.yugahashimoto.andcode.feature.settings.McpScreen(
             registry = runtimeRegistry,
             agent = com.yugahashimoto.andcode.runtime.LocalAgent.PI,
+            onOpenBrowser = {},
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable(ROUTE_SETTINGS_MCP_HERMES) {
+        com.yugahashimoto.andcode.feature.settings.McpScreen(
+            registry = runtimeRegistry,
+            agent = com.yugahashimoto.andcode.runtime.LocalAgent.HERMES,
             onOpenBrowser = {},
             onBack = { navController.popBackStack() },
         )

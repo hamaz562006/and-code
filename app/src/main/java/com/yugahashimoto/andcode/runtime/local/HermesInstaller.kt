@@ -98,24 +98,11 @@ object HermesInstaller {
                 launcher.setExecutable(true, false)
                 realBin.setExecutable(true, false)
 
-                // Ensure bundled interpreter tree is executable.
-                File(destUsr, "lib/hermes-agent").walkTopDown().forEach { f ->
-                    if (f.isFile && (
-                            f.canExecute() || f.name.startsWith("python") ||
-                                f.name == "hermes" || f.extension in setOf("so", "")
-                        )
-                    ) {
-                        f.setExecutable(true, false)
-                    }
-                    if (f.isDirectory) f.setExecutable(true, false)
-                }
+                // Make the whole extract tree traversable/executable. Termux debs often
+                // unpack without +x on venv/bin/python → "Permission denied".
+                chmodTreeExecutable(destUsr)
 
                 File(root, VERSION_MARKER).writeText(HermesManifest.VERSION + "\n")
-                listOf(agentBin, pathBin).forEach { dir ->
-                    dir.walkTopDown().forEach { f ->
-                        if (f.isFile) f.setExecutable(true, false)
-                    }
-                }
                 require(binaryFile(runtimeDirectory).isFile) {
                     "Hermes binary missing after extract at ${binaryFile(runtimeDirectory)}"
                 }
@@ -209,6 +196,8 @@ object HermesInstaller {
     ): HostResult {
         val binary = binaryFile(runtimeDirectory)
         require(binary.isFile) { "Hermes is not installed" }
+        // Repair exec bits on already-extracted installs (venv/bin/python often lost +x).
+        runCatching { chmodTreeExecutable(installRoot(runtimeDirectory)) }
         val agent = agentRoot(runtimeDirectory)
         val hermesHome = File(runtimeDirectory, "hermes-home").apply { mkdirs() }
         // Always launch via system sh — wrappers may not have the exec bit on some FS.

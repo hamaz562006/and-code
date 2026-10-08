@@ -120,12 +120,12 @@ class HermesTarget(
         ProviderCatalog(
             all =
                 listOf(
+                    "opencode-zen" to "OpenCode Free (Zen)",
+                    "opencode-go" to "OpenCode Go",
                     "openrouter" to "OpenRouter",
                     "nous" to "Nous Portal",
                     "anthropic" to "Anthropic",
                     "openai" to "OpenAI",
-                    "opencode-zen" to "OpenCode Zen",
-                    "opencode-go" to "OpenCode Go",
                     "gemini" to "Google Gemini",
                     "deepseek" to "DeepSeek",
                     "xai" to "xAI",
