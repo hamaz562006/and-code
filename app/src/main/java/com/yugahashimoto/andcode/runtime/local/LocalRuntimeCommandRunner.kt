@@ -35,6 +35,16 @@ class LocalRuntimeCommandRunner(
             if (hostGrokArgs != null) {
                 return@read GrokBuildInstaller.runOnHost(runtime.rootfs, hostGrokArgs, timeoutSeconds)
             }
+            val hostHermesArgs = hostHermesArgsOrNull(commandText)
+            if (hostHermesArgs != null) {
+                val result =
+                    HermesInstaller.runOnHost(
+                        runtimeDirectory,
+                        hostHermesArgs,
+                        timeoutSeconds,
+                    )
+                return@read LocalRuntimeCommandResult(result.exitCode, result.output)
+            }
             val prootTmp = File(runtimeDirectory, "proot-tmp").apply { mkdirs() }
             val outputFile = File.createTempFile("diagnostic-", ".log", File(runtimeDirectory, "logs").apply { mkdirs() })
             try {
@@ -93,6 +103,19 @@ class LocalRuntimeCommandRunner(
         if (parts.isEmpty()) return null
         val head = parts.first()
         if (head != "grok" && head != "/usr/local/bin/grok") return null
+        return parts.drop(1)
+    }
+
+    /** Hermes is Termux/bionic — run plain `hermes …` on the host, not Alpine proot. */
+    private fun hostHermesArgsOrNull(commandText: String): List<String>? {
+        val trimmed = commandText.trim()
+        if (trimmed.isEmpty()) return null
+        if (trimmed.any { it in charArrayOf('|', ';', '&', '>', '<', '`') }) return null
+        if ("&&" in trimmed || "||" in trimmed) return null
+        val parts = trimmed.split(Regex("\s+")).filter { it.isNotEmpty() }
+        if (parts.isEmpty()) return null
+        val head = parts.first()
+        if (head != "hermes" && !head.endsWith("/hermes")) return null
         return parts.drop(1)
     }
 }

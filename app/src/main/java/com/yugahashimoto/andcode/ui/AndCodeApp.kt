@@ -205,11 +205,13 @@ fun AndCodeApp(
     val grokBuildState by app.grokBuildController.state.collectAsState()
     val hermesState by app.hermesController.state.collectAsState()
 
-    // When Hermes finishes install, make it the active chat runtime (CLI host — not OpenCode :4097).
+    // When Hermes is installed, prefer it as the active runtime (host CLI on :8642, not OpenCode :4097).
     LaunchedEffect(hermesState.installed, hermesState.install) {
-        if (hermesState.isReady()) {
+        if (hermesState.installed) {
             app.runtimeRegistry.select(app.hermesTarget.id)
-            runCatching { app.hermesTarget.connect() }
+            if (hermesState.isReady()) {
+                runCatching { app.hermesTarget.connect() }
+            }
         }
     }
     val codexSignInViewModel: CodexSignInViewModel =

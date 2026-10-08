@@ -9,6 +9,7 @@ import com.yugahashimoto.andcode.core.api.OpenCodeMessage
 import com.yugahashimoto.andcode.core.api.OpenCodeProvider
 import com.yugahashimoto.andcode.core.api.OpenCodeSession
 import com.yugahashimoto.andcode.core.api.PromptRequest
+import com.yugahashimoto.andcode.core.api.ProviderAuthMethod
 import com.yugahashimoto.andcode.core.api.ProviderCatalog
 import com.yugahashimoto.andcode.runtime.BackendKind
 import com.yugahashimoto.andcode.runtime.LocalAgent
@@ -184,6 +185,12 @@ class HermesTarget(
                 path = File(runtime.runtimeDirectory, "workspace").absolutePath,
             ),
         )
+
+
+    override suspend fun providerAuthMethods(): Map<String, List<ProviderAuthMethod>> =
+        listOf("openrouter", "anthropic", "openai", "nous").associateWith {
+            listOf(ProviderAuthMethod(type = "api", label = "API key"))
+        }
 
     override suspend fun setProviderApiKey(
         providerId: String,

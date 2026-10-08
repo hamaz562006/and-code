@@ -38,7 +38,16 @@ class TerminalViewModel(
     /** Active agent label for the banner, e.g. "Pi" or "OpenCode". */
     private val agentLabel: () -> String = { "OpenCode" },
 ) : ViewModel() {
-    private fun systemBanner(): TerminalLine = TerminalLine("${agentLabel()} Terminal - PRoot Alpine Linux", TerminalLineType.SYSTEM)
+    private fun systemBanner(): TerminalLine {
+        val label = agentLabel()
+        val env =
+            if (label.equals("Hermes", ignoreCase = true)) {
+                "host CLI · 127.0.0.1:8642"
+            } else {
+                "PRoot Alpine Linux"
+            }
+        return TerminalLine("$label Terminal - $env", TerminalLineType.SYSTEM)
+    }
 
     private val _state =
         MutableStateFlow(
