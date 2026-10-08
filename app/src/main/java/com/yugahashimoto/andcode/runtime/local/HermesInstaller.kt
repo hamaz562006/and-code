@@ -176,6 +176,35 @@ object HermesInstaller {
         }
     }
 
+
+    /** Recursively set 0755 on directories and common executables under [root]. */
+    private fun chmodTreeExecutable(root: File) {
+        root.walkTopDown().forEach { f ->
+            if (f.isDirectory) {
+                f.setExecutable(true, false)
+                f.setReadable(true, false)
+                runCatching { android.system.Os.chmod(f.absolutePath, 0b111_101_101) }
+                return@forEach
+            }
+            if (!f.isFile) return@forEach
+            f.setReadable(true, false)
+            val name = f.name
+            val parent = f.parentFile?.name.orEmpty()
+            val needsExec =
+                parent == "bin" ||
+                    parent == "sbin" ||
+                    name == "hermes" ||
+                    name.startsWith("python") ||
+                    name.startsWith("node") ||
+                    name.endsWith(".so") ||
+                    !name.contains(".")
+            if (needsExec) {
+                f.setExecutable(true, false)
+                runCatching { android.system.Os.chmod(f.absolutePath, 0b111_101_101) }
+            }
+        }
+    }
+
     private fun rewriteShebangToSystemSh(file: File) {
         val text =
             runCatching { file.readText(Charsets.UTF_8) }.getOrNull() ?: return
