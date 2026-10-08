@@ -100,8 +100,10 @@ object HermesInstaller {
 
                 // Ensure bundled interpreter tree is executable.
                 File(destUsr, "lib/hermes-agent").walkTopDown().forEach { f ->
-                    if (f.isFile && (f.canExecute() || f.name.startsWith("python") ||
-                            f.name == "hermes" || f.extension in setOf("so", ""))
+                    if (f.isFile && (
+                            f.canExecute() || f.name.startsWith("python") ||
+                                f.name == "hermes" || f.extension in setOf("so", "")
+                        )
                     ) {
                         f.setExecutable(true, false)
                     }
@@ -148,6 +150,44 @@ object HermesInstaller {
                         dir.parentFile?.parentFile?.name == "com.termux"
                 }
         return walked ?: error("Hermes package did not contain a Termux usr/ tree under $staging")
+    }
+
+
+    /**
+     * Replace hardcoded Termux prefix paths inside text scripts so the bundled
+     * interpreter under our extract tree is found when PREFIX is not Termux.
+     */
+    private fun rewriteTermuxPrefixPaths(usr: File) {
+        val termuxPrefix = "/data/data/com.termux/files/usr"
+        val ourPrefix = usr.absolutePath
+        val textExt =
+            setOf(
+                "",
+                "sh",
+                "bash",
+                "py",
+                "cfg",
+                "ini",
+                "toml",
+                "yaml",
+                "yml",
+                "json",
+                "txt",
+                "env",
+                "pth",
+            )
+        usr.walkTopDown().forEach { f ->
+            if (!f.isFile) return@forEach
+            if (f.length() > 2_000_000L) return@forEach
+            val ext = f.extension.lowercase()
+            if (ext !in textExt && !f.name.startsWith("hermes") && f.name != "activate") return@forEach
+            val bytes = runCatching { f.readBytes() }.getOrNull() ?: return@forEach
+            // Skip ELF binaries
+            if (bytes.size >= 4 && bytes[0] == 0x7f.toByte() && bytes[1] == 'E'.code.toByte()) return@forEach
+            val text = runCatching { bytes.toString(Charsets.UTF_8) }.getOrNull() ?: return@forEach
+            if (termuxPrefix !in text) return@forEach
+            f.writeText(text.replace(termuxPrefix, ourPrefix))
+        }
     }
 
     private fun rewriteShebangToSystemSh(file: File) {

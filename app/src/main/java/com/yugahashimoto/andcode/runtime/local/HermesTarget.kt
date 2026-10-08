@@ -140,8 +140,6 @@ class HermesTarget(
             connected = emptyList(),
             default = emptyMap(),
         )
-
-
     override suspend fun listAgents(): List<OpenCodeAgent> =
         listOf(OpenCodeAgent(name = "hermes", description = "Hermes", mode = "primary", native = true))
 
