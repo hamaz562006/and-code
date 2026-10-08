@@ -177,6 +177,7 @@ object HermesInstaller {
             f.writeText(text.replace(termuxPrefix, ourPrefix))
         }
     }
+
     /**
      * Termux debs ship absolute symlinks under /data/data/com.termux/files/usr/…
      * After extract into the app files dir those links are dangling → venv/bin/python
@@ -245,6 +246,7 @@ object HermesInstaller {
             runCatching { android.system.Os.chmod(venvPython.absolutePath, 0b111_101_101) }
         }
     }
+
     /**
      * Guarantee [usr]/lib/hermes-agent/venv/bin/python] is an executable file that points at
      * the bundled Termux Python ELF. Absolute Termux symlinks and copyRecursively both
