@@ -175,6 +175,7 @@ object HermesInstaller {
             f.writeText(text.replace(termuxPrefix, ourPrefix))
         }
     }
+
     /** Recursively set 0755 on directories and common executables under [root]. */
     private fun chmodTreeExecutable(root: File) {
         root.walkTopDown().forEach { f ->
