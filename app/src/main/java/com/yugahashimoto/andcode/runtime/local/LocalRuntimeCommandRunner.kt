@@ -112,7 +112,7 @@ class LocalRuntimeCommandRunner(
         if (trimmed.isEmpty()) return null
         if (trimmed.any { it in charArrayOf('|', ';', '&', '>', '<', '`') }) return null
         if ("&&" in trimmed || "||" in trimmed) return null
-        val parts = trimmed.split(Regex("\s+")).filter { it.isNotEmpty() }
+        val parts = trimmed.split(Regex("\\s+")).filter { it.isNotEmpty() }
         if (parts.isEmpty()) return null
         val head = parts.first()
         if (head != "hermes" && !head.endsWith("/hermes")) return null
