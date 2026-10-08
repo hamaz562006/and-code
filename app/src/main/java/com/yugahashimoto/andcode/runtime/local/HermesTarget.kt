@@ -185,8 +185,6 @@ class HermesTarget(
                 path = File(runtime.runtimeDirectory, "workspace").absolutePath,
             ),
         )
-
-
     override suspend fun providerAuthMethods(): Map<String, List<ProviderAuthMethod>> =
         listOf("openrouter", "anthropic", "openai", "nous").associateWith {
             listOf(ProviderAuthMethod(type = "api", label = "API key"))
