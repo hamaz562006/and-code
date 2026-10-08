@@ -83,6 +83,7 @@ object HermesInstaller {
                 // Scripts hardcode Termux PREFIX; retarget to this extract so the bundled
                 // Python/Node under lib/hermes-agent resolve (fixes "Bundled interpreter missing").
                 rewriteTermuxPrefixPaths(destUsr)
+                fixTermuxSymlinks(destUsr)
 
                 // Thin launcher on PATH: export PREFIX then exec real hermes.
                 val pathBin = File(destUsr, "bin").apply { mkdirs() }
@@ -101,6 +102,7 @@ object HermesInstaller {
                 // Make the whole extract tree traversable/executable. Termux debs often
                 // unpack without +x on venv/bin/python → "Permission denied".
                 chmodTreeExecutable(destUsr)
+                ensureVenvPython(destUsr)
 
                 File(root, VERSION_MARKER).writeText(HermesManifest.VERSION + "\n")
                 require(binaryFile(runtimeDirectory).isFile) {
@@ -176,6 +178,116 @@ object HermesInstaller {
         }
     }
 
+
+    /**
+     * Termux debs ship absolute symlinks under /data/data/com.termux/files/usr/…
+     * After extract into the app files dir those links are dangling → venv/bin/python
+     * Permission denied / Bundled interpreter missing. Retarget every absolute Termux
+     * symlink onto our extracted [usr] tree (prefer relative links when possible).
+     */
+    private fun fixTermuxSymlinks(usr: File) {
+        val termuxPrefix = "/data/data/com.termux/files/usr"
+        val ourPrefix = usr.absolutePath
+        // Walk leaves first so we rewrite deepest links before parents.
+        usr.walkBottomUp().forEach { f ->
+            val path = f.absolutePath
+            val target =
+                runCatching {
+                    val link = java.nio.file.Files.readSymbolicLink(f.toPath())
+                    link.toString()
+                }.getOrNull() ?: return@forEach
+            val newTarget =
+                when {
+                    target.startsWith(termuxPrefix) ->
+                        ourPrefix + target.removePrefix(termuxPrefix)
+                    target.startsWith("/data/data/com.termux/") ->
+                        // Rare absolute paths outside usr — map hermes-agent subtree if present.
+                        target.replace(
+                            "/data/data/com.termux/files/usr",
+                            ourPrefix,
+                        )
+                    else -> return@forEach
+                }
+            runCatching {
+                f.delete()
+                val dest = File(newTarget)
+                // Prefer relative symlink for portability within the tree.
+                val relative =
+                    runCatching {
+                        f.parentFile!!.toPath().relativize(dest.toPath()).toString()
+                    }.getOrNull()
+                val linkPath = relative ?: newTarget
+                java.nio.file.Files.createSymbolicLink(
+                    f.toPath(),
+                    java.nio.file.Paths.get(linkPath),
+                )
+            }
+            // Ensure the ultimate target is executable when it is a binary we own.
+            runCatching {
+                val resolved = File(f.parentFile, java.nio.file.Files.readSymbolicLink(f.toPath()).toString())
+                val abs = if (resolved.isAbsolute) resolved else resolved.canonicalFile
+                if (abs.isFile) {
+                    abs.setExecutable(true, false)
+                    abs.setReadable(true, false)
+                    android.system.Os.chmod(abs.absolutePath, 0b111_101_101)
+                }
+            }
+        }
+        // Final pass: chmod the real bundled python ELF(s).
+        File(usr, "lib/hermes-agent/tools").walkTopDown().forEach { f ->
+            if (!f.isFile) return@forEach
+            if (f.name.startsWith("python") || f.name == "node" || f.name == "hermes") {
+                f.setExecutable(true, false)
+                runCatching { android.system.Os.chmod(f.absolutePath, 0b111_101_101) }
+            }
+        }
+        val venvPython = File(usr, "lib/hermes-agent/venv/bin/python")
+        if (venvPython.exists()) {
+            venvPython.setExecutable(true, false)
+            runCatching { android.system.Os.chmod(venvPython.absolutePath, 0b111_101_101) }
+        }
+    }
+
+
+    /**
+     * Guarantee [usr]/lib/hermes-agent/venv/bin/python] is an executable file that points at
+     * the bundled Termux Python ELF. Absolute Termux symlinks and copyRecursively both
+     * commonly leave a non-executable or dangling path here.
+     */
+    private fun ensureVenvPython(usr: File) {
+        val agent = File(usr, "lib/hermes-agent")
+        val realPython =
+            sequenceOf(
+                File(agent, "tools/python/data/data/com.termux/files/usr/bin/python3.14"),
+                File(agent, "tools/python/data/data/com.termux/files/usr/bin/python3"),
+                File(agent, "tools/python/data/data/com.termux/files/usr/bin/python"),
+            ).firstOrNull { it.isFile && it.length() > 0 }
+                ?: agent.walkTopDown().firstOrNull { f ->
+                    f.isFile && f.name.startsWith("python3") && f.length() > 1000L &&
+                        runCatching {
+                            f.inputStream().use { ins ->
+                                val b = ByteArray(4)
+                                ins.read(b) == 4 && b[0] == 0x7f.toByte() && b[1] == 'E'.code.toByte()
+                            }
+                        }.getOrDefault(false)
+                }
+        if (realPython == null) return
+        realPython.setReadable(true, false)
+        realPython.setExecutable(true, false)
+        runCatching { android.system.Os.chmod(realPython.absolutePath, 0b111_101_101) }
+
+        val venvBin = File(agent, "venv/bin").apply { mkdirs() }
+        listOf("python", "python3", "python3.14").forEach { name ->
+            val link = File(venvBin, name)
+            runCatching { if (link.exists()) link.delete() }
+            // Copy bytes — more reliable than symlinks on app-private storage.
+            realPython.copyTo(link, overwrite = true)
+            link.setReadable(true, false)
+            link.setExecutable(true, false)
+            runCatching { android.system.Os.chmod(link.absolutePath, 0b111_101_101) }
+        }
+    }
+
     /** Recursively set 0755 on directories and common executables under [root]. */
     private fun chmodTreeExecutable(root: File) {
         root.walkTopDown().forEach { f ->
@@ -225,7 +337,14 @@ object HermesInstaller {
         val binary = binaryFile(runtimeDirectory)
         require(binary.isFile) { "Hermes is not installed" }
         // Repair exec bits on already-extracted installs (venv/bin/python often lost +x).
-        runCatching { chmodTreeExecutable(installRoot(runtimeDirectory)) }
+        runCatching {
+            val usr = File(installRoot(runtimeDirectory), "usr")
+            chmodTreeExecutable(installRoot(runtimeDirectory))
+            if (usr.isDirectory) {
+                fixTermuxSymlinks(usr)
+                ensureVenvPython(usr)
+            }
+        }
         val agent = agentRoot(runtimeDirectory)
         val hermesHome = File(runtimeDirectory, "hermes-home").apply { mkdirs() }
         // Always launch via system sh — wrappers may not have the exec bit on some FS.
