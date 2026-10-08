@@ -151,6 +151,7 @@ object HermesInstaller {
                 }
         return walked ?: error("Hermes package did not contain a Termux usr/ tree under $staging")
     }
+
     /**
      * Replace hardcoded Termux prefix paths inside text scripts so the bundled
      * interpreter under our extract tree is found when PREFIX is not Termux.
