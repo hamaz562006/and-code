@@ -337,7 +337,12 @@ fun NavGraphBuilder.workspaceNavGraph(
         GuestBrowserScreen(
             initialUrl =
                 requestedUrl
-                    ?: app.localRuntimeManager.installedPort()?.let { "http://127.0.0.1:$it/" }.orEmpty(),
+                    ?: when (app.runtimeRegistry.selected.value?.agent) {
+                        com.yugahashimoto.andcode.runtime.LocalAgent.HERMES ->
+                            com.yugahashimoto.andcode.runtime.local.HermesManifest.apiBaseUrl()
+                        else ->
+                            app.localRuntimeManager.installedPort()?.let { "http://127.0.0.1:$it/" }.orEmpty()
+                    },
             onBack = { navController.popBackStack() },
         )
     }

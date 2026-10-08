@@ -43,6 +43,8 @@ class HermesTarget(
             permissions = false,
             toolEvents = false,
             providerModelList = true,
+            // Hermes gateway OpenAI API on :8642 (not OpenCode :4097).
+            browsableHttpServer = true,
         )
 
     private val mutableState = MutableStateFlow<RuntimeState>(RuntimeState.Disconnected)
@@ -60,6 +62,8 @@ class HermesTarget(
                 require(HermesInstaller.isInstalledIn(runtime.runtimeDirectory)) {
                     "Hermes is not installed"
                 }
+                runtime.ensureApiServerEnv()
+                runtime.startGateway()
                 val version =
                     HermesInstaller.installedVersion(runtime.runtimeDirectory)
                         ?: HermesManifest.VERSION
@@ -71,6 +75,7 @@ class HermesTarget(
         }
 
     override fun disconnect() {
+        runtime.stopGateway()
         runtime.stopAll()
         mutableState.value = RuntimeState.Disconnected
     }

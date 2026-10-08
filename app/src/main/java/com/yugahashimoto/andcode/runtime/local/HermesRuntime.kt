@@ -29,8 +29,69 @@ class HermesRuntime(
     fun events(): Flow<OpenCodeEvent> = events.asSharedFlow()
 
     fun stopAll() {
-        // One-shot processes only.
+        stopGateway()
     }
+
+    @Volatile private var gatewayProcess: Process? = null
+
+    fun ensureApiServerEnv() {
+        val home = hermesHome()
+        val envFile = File(home, ".env")
+        val required =
+            mapOf(
+                "API_SERVER_ENABLED" to "true",
+                "API_SERVER_HOST" to HermesManifest.API_HOST,
+                "API_SERVER_PORT" to HermesManifest.API_PORT.toString(),
+                "API_SERVER_KEY" to HermesManifest.API_KEY,
+            )
+        val existing =
+            if (envFile.isFile) {
+                envFile.readLines().filter { line ->
+                    val k = line.substringBefore("=").trim()
+                    k.isNotEmpty() && k !in required && !line.trimStart().startsWith("#")
+                }
+            } else {
+                emptyList()
+            }
+        val lines = existing + required.map { (k, v) -> "$k=$v" }
+        envFile.writeText(lines.joinToString("\n") + "\n")
+    }
+
+    /** Starts `hermes gateway` so the OpenAI-compatible API listens on :8642. */
+    fun startGateway() {
+        if (gatewayProcess?.isAlive == true) return
+        require(HermesInstaller.isInstalledIn(runtimeDirectory)) { "Hermes is not installed" }
+        ensureApiServerEnv()
+        val home = hermesHome()
+        val binary = HermesInstaller.binaryFile(runtimeDirectory)
+        val pb =
+            ProcessBuilder(listOf("/system/bin/sh", binary.absolutePath, "gateway"))
+                .directory(home)
+                .redirectErrorStream(true)
+        val env = pb.environment()
+        env["HOME"] = home.absolutePath
+        env["HERMES_HOME"] = home.absolutePath
+        env["API_SERVER_ENABLED"] = "true"
+        env["API_SERVER_HOST"] = HermesManifest.API_HOST
+        env["API_SERVER_PORT"] = HermesManifest.API_PORT.toString()
+        env["API_SERVER_KEY"] = HermesManifest.API_KEY
+        // Load .env
+        File(home, ".env").takeIf { it.isFile }?.readLines()?.forEach { line ->
+            val trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith("#") || !trimmed.contains("=")) return@forEach
+            env[trimmed.substringBefore("=").trim()] = trimmed.substringAfter("=").trim()
+        }
+        gatewayProcess = pb.start()
+    }
+
+    fun stopGateway() {
+        gatewayProcess?.destroyForcibly()
+        gatewayProcess = null
+    }
+
+    fun isGatewayAlive(): Boolean = gatewayProcess?.isAlive == true
+
+    fun apiBaseUrl(): String = HermesManifest.apiBaseUrl()
 
     fun listSessions(): List<OpenCodeSession> = sessions.values.sortedByDescending { it.time.updated ?: it.time.created }
 

@@ -29,6 +29,12 @@ object HermesManifest {
     const val DEB_SHA256 = "324397ce52887ce24f124e0396fde3974062d20451b0254613f9c3c5f4064fb4"
     const val DEB_SIZE_BYTES = 161_855_904L
 
+    /** OpenAI-compatible API server (hermes gateway). Not OpenCode :4097. */
+    const val API_PORT = 8642
+    const val API_HOST = "127.0.0.1"
+    const val API_KEY = "andcode-hermes-local"
+    fun apiBaseUrl(): String = "http://$API_HOST:$API_PORT/"
+
     /** Relative install root under the app runtime directory. */
     const val INSTALL_DIR = "hermes"
 }
