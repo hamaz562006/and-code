@@ -158,8 +158,7 @@ class HermesTarget(
 
     override suspend fun mcpServers(): List<McpServer> = emptyList()
 
-    override suspend fun addMcpServer(body: JsonObject): McpServer =
-        error("Hermes MCP is not configured in this build")
+    override suspend fun addMcpServer(body: JsonObject): McpServer = error("Hermes MCP is not configured in this build")
 
     override suspend fun connectMcpServer(name: String): Boolean = false
 
