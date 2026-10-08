@@ -205,13 +205,11 @@ fun AndCodeApp(
     val grokBuildState by app.grokBuildController.state.collectAsState()
     val hermesState by app.hermesController.state.collectAsState()
 
-    // When Hermes is installed, prefer it as the active runtime (host CLI on :8642, not OpenCode :4097).
-    LaunchedEffect(hermesState.installed, hermesState.install) {
-        if (hermesState.installed) {
-            app.runtimeRegistry.select(app.hermesTarget.id)
-            if (hermesState.isReady()) {
-                runCatching { app.hermesTarget.connect() }
-            }
+    // Only auto-select Hermes when its install just completed — never override OpenCode/Pi/etc.
+    LaunchedEffect(hermesState.install) {
+        if (hermesState.install is com.yugahashimoto.andcode.runtime.local.HermesInstallStatus.Ready) {
+            app.runtimeRegistry.selectIfUnset(app.hermesTarget.id)
+            runCatching { app.hermesTarget.connect() }
         }
     }
     val codexSignInViewModel: CodexSignInViewModel =
