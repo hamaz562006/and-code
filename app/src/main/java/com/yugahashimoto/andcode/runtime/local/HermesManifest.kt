@@ -11,6 +11,10 @@ package com.yugahashimoto.andcode.runtime.local
  * as other Termux-targeted CLIs.
  */
 object HermesManifest {
+    // Termux APT package versioning (0.27.1-canary.*) differs from the GitHub app tag (v0.21.x).
+    // The installed CLI reports the app version via `hermes --version`; the constants below pin the
+    // signed canary .deb from hermes-assets.nousresearch.com (stable channel is currently 404).
+
     const val VERSION = "0.27.1-canary.20260917131241"
     const val PACKAGE_VERSION = "0.27.1~canary.20260917131241-1"
     const val BINARY_NAME = "hermes"

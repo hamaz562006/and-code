@@ -204,6 +204,14 @@ fun AndCodeApp(
     val piState by app.piController.state.collectAsState()
     val grokBuildState by app.grokBuildController.state.collectAsState()
     val hermesState by app.hermesController.state.collectAsState()
+
+    // When Hermes finishes install, make it the active chat runtime (CLI host — not OpenCode :4097).
+    LaunchedEffect(hermesState.installed, hermesState.install) {
+        if (hermesState.isReady()) {
+            app.runtimeRegistry.select(app.hermesTarget.id)
+            runCatching { app.hermesTarget.connect() }
+        }
+    }
     val codexSignInViewModel: CodexSignInViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel(
             key = "setup-codex-sign-in",
@@ -683,6 +691,10 @@ fun AndCodeApp(
     val startDestination = remember { if (app.settings.onboardingCompleted) ROUTE_CHAT else ROUTE_ONBOARDING }
     val completeOnboardingAndGoToChat: () -> Unit = {
         app.settings.onboardingCompleted = true
+        // Prefer Hermes when it is the agent that was just provisioned (no OpenCode HTTP port).
+        if (com.yugahashimoto.andcode.runtime.local.HermesInstaller.isInstalledIn(java.io.File(app.filesDir, "runtime"))) {
+            app.runtimeRegistry.select(app.hermesTarget.id)
+        }
         navController.navigate(ROUTE_CHAT) {
             popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
             launchSingleTop = true

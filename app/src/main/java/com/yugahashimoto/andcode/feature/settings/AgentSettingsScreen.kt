@@ -990,6 +990,7 @@ fun HermesAgentSettingsScreen(
     hermes: HermesUiState,
     onInstall: () -> Unit = {},
     onRefresh: () -> Unit = {},
+    onOpenProviders: (() -> Unit)? = null,
     onImportPackage: (() -> Unit)? = null,
     onBack: () -> Unit,
 ) {
@@ -1059,6 +1060,11 @@ fun HermesAgentSettingsScreen(
                             )
                             OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
                                 Text(stringResource(R.string.check_for_update_button))
+                            }
+                            if (onOpenProviders != null) {
+                                Button(onClick = onOpenProviders, modifier = Modifier.fillMaxWidth()) {
+                                    Text(stringResource(R.string.server_info_tab_providers))
+                                }
                             }
                         }
                     }

@@ -480,6 +480,10 @@ fun NavGraphBuilder.settingsNavGraph(
             hermes = hermesState,
             onInstall = { app.hermesController.install() },
             onRefresh = { app.hermesController.refresh() },
+            onOpenProviders = {
+                app.runtimeRegistry.select(app.hermesTarget.id)
+                navController.navigate(ROUTE_SETTINGS_PROVIDERS)
+            },
             onBack = { navController.popBackStack() },
         )
     }

@@ -860,6 +860,8 @@ private fun targetSubtitle(
         localAgentSubtitle(target.state, R.string.pi_installed_version, R.string.runtime_status_not_installed)
     } else if (target.agent == LocalAgent.GROK_BUILD) {
         localAgentSubtitle(target.state, R.string.grok_build_installed_version, R.string.runtime_status_not_installed)
+    } else if (target.agent == LocalAgent.HERMES) {
+        localAgentSubtitle(target.state, R.string.hermes_installed_version, R.string.runtime_status_not_installed)
     } else {
         when (target.type) {
             RuntimeType.REMOTE ->
