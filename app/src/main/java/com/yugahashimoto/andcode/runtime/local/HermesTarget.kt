@@ -154,8 +154,6 @@ class HermesTarget(
                 path = File(runtime.runtimeDirectory, "workspace").absolutePath,
             ),
         )
-
-
     override suspend fun mcpServers(): List<McpServer> = emptyList()
 
     override suspend fun addMcpServer(body: JsonObject): McpServer = error("Hermes MCP is not configured in this build")
