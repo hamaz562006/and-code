@@ -210,6 +210,15 @@ class HermesRuntime(
                 "anthropic" -> "ANTHROPIC_API_KEY"
                 "openai" -> "OPENAI_API_KEY"
                 "nous" -> "NOUS_API_KEY"
+                "opencode-zen" -> "OPENCODE_ZEN_API_KEY"
+                "opencode-go" -> "OPENCODE_GO_API_KEY"
+                "gemini" -> "GOOGLE_API_KEY"
+                "deepseek" -> "DEEPSEEK_API_KEY"
+                "xai" -> "XAI_API_KEY"
+                "fireworks" -> "FIREWORKS_API_KEY"
+                "groq" -> "GROQ_API_KEY"
+                "mistral" -> "MISTRAL_API_KEY"
+                "huggingface" -> "HF_TOKEN"
                 else -> providerId.uppercase().replace("-", "_") + "_API_KEY"
             }
         val existing =
@@ -239,6 +248,15 @@ class HermesRuntime(
                 "anthropic" -> "ANTHROPIC_API_KEY"
                 "openai" -> "OPENAI_API_KEY"
                 "nous" -> "NOUS_API_KEY"
+                "opencode-zen" -> "OPENCODE_ZEN_API_KEY"
+                "opencode-go" -> "OPENCODE_GO_API_KEY"
+                "gemini" -> "GOOGLE_API_KEY"
+                "deepseek" -> "DEEPSEEK_API_KEY"
+                "xai" -> "XAI_API_KEY"
+                "fireworks" -> "FIREWORKS_API_KEY"
+                "groq" -> "GROQ_API_KEY"
+                "mistral" -> "MISTRAL_API_KEY"
+                "huggingface" -> "HF_TOKEN"
                 else -> providerId.uppercase().replace("-", "_") + "_API_KEY"
             }
         return envFile.readLines().any { it.trim().startsWith("$keyName=") && it.substringAfter("=").isNotBlank() }

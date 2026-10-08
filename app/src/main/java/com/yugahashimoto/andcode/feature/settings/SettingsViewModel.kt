@@ -901,6 +901,11 @@ class SettingsViewModel(
                         ),
                 ),
                 OpenCodeProvider(
+                    id = "nous",
+                    name = "Nous Portal",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
                     id = "anthropic",
                     name = "Anthropic",
                     models =
@@ -921,9 +926,55 @@ class SettingsViewModel(
                             "gpt-4.1" to OpenCodeModel(id = "gpt-4.1", providerId = "openai", name = "GPT-4.1"),
                         ),
                 ),
+                // Hermes provider plugins (not the OpenCode *agent*): OpenCode Zen / Go free tiers.
                 OpenCodeProvider(
-                    id = "nous",
-                    name = "Nous Portal",
+                    id = "opencode-zen",
+                    name = "OpenCode Zen",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "opencode-go",
+                    name = "OpenCode Go",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "gemini",
+                    name = "Google Gemini",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "deepseek",
+                    name = "DeepSeek",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "xai",
+                    name = "xAI",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "fireworks",
+                    name = "Fireworks AI",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "groq",
+                    name = "Groq",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "mistral",
+                    name = "Mistral",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "huggingface",
+                    name = "Hugging Face",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "custom",
+                    name = "Custom (OpenAI-compatible)",
                     models = emptyMap(),
                 ),
             )

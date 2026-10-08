@@ -120,59 +120,27 @@ class HermesTarget(
         ProviderCatalog(
             all =
                 listOf(
-                    OpenCodeProvider(
-                        id = "openrouter",
-                        name = "OpenRouter",
-                        models =
-                            mapOf(
-                                "openrouter/auto" to
-                                    com.yugahashimoto.andcode.core.api.OpenCodeModel(
-                                        id = "openrouter/auto",
-                                        providerId = "openrouter",
-                                        name = "Auto",
-                                    ),
-                            ),
-                    ),
-                    OpenCodeProvider(
-                        id = "anthropic",
-                        name = "Anthropic",
-                        models =
-                            mapOf(
-                                "claude-sonnet-4-5" to
-                                    com.yugahashimoto.andcode.core.api.OpenCodeModel(
-                                        id = "claude-sonnet-4-5",
-                                        providerId = "anthropic",
-                                        name = "Claude Sonnet 4.5",
-                                    ),
-                            ),
-                    ),
-                    OpenCodeProvider(
-                        id = "openai",
-                        name = "OpenAI",
-                        models =
-                            mapOf(
-                                "gpt-4.1" to
-                                    com.yugahashimoto.andcode.core.api.OpenCodeModel(
-                                        id = "gpt-4.1",
-                                        providerId = "openai",
-                                        name = "GPT-4.1",
-                                    ),
-                            ),
-                    ),
-                    OpenCodeProvider(
-                        id = "nous",
-                        name = "Nous Portal",
-                        models = emptyMap(),
-                    ),
-                ),
+                    "openrouter" to "OpenRouter",
+                    "nous" to "Nous Portal",
+                    "anthropic" to "Anthropic",
+                    "openai" to "OpenAI",
+                    "opencode-zen" to "OpenCode Zen",
+                    "opencode-go" to "OpenCode Go",
+                    "gemini" to "Google Gemini",
+                    "deepseek" to "DeepSeek",
+                    "xai" to "xAI",
+                    "fireworks" to "Fireworks AI",
+                    "groq" to "Groq",
+                    "mistral" to "Mistral",
+                    "huggingface" to "Hugging Face",
+                    "custom" to "Custom (OpenAI-compatible)",
+                ).map { (id, name) ->
+                    OpenCodeProvider(id = id, name = name, models = emptyMap())
+                },
             connected = emptyList(),
-            default =
-                mapOf(
-                    "openrouter" to "openrouter/auto",
-                    "anthropic" to "claude-sonnet-4-5",
-                    "openai" to "gpt-4.1",
-                ),
+            default = emptyMap(),
         )
+
 
     override suspend fun listAgents(): List<OpenCodeAgent> =
         listOf(OpenCodeAgent(name = "hermes", description = "Hermes", mode = "primary", native = true))
@@ -187,7 +155,22 @@ class HermesTarget(
         )
 
     override suspend fun providerAuthMethods(): Map<String, List<ProviderAuthMethod>> =
-        listOf("openrouter", "anthropic", "openai", "nous").associateWith {
+        listOf(
+            "openrouter",
+            "nous",
+            "anthropic",
+            "openai",
+            "opencode-zen",
+            "opencode-go",
+            "gemini",
+            "deepseek",
+            "xai",
+            "fireworks",
+            "groq",
+            "mistral",
+            "huggingface",
+            "custom",
+        ).associateWith {
             listOf(ProviderAuthMethod(type = "api", label = "API key"))
         }
 

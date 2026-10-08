@@ -80,15 +80,33 @@ object HermesInstaller {
                 agentBin.listFiles()?.forEach { f ->
                     if (f.isFile) rewriteShebangToSystemSh(f)
                 }
-                // Thin launcher on PATH: usr/bin/hermes → lib/hermes-agent/bin/hermes
+                // Scripts hardcode Termux PREFIX; retarget to this extract so the bundled
+                // Python/Node under lib/hermes-agent resolve (fixes "Bundled interpreter missing").
+                rewriteTermuxPrefixPaths(destUsr)
+
+                // Thin launcher on PATH: export PREFIX then exec real hermes.
                 val pathBin = File(destUsr, "bin").apply { mkdirs() }
                 val launcher = File(pathBin, HermesManifest.BINARY_NAME)
                 val realBin = File(destUsr, "lib/hermes-agent/bin/${HermesManifest.BINARY_NAME}")
+                val prefix = destUsr.absolutePath
                 launcher.writeText(
                     "#!/system/bin/sh\n" +
+                        "export PREFIX=\"$prefix\"\n" +
+                        "export PATH=\"$prefix/bin:$prefix/lib/hermes-agent/bin:\$PATH\"\n" +
                         "exec \"${realBin.absolutePath}\" \"\$@\"\n",
                 )
                 launcher.setExecutable(true, false)
+                realBin.setExecutable(true, false)
+
+                // Ensure bundled interpreter tree is executable.
+                File(destUsr, "lib/hermes-agent").walkTopDown().forEach { f ->
+                    if (f.isFile && (f.canExecute() || f.name.startsWith("python") ||
+                            f.name == "hermes" || f.extension in setOf("so", ""))
+                    ) {
+                        f.setExecutable(true, false)
+                    }
+                    if (f.isDirectory) f.setExecutable(true, false)
+                }
 
                 File(root, VERSION_MARKER).writeText(HermesManifest.VERSION + "\n")
                 listOf(agentBin, pathBin).forEach { dir ->
