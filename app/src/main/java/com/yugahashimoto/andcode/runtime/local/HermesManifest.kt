@@ -33,6 +33,7 @@ object HermesManifest {
     const val API_PORT = 8642
     const val API_HOST = "127.0.0.1"
     const val API_KEY = "andcode-hermes-local"
+
     fun apiBaseUrl(): String = "http://$API_HOST:$API_PORT/"
 
     /** Relative install root under the app runtime directory. */

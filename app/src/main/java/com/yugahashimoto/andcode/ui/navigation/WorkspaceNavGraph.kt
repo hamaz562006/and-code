@@ -334,10 +334,11 @@ fun NavGraphBuilder.workspaceNavGraph(
 
     composable(GUEST_BROWSER_ROUTE_PATTERN) { backStack ->
         val requestedUrl = backStack.arguments?.getString(GUEST_BROWSER_ARG_URL)?.let { decodeRouteArg(it) }
+        val selectedRuntime by app.runtimeRegistry.selected.collectAsState()
         GuestBrowserScreen(
             initialUrl =
                 requestedUrl
-                    ?: when (app.runtimeRegistry.selected.value?.agent) {
+                    ?: when (selectedRuntime?.agent) {
                         com.yugahashimoto.andcode.runtime.LocalAgent.HERMES ->
                             com.yugahashimoto.andcode.runtime.local.HermesManifest.apiBaseUrl()
                         else ->
