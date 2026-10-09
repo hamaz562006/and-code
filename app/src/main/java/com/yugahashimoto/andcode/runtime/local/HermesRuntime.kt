@@ -56,8 +56,6 @@ class HermesRuntime(
         val lines = existing + required.map { (k, v) -> "$k=$v" }
         envFile.writeText(lines.joinToString("\n") + "\n")
     }
-
-
     /**
      * Hermes ships a keyless [opencode-free] provider (OpenCode Zen free tier).
      * Pin it as the default model so chat works without an API key.
