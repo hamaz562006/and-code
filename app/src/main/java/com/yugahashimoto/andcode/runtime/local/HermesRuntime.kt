@@ -63,19 +63,57 @@ class HermesRuntime(
         require(HermesInstaller.isInstalledIn(runtimeDirectory)) { "Hermes is not installed" }
         ensureApiServerEnv()
         val home = hermesHome()
-        val binary = HermesInstaller.binaryFile(runtimeDirectory)
+        val usr = File(HermesInstaller.installRoot(runtimeDirectory), "usr")
+        val agent = HermesInstaller.agentRoot(runtimeDirectory)
+        runCatching {
+            HermesInstaller.ensureVenvPythonPublic(usr)
+        }
+        val python =
+            HermesInstaller.resolveBundledPython(agent)
+                ?: error("Bundled Python missing for Hermes gateway")
+        python.setExecutable(true, false)
+        val repo = File(agent, "app")
+        val site = File(agent, "venv/lib/python3.14/site-packages")
+        val bootstrap =
+            "import os, site, sys; sys.argv[0]='hermes'; " +
+                "site.addsitedir(os.environ['HERMES_SITE']); " +
+                "from hermes_cli.main import main; sys.exit(main())"
+        val linker = HermesInstaller.resolveLinker64()
+        val command =
+            buildList {
+                if (linker != null) add(linker)
+                add(python.absolutePath)
+                add("-P")
+                add("-c")
+                add(bootstrap)
+                add("gateway")
+            }
         val pb =
-            ProcessBuilder(listOf("/system/bin/sh", binary.absolutePath, "gateway"))
+            ProcessBuilder(command)
                 .directory(home)
                 .redirectErrorStream(true)
         val env = pb.environment()
         env["HOME"] = home.absolutePath
         env["HERMES_HOME"] = home.absolutePath
+        env["PREFIX"] = usr.absolutePath
+        env["HERMES_SITE"] = site.absolutePath
+        env["HERMES_PYTHON"] = python.absolutePath
+        env["HERMES_PYTHON_SRC_ROOT"] = repo.absolutePath
+        env["PYTHONPATH"] = listOf(repo.absolutePath, site.absolutePath).joinToString(":")
         env["API_SERVER_ENABLED"] = "true"
         env["API_SERVER_HOST"] = HermesManifest.API_HOST
         env["API_SERVER_PORT"] = HermesManifest.API_PORT.toString()
         env["API_SERVER_KEY"] = HermesManifest.API_KEY
-        // Load .env
+        val ldParts =
+            listOf(
+                File(agent, "tools/python/data/data/com.termux/files/usr/lib"),
+                File(agent, "tools/node/data/data/com.termux/files/usr/lib"),
+                File(agent, "runtime-libs/lib"),
+                File(usr, "lib"),
+            ).filter { it.isDirectory }.map { it.absolutePath }
+        if (ldParts.isNotEmpty()) {
+            env["LD_LIBRARY_PATH"] = ldParts.joinToString(":")
+        }
         File(home, ".env").takeIf { it.isFile }?.readLines()?.forEach { line ->
             val trimmed = line.trim()
             if (trimmed.isEmpty() || trimmed.startsWith("#") || !trimmed.contains("=")) return@forEach

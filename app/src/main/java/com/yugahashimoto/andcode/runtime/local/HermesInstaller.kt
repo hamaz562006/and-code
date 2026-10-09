@@ -252,6 +252,8 @@ object HermesInstaller {
      * the bundled Termux Python ELF. Absolute Termux symlinks and copyRecursively both
      * commonly leave a non-executable or dangling path here.
      */
+    fun ensureVenvPythonPublic(usr: File) = ensureVenvPython(usr)
+
     private fun ensureVenvPython(usr: File) {
         val agent = File(usr, "lib/hermes-agent")
         val realPython =
@@ -332,55 +334,112 @@ object HermesInstaller {
         workingDirectory: File? = null,
         extraEnv: Map<String, String> = emptyMap(),
     ): HostResult {
-        val binary = binaryFile(runtimeDirectory)
-        require(binary.isFile) { "Hermes is not installed" }
-        // Repair exec bits on already-extracted installs (venv/bin/python often lost +x).
+        val usr = File(installRoot(runtimeDirectory), "usr")
+        require(usr.isDirectory) { "Hermes is not installed" }
         runCatching {
-            val usr = File(installRoot(runtimeDirectory), "usr")
             chmodTreeExecutable(installRoot(runtimeDirectory))
-            if (usr.isDirectory) {
-                fixTermuxSymlinks(usr)
-                ensureVenvPython(usr)
-            }
+            fixTermuxSymlinks(usr)
+            ensureVenvPython(usr)
         }
         val agent = agentRoot(runtimeDirectory)
+        val python =
+            resolveBundledPython(agent)
+                ?: return HostResult(127, "Bundled Python missing under ${agent.absolutePath}")
+        python.setReadable(true, false)
+        python.setExecutable(true, false)
+        runCatching { android.system.Os.chmod(python.absolutePath, 0b111_101_101) }
+
         val hermesHome = File(runtimeDirectory, "hermes-home").apply { mkdirs() }
-        // Always launch via system sh — wrappers may not have the exec bit on some FS.
+        val repo = File(agent, "app")
+        val site = File(agent, "venv/lib/python3.14/site-packages")
+        val pyLib = File(agent, "tools/python/data/data/com.termux/files/usr/lib")
+        val nodeLib = File(agent, "tools/node/data/data/com.termux/files/usr/lib")
+        val ffmpegLib = File(agent, "tools/ffmpeg/data/data/com.termux/files/usr/lib")
+        val runtimeLibs = File(agent, "runtime-libs/lib")
+        val ldParts =
+            listOf(pyLib, nodeLib, ffmpegLib, runtimeLibs, File(usr, "lib"))
+                .filter { it.isDirectory }
+                .map { it.absolutePath }
+
+        // Same bootstrap as upstream bin/hermes — but invoke via linker64 so Android
+        // app-private storage does not reject the Termux-built ELF (EACCES).
+        val bootstrap =
+            "import os, site, sys; sys.argv[0]='hermes'; " +
+                "site.addsitedir(os.environ['HERMES_SITE']); " +
+                "from hermes_cli.main import main; sys.exit(main())"
+        val linker = resolveLinker64()
+        val command =
+            buildList {
+                if (linker != null) {
+                    add(linker)
+                }
+                add(python.absolutePath)
+                add("-P")
+                add("-c")
+                add(bootstrap)
+                addAll(args)
+            }
+
         val pb =
-            ProcessBuilder(listOf("/system/bin/sh", binary.absolutePath) + args)
+            ProcessBuilder(command)
                 .directory(workingDirectory ?: hermesHome)
                 .redirectErrorStream(true)
         val env = pb.environment()
         env["HOME"] = hermesHome.absolutePath
         env["HERMES_HOME"] = hermesHome.absolutePath
-        env["PREFIX"] = File(installRoot(runtimeDirectory), "usr").absolutePath
+        env["PREFIX"] = usr.absolutePath
+        env["HERMES_SITE"] = site.absolutePath
+        env["HERMES_PYTHON"] = python.absolutePath
+        env["HERMES_PYTHON_SRC_ROOT"] = repo.absolutePath
+        env["HERMES_RUNTIME_DIR"] = File(agent, "tools").absolutePath
+        env["PYTHONPATH"] = listOf(repo.absolutePath, site.absolutePath).joinToString(":")
+        env.remove("PYTHONHOME")
+        if (ldParts.isNotEmpty()) {
+            val existing = env["LD_LIBRARY_PATH"]?.takeIf { it.isNotBlank() }
+            env["LD_LIBRARY_PATH"] = (ldParts + listOfNotNull(existing)).joinToString(":")
+        }
         env["PATH"] =
-            File(installRoot(runtimeDirectory), "usr/bin").absolutePath +
-            ":" +
-            File(agent, "bin").absolutePath +
-            ":" +
-            (env["PATH"] ?: "")
+            listOf(
+                File(usr, "bin").absolutePath,
+                File(agent, "bin").absolutePath,
+                File(agent, "tools/node/data/data/com.termux/files/usr/bin").absolutePath,
+                File(agent, "tools/npm/bin").absolutePath,
+                env["PATH"] ?: "/system/bin:/system/xbin",
+            ).joinToString(":")
         extraEnv.forEach { (k, v) -> env[k] = v }
-        // Load HERMES_HOME/.env into the process (API keys written by Settings).
         val envFile = File(hermesHome, ".env")
         if (envFile.isFile) {
             envFile.readLines().forEach { line ->
                 val trimmed = line.trim()
                 if (trimmed.isEmpty() || trimmed.startsWith("#") || !trimmed.contains("=")) return@forEach
-                val key = trimmed.substringBefore("=").trim()
-                val value = trimmed.substringAfter("=").trim()
-                if (key.isNotEmpty()) env[key] = value
+                env[trimmed.substringBefore("=").trim()] = trimmed.substringAfter("=").trim()
             }
         }
         val process = pb.start()
         val output = process.inputStream.bufferedReader().use { it.readText() }
-        val completed = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+        val completed = process.waitFor(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
         if (!completed) {
             process.destroyForcibly()
             return HostResult(-1, output + "\n(timeout after ${timeoutSeconds}s)")
         }
         return HostResult(process.exitValue(), output)
     }
+
+    fun resolveBundledPython(agent: File): File? =
+        sequenceOf(
+            File(agent, "tools/python/data/data/com.termux/files/usr/bin/python3.14"),
+            File(agent, "tools/python/data/data/com.termux/files/usr/bin/python3"),
+            File(agent, "tools/python/data/data/com.termux/files/usr/bin/python"),
+            File(agent, "venv/bin/python3.14"),
+            File(agent, "venv/bin/python"),
+        ).firstOrNull { it.isFile && it.length() > 0 }
+
+    fun resolveLinker64(): String? =
+        listOf(
+            "/system/bin/linker64",
+            "/apex/com.android.runtime/bin/linker64",
+            "/system/bin/linker",
+        ).firstOrNull { File(it).exists() }
 
     data class HostResult(
         val exitCode: Int,
