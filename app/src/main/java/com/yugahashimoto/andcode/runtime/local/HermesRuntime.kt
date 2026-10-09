@@ -65,29 +65,15 @@ class HermesRuntime(
     fun ensureOpenCodeFreeDefault() {
         val home = hermesHome()
         val config = File(home, "config.yaml")
+        val defaultYaml =
+            "model:\n  provider: opencode-free\n  default: big-pickle\nprovider: opencode-free\n"
         if (!config.isFile) {
-            config.writeText(
-                """
-                |model:
-                |  provider: opencode-free
-                |  default: big-pickle
-                |provider: opencode-free
-                """.trimMargin() + "
-",
-            )
+            config.writeText(defaultYaml)
             return
         }
         val text = config.readText()
         if ("opencode-free" in text) return
-        config.writeText(
-            text.trimEnd() +
-                "
-model:
-  provider: opencode-free
-  default: big-pickle
-provider: opencode-free
-",
-        )
+        config.writeText(text.trimEnd() + "\n" + defaultYaml)
     }
 
     /** Starts `hermes gateway run` so the OpenAI-compatible API listens on :8642. */
