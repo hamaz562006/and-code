@@ -124,8 +124,8 @@ class HermesTarget(
         runtime.ensureOpenCodeFreeDefault()
         val freeModels =
             listOf(
-                "big-pickle",
                 "mimo-v2.5-free",
+                "big-pickle",
                 "nemotron-3-ultra-free",
                 "muse-spark-1.2-contributor-free",
             ).associateWith { id ->
@@ -153,7 +153,7 @@ class HermesTarget(
         return ProviderCatalog(
             all = listOf(free) + others,
             connected = listOf("opencode-free"),
-            default = mapOf("opencode-free" to "big-pickle"),
+            default = mapOf("opencode-free" to "mimo-v2.5-free"),
         )
     }
 

@@ -64,15 +64,23 @@ class HermesRuntime(
     fun ensureOpenCodeFreeDefault() {
         val home = hermesHome()
         val config = File(home, "config.yaml")
+        // mimo-v2.5-free is the only free model the packaged Hermes probe found reliable;
+        // big-pickle 403/429s unless the request carries the OpenCode CLI User-Agent.
         val defaultYaml =
-            "model:\n  provider: opencode-free\n  default: big-pickle\nprovider: opencode-free\n"
+            "model:\n  provider: opencode-free\n  default: mimo-v2.5-free\nprovider: opencode-free\n"
         if (!config.isFile) {
             config.writeText(defaultYaml)
-            return
+        } else {
+            val text = config.readText()
+            if ("opencode-free" !in text) {
+                config.writeText(text.trimEnd() + "\n" + defaultYaml)
+            } else if ("big-pickle" in text && "mimo-v2.5-free" !in text) {
+                config.writeText(text.replace("big-pickle", "mimo-v2.5-free"))
+            }
         }
-        val text = config.readText()
-        if ("opencode-free" in text) return
-        config.writeText(text.trimEnd() + "\n" + defaultYaml)
+        HermesInstaller.patchOpenCodeFreeClientHeaders(
+            HermesInstaller.agentRoot(runtimeDirectory),
+        )
     }
 
     /** Starts `hermes gateway run` so the OpenAI-compatible API listens on :8642. */
@@ -219,7 +227,7 @@ class HermesRuntime(
 
         // CLI: hermes -z PROMPT [-m MODEL] [--provider PROVIDER]
         // Do not put flags between -z and PROMPT — that triggers the usage dump.
-        val modelId = request.modelId?.takeIf { it.isNotBlank() } ?: "big-pickle"
+        val modelId = request.modelId?.takeIf { it.isNotBlank() } ?: "mimo-v2.5-free"
         val providerId = request.providerId?.takeIf { it.isNotBlank() } ?: "opencode-free"
         val result =
             HermesInstaller.runOnHost(

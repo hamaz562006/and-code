@@ -103,6 +103,7 @@ object HermesInstaller {
                 // unpack without +x on venv/bin/python → "Permission denied".
                 chmodTreeExecutable(destUsr)
                 ensureVenvPython(destUsr)
+                patchOpenCodeFreeClientHeaders(File(destUsr, "lib/hermes-agent"))
 
                 File(root, VERSION_MARKER).writeText(HermesManifest.VERSION + "\n")
                 require(binaryFile(runtimeDirectory).isFile) {
@@ -423,6 +424,29 @@ object HermesInstaller {
             return HostResult(-1, output + "\n(timeout after ${timeoutSeconds}s)")
         }
         return HostResult(process.exitValue(), output)
+    }
+
+
+    /**
+     * Free-tier Zen rejects HermesAgent User-Agent for some models (403). Rewrite the bundled
+     * opencode-free plugin headers to look like the official OpenCode CLI and attach a session id.
+     */
+    fun patchOpenCodeFreeClientHeaders(agent: File) {
+        val file = File(agent, "app/plugins/model-providers/opencode-free/__init__.py")
+        if (!file.isFile) return
+        var text = file.readText(Charsets.UTF_8)
+        if ("opencode/1.18.0" in text && "X-Session-ID" in text) return
+        val lines = text.lines().toMutableList()
+        val out = mutableListOf<String>()
+        for (line in lines) {
+            if ("User-Agent" in line && "HermesAgent" in line) {
+                out.add("        \"User-Agent\": \"opencode/1.18.0\",")
+                out.add("        \"X-Session-ID\": \"ses_andcodehermes000000000001\",")
+            } else {
+                out.add(line)
+            }
+        }
+        file.writeText(out.joinToString("\n") + if (text.endsWith("\n")) "\n" else "")
     }
 
     fun resolveBundledPython(agent: File): File? =

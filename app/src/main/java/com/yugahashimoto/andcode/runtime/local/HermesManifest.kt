@@ -32,7 +32,7 @@ object HermesManifest {
     /** OpenAI-compatible API server (hermes gateway). Not OpenCode :4097. */
     const val API_PORT = 8642
     const val API_HOST = "127.0.0.1"
-    const val API_KEY = "andcode-hermes-local"
+    const val API_KEY = "andcode-hermes-local-api-key-8642"
 
     fun apiBaseUrl(): String = "http://$API_HOST:$API_PORT/"
 
