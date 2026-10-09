@@ -235,14 +235,20 @@ class HermesRuntime(
                     ),
                 timeoutSeconds = 300L,
             )
-        val assistantText =
+        var assistantText =
             result.output.trim().ifBlank {
                 if (result.exitCode != 0) {
-                    "Hermes failed (exit ${result.exitCode}). Configure a provider with `hermes setup` or set API keys under HERMES_HOME."
+                    "Hermes failed (exit ${result.exitCode}). Configure a provider API key under Settings → Providers."
                 } else {
                     "(empty response)"
                 }
             }
+        if ("free tier can only be used from within OpenCode" in assistantText) {
+            assistantText =
+                assistantText +
+                    "\n\nOpenCode Free is blocked outside the OpenCode client. " +
+                    "Connect OpenRouter, Anthropic, or another provider with an API key for Hermes."
+        }
 
         val doneAt = System.currentTimeMillis()
         val assistantInfo =
