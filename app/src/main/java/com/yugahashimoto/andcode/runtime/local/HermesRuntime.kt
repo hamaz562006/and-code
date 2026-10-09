@@ -254,8 +254,8 @@ class HermesRuntime(
         if ("free tier can only be used from within OpenCode" in assistantText) {
             assistantText =
                 assistantText +
-                    "\n\nOpenCode Free is blocked outside the OpenCode client. " +
-                    "Connect OpenRouter, Anthropic, or another provider with an API key for Hermes."
+                "\n\nOpenCode Free is blocked outside the OpenCode client. " +
+                "Connect OpenRouter, Anthropic, or another provider with an API key for Hermes."
         }
 
         val doneAt = System.currentTimeMillis()
