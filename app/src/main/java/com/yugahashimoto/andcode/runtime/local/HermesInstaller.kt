@@ -341,6 +341,7 @@ object HermesInstaller {
             chmodTreeExecutable(installRoot(runtimeDirectory))
             fixTermuxSymlinks(usr)
             ensureVenvPython(usr)
+            patchOpenCodeFreeClientHeaders(agentRoot(runtimeDirectory))
         }
         val agent = agentRoot(runtimeDirectory)
         val python =
