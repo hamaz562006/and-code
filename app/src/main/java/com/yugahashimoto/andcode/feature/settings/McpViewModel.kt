@@ -89,7 +89,18 @@ class McpViewModel(
                     _state.update { it.copy(servers = servers, isLoading = false) }
                 }
                 .onFailure { e ->
-                    _state.update { it.copy(error = e.message, isLoading = false) }
+                    val msg = e.message.orEmpty()
+                    // OpenCode not installed: show empty list, not an error dialog.
+                    val quiet =
+                        agent == LocalAgent.OPEN_CODE &&
+                            msg.contains("not installed", ignoreCase = true)
+                    _state.update {
+                        it.copy(
+                            servers = if (quiet) emptyList() else it.servers,
+                            error = if (quiet) null else e.message,
+                            isLoading = false,
+                        )
+                    }
                 }
         }
     }
