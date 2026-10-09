@@ -140,6 +140,19 @@ class HermesRuntime(
             env[trimmed.substringBefore("=").trim()] = trimmed.substringAfter("=").trim()
         }
         gatewayProcess = pb.start()
+        // Give the process a moment; if it dies immediately, clear so the next connect retries.
+        Thread.sleep(800L)
+        if (gatewayProcess?.isAlive != true) {
+            val dead = gatewayProcess
+            gatewayProcess = null
+            val err =
+                runCatching { dead?.inputStream?.bufferedReader()?.readText().orEmpty() }
+                    .getOrDefault("")
+            // Best-effort: leave a note under HERMES_HOME for debugging.
+            runCatching {
+                File(home, "gateway-last-error.txt").writeText(err.ifBlank { "(no output, exit early)" })
+            }
+        }
     }
 
     fun stopGateway() {
@@ -204,16 +217,22 @@ class HermesRuntime(
         messageStore.getOrPut(sessionId) { mutableListOf() }.add(userMessage)
         events.tryEmit(OpenCodeEvent.MessageUpdated(userInfo))
 
-        // Prefer pure one-shot -z (stdout = final answer only).
-        val modelArgs =
-            request.modelId
-                ?.takeIf { it.isNotBlank() }
-                ?.let { listOf("--model", it) }
-                .orEmpty()
+        // CLI: hermes -z PROMPT [-m MODEL] [--provider PROVIDER]
+        // Do not put flags between -z and PROMPT — that triggers the usage dump.
+        val modelId = request.modelId?.takeIf { it.isNotBlank() } ?: "big-pickle"
+        val providerId = request.providerId?.takeIf { it.isNotBlank() } ?: "opencode-free"
         val result =
             HermesInstaller.runOnHost(
                 runtimeDirectory = runtimeDirectory,
-                args = listOf("-z") + modelArgs + listOf(text),
+                args =
+                    listOf(
+                        "-z",
+                        text,
+                        "-m",
+                        modelId,
+                        "--provider",
+                        providerId,
+                    ),
                 timeoutSeconds = 300L,
             )
         val assistantText =

@@ -86,8 +86,19 @@ class McpViewModel(
             _state.update { it.copy(isLoading = true, error = null) }
             // OpenCode MCP talks to the local serve process on :4097 — ensure it is up.
             if (agent == LocalAgent.OPEN_CODE) {
-                runCatching {
-                    (backend as? com.yugahashimoto.andcode.runtime.RuntimeTarget)?.connect()
+                val target = backend as? com.yugahashimoto.andcode.runtime.RuntimeTarget
+                if (target != null) {
+                    val health = target.connect()
+                    if (health.isFailure) {
+                        _state.update {
+                            it.copy(
+                                isLoading = false,
+                                error = health.exceptionOrNull()?.message
+                                    ?: "Failed to start OpenCode runtime",
+                            )
+                        }
+                        return@launch
+                    }
                 }
             }
             runCatching { backend.mcpServers() }
