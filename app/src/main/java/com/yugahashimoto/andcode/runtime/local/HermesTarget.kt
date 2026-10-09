@@ -66,6 +66,7 @@ class HermesTarget(
                     "Hermes is not installed"
                 }
                 runtime.ensureApiServerEnv()
+                runtime.ensureOpenCodeFreeDefault()
                 runtime.startGateway()
                 val version =
                     HermesInstaller.installedVersion(runtime.runtimeDirectory)
@@ -118,30 +119,42 @@ class HermesTarget(
 
     override fun events(): Flow<OpenCodeEvent> = runtime.events()
 
-    override suspend fun listProviders(): ProviderCatalog =
-        ProviderCatalog(
-            all =
-                listOf(
-                    "opencode-zen" to "OpenCode Free (Zen)",
-                    "opencode-go" to "OpenCode Go",
-                    "openrouter" to "OpenRouter",
-                    "nous" to "Nous Portal",
-                    "anthropic" to "Anthropic",
-                    "openai" to "OpenAI",
-                    "gemini" to "Google Gemini",
-                    "deepseek" to "DeepSeek",
-                    "xai" to "xAI",
-                    "fireworks" to "Fireworks AI",
-                    "groq" to "Groq",
-                    "mistral" to "Mistral",
-                    "huggingface" to "Hugging Face",
-                    "custom" to "Custom (OpenAI-compatible)",
-                ).map { (id, name) ->
-                    OpenCodeProvider(id = id, name = name, models = emptyMap())
-                },
-            connected = emptyList(),
-            default = emptyMap(),
+    override suspend fun listProviders(): ProviderCatalog {
+        runtime.ensureOpenCodeFreeDefault()
+        val freeModels =
+            listOf(
+                "big-pickle",
+                "mimo-v2.5-free",
+                "nemotron-3-ultra-free",
+                "muse-spark-1.2-contributor-free",
+            ).associateWith { id ->
+                OpenCodeModel(id = id, providerId = "opencode-free", name = id)
+            }
+        val free =
+            OpenCodeProvider(
+                id = "opencode-free",
+                name = "OpenCode Free",
+                models = freeModels,
+            )
+        val others =
+            listOf(
+                "openrouter" to "OpenRouter",
+                "nous" to "Nous Portal",
+                "anthropic" to "Anthropic",
+                "openai" to "OpenAI",
+                "opencode-zen" to "OpenCode Zen",
+                "opencode-go" to "OpenCode Go",
+                "gemini" to "Google Gemini",
+                "deepseek" to "DeepSeek",
+                "xai" to "xAI",
+                "custom" to "Custom (OpenAI-compatible)",
+            ).map { (id, name) -> OpenCodeProvider(id = id, name = name, models = emptyMap()) }
+        return ProviderCatalog(
+            all = listOf(free) + others,
+            connected = listOf("opencode-free"),
+            default = mapOf("opencode-free" to "big-pickle"),
         )
+    }
 
     override suspend fun listAgents(): List<OpenCodeAgent> =
         listOf(OpenCodeAgent(name = "hermes", description = "Hermes", mode = "primary", native = true))
@@ -169,7 +182,6 @@ class HermesTarget(
             "nous",
             "anthropic",
             "openai",
-            "opencode-zen",
             "opencode-go",
             "gemini",
             "deepseek",

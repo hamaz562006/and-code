@@ -250,7 +250,12 @@ class SettingsViewModel(
                 providers =
                     (core.runtime.providers.all.ifEmpty { piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed } } }).filter { it.id in chatConnected },
                 availableProviders = mergedAvailable,
-                connectedProviderIds = (managed.connected.toSet() + oauth.locallyConnected) - oauth.locallyDisconnected,
+                connectedProviderIds =
+                    (
+                        managed.connected.toSet() +
+                            oauth.locallyConnected +
+                            if (core.selected?.agent == LocalAgent.HERMES) setOf("opencode-free") else emptySet()
+                        ) - oauth.locallyDisconnected,
                 agents = core.runtime.agents.filter { it.mode == null || it.mode == "primary" },
                 providerId = core.preferences.providerId,
                 modelId = core.preferences.modelId,
@@ -892,14 +897,23 @@ class SettingsViewModel(
         val HERMES_SEED_PROVIDERS =
             listOf(
                 OpenCodeProvider(
-                    id = "opencode-zen",
-                    name = "OpenCode Free (Zen)",
-                    models = emptyMap(),
-                ),
-                OpenCodeProvider(
-                    id = "opencode-go",
-                    name = "OpenCode Go",
-                    models = emptyMap(),
+                    id = "opencode-free",
+                    name = "OpenCode Free",
+                    models =
+                        mapOf(
+                            "big-pickle" to
+                                OpenCodeModel(
+                                    id = "big-pickle",
+                                    providerId = "opencode-free",
+                                    name = "Big Pickle",
+                                ),
+                            "mimo-v2.5-free" to
+                                OpenCodeModel(
+                                    id = "mimo-v2.5-free",
+                                    providerId = "opencode-free",
+                                    name = "MiMo V2.5 Free",
+                                ),
+                        ),
                 ),
                 OpenCodeProvider(
                     id = "openrouter",

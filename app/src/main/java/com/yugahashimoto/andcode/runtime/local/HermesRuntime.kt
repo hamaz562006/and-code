@@ -57,11 +57,45 @@ class HermesRuntime(
         envFile.writeText(lines.joinToString("\n") + "\n")
     }
 
-    /** Starts `hermes gateway` so the OpenAI-compatible API listens on :8642. */
+
+    /**
+     * Hermes ships a keyless [opencode-free] provider (OpenCode Zen free tier).
+     * Pin it as the default model so chat works without an API key.
+     */
+    fun ensureOpenCodeFreeDefault() {
+        val home = hermesHome()
+        val config = File(home, "config.yaml")
+        if (!config.isFile) {
+            config.writeText(
+                """
+                |model:
+                |  provider: opencode-free
+                |  default: big-pickle
+                |provider: opencode-free
+                """.trimMargin() + "
+",
+            )
+            return
+        }
+        val text = config.readText()
+        if ("opencode-free" in text) return
+        config.writeText(
+            text.trimEnd() +
+                "
+model:
+  provider: opencode-free
+  default: big-pickle
+provider: opencode-free
+",
+        )
+    }
+
+    /** Starts `hermes gateway run` so the OpenAI-compatible API listens on :8642. */
     fun startGateway() {
         if (gatewayProcess?.isAlive == true) return
         require(HermesInstaller.isInstalledIn(runtimeDirectory)) { "Hermes is not installed" }
         ensureApiServerEnv()
+        ensureOpenCodeFreeDefault()
         val home = hermesHome()
         val usr = File(HermesInstaller.installRoot(runtimeDirectory), "usr")
         val agent = HermesInstaller.agentRoot(runtimeDirectory)
@@ -87,6 +121,7 @@ class HermesRuntime(
                 add("-c")
                 add(bootstrap)
                 add("gateway")
+                add("run")
             }
         val pb =
             ProcessBuilder(command)
@@ -157,6 +192,7 @@ class HermesRuntime(
         val text = request.text.trim()
         require(text.isNotEmpty()) { "empty message" }
         require(HermesInstaller.isInstalledIn(runtimeDirectory)) { "Hermes is not installed" }
+        ensureOpenCodeFreeDefault()
 
         val now = System.currentTimeMillis()
         val userInfo =
@@ -184,10 +220,15 @@ class HermesRuntime(
         events.tryEmit(OpenCodeEvent.MessageUpdated(userInfo))
 
         // Prefer pure one-shot -z (stdout = final answer only).
+        val modelArgs =
+            request.modelId
+                ?.takeIf { it.isNotBlank() }
+                ?.let { listOf("--model", it) }
+                .orEmpty()
         val result =
             HermesInstaller.runOnHost(
                 runtimeDirectory = runtimeDirectory,
-                args = listOf("-z", text),
+                args = listOf("-z") + modelArgs + listOf(text),
                 timeoutSeconds = 300L,
             )
         val assistantText =
@@ -278,6 +319,7 @@ class HermesRuntime(
     }
 
     fun hasApiKey(providerId: String): Boolean {
+        if (providerId.equals("opencode-free", ignoreCase = true)) return true
         val envFile = File(hermesHome(), ".env")
         if (!envFile.isFile) return false
         val keyName =

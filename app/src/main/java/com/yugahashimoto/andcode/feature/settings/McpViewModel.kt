@@ -84,6 +84,12 @@ class McpViewModel(
         val backend = backendProvider(agent) ?: return
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
+            // OpenCode MCP talks to the local serve process on :4097 — ensure it is up.
+            if (agent == LocalAgent.OPEN_CODE) {
+                runCatching {
+                    (backend as? com.yugahashimoto.andcode.runtime.RuntimeTarget)?.connect()
+                }
+            }
             runCatching { backend.mcpServers() }
                 .onSuccess { servers ->
                     _state.update { it.copy(servers = servers, isLoading = false) }
