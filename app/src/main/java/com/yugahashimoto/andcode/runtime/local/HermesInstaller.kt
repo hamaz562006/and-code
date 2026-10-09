@@ -426,6 +426,7 @@ object HermesInstaller {
         }
         return HostResult(process.exitValue(), output)
     }
+
     /**
      * Free-tier Zen rejects HermesAgent User-Agent for some models (403). Rewrite the bundled
      * opencode-free plugin headers to look like the official OpenCode CLI and attach a session id.
