@@ -94,8 +94,8 @@ class McpViewModel(
                             it.copy(
                                 isLoading = false,
                                 error =
-                                health.exceptionOrNull()?.message
-                                    ?: "Failed to start OpenCode runtime",
+                                    health.exceptionOrNull()?.message
+                                        ?: "Failed to start OpenCode runtime",
                             )
                         }
                         return@launch
