@@ -357,54 +357,51 @@ class HermesRuntime(
         }
     }
 
-    private fun jsonString(value: String): String =
-        buildString {
-            append('"')
-            for (c in value) {
-                when (c) {
-                    '\' -> append("\\")
-                    '"' -> append("\"")
-                    '
-' -> append("\n")
-                    '
-' -> append("\r")
-                    '	' -> append("\t")
-                    else -> append(c)
-                }
+    private fun jsonString(value: String): String {
+        val sb = StringBuilder(value.length + 2)
+        sb.append('\u0022')
+        for (c in value) {
+            when (c) {
+                '\u005C' -> sb.append("\u005C\u005C")
+                '\u0022' -> sb.append("\u005C\u0022")
+                '\n' -> sb.append("\u005Cn")
+                '\r' -> sb.append("\u005Cr")
+                '\t' -> sb.append("\u005Ct")
+                else -> sb.append(c)
             }
-            append('"')
         }
+        sb.append('\u0022')
+        return sb.toString()
+    }
 
     private fun parseOpenCodeFreeStream(raw: String): String {
         val content = StringBuilder()
+        val key = "\u0022content\u0022:\u0022"
         for (line in raw.lineSequence()) {
             val trimmed = line.trim()
             if (!trimmed.startsWith("data:")) continue
             val payload = trimmed.removePrefix("data:").trim()
             if (payload == "[DONE]" || payload.isEmpty()) continue
-            // Extract "content":"..." fragments without a full JSON parser.
             var idx = 0
             while (true) {
-                val key = ""content":""
                 val at = payload.indexOf(key, idx)
                 if (at < 0) break
                 var i = at + key.length
                 val sb = StringBuilder()
                 while (i < payload.length) {
                     val c = payload[i]
-                    if (c == '\\' && i + 1 < payload.length) {
+                    if (c == '\u005C' && i + 1 < payload.length) {
                         when (payload[i + 1]) {
-                            'n' -> sb.append('
-')
-                            't' -> sb.append('	')
-                            '"' -> sb.append('"')
-                            '\\' -> sb.append('\\')
+                            'n' -> sb.append('\n')
+                            't' -> sb.append('\t')
+                            '\u0022' -> sb.append('\u0022')
+                            '\u005C' -> sb.append('\u005C')
                             else -> sb.append(payload[i + 1])
                         }
                         i += 2
                         continue
                     }
-                    if (c == '"') break
+                    if (c == '\u0022') break
                     sb.append(c)
                     i++
                 }
