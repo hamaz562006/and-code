@@ -155,7 +155,7 @@ class HermesTarget(
             ).map { (id, name) -> OpenCodeProvider(id = id, name = name, models = emptyMap()) }
         return ProviderCatalog(
             all = listOf(free) + others,
-            connected = listOf("opencode-free"),
+            connected = emptyList(),
             default = mapOf("opencode-free" to "big-pickle"),
         )
     }

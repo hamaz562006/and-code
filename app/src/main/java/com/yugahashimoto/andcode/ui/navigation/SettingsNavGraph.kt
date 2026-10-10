@@ -386,9 +386,20 @@ fun NavGraphBuilder.settingsNavGraph(
 
     composable(ROUTE_SETTINGS_MODEL_VISIBILITY) {
         val settingsState by settingsViewModel.state.collectAsState()
-        androidx.compose.runtime.LaunchedEffect(Unit) { settingsViewModel.refreshProviderAuth() }
+        // Strictly OpenCode runtime catalogue — not Hermes/Pi seeds.
+        var openCodeProviders by androidx.compose.runtime.remember {
+            androidx.compose.runtime.mutableStateOf<List<com.yugahashimoto.andcode.core.api.OpenCodeProvider>>(emptyList())
+        }
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            val target = runtimeRegistry.targetFor(com.yugahashimoto.andcode.runtime.LocalAgent.OPEN_CODE)
+            openCodeProviders =
+                target
+                    ?.let { runCatching { it.listProviders() }.getOrNull() }
+                    ?.all
+                    .orEmpty()
+        }
         ModelVisibilityScreen(
-            providers = settingsState.availableProviders.filter { it.id in settingsState.connectedProviderIds },
+            providers = openCodeProviders,
             hiddenModelKeys = settingsState.hiddenModelKeys,
             onToggleModelVisibility = settingsViewModel::toggleModelVisibility,
             onBack = { navController.popBackStack() },

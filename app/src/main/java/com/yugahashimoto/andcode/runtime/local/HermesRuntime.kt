@@ -162,18 +162,36 @@ class HermesRuntime(
             env[trimmed.substringBefore("=").trim()] = trimmed.substringAfter("=").trim()
         }
         gatewayProcess = pb.start()
-        // Give the process a moment; if it dies immediately, clear so the next connect retries.
-        Thread.sleep(800L)
-        if (gatewayProcess?.isAlive != true) {
+        // Wait up to ~8s for the process to stay alive and :8642 to accept connections.
+        var ready = false
+        repeat(16) {
+            Thread.sleep(500L)
+            if (gatewayProcess?.isAlive != true) return@repeat
+            ready =
+                runCatching {
+                    java.net.Socket("127.0.0.1", HermesManifest.API_PORT).use { true }
+                }.getOrDefault(false)
+            if (ready) return@repeat
+        }
+        if (gatewayProcess?.isAlive != true || !ready) {
             val dead = gatewayProcess
-            gatewayProcess = null
             val err =
                 runCatching { dead?.inputStream?.bufferedReader()?.readText().orEmpty() }
                     .getOrDefault("")
-            // Best-effort: leave a note under HERMES_HOME for debugging.
+            gatewayProcess?.destroyForcibly()
+            gatewayProcess = null
             runCatching {
-                File(home, "gateway-last-error.txt").writeText(err.ifBlank { "(no output, exit early)" })
+                File(home, "gateway-last-error.txt").writeText(
+                    buildString {
+                        appendLine("alive=${dead?.isAlive} portReady=$ready")
+                        appendLine(err.ifBlank { "(no process output)" })
+                    },
+                )
             }
+            error(
+                "Hermes gateway failed to bind ${HermesManifest.API_HOST}:${HermesManifest.API_PORT}. " +
+                    (err.take(300).ifBlank { "See hermes-home/gateway-last-error.txt" }),
+            )
         }
     }
 
@@ -249,8 +267,8 @@ class HermesRuntime(
         val providerId = request.providerId?.takeIf { it.isNotBlank() } ?: "opencode-free"
         val assistantText =
             if (providerId == "opencode-free" || modelId.endsWith("-free") || modelId == "big-pickle") {
-                // Free-tier Zen rejects Hermes CLI wire format; call the relay with the
-                // official OpenCode client fingerprint (stream + tools + session header).
+                // OpenCode closed anonymous free-tier to third-party clients (Hermes included).
+                // Still attempt once; on 403 return a clear actionable message.
                 chatOpenCodeFree(modelId, text)
             } else {
                 val result =
@@ -350,7 +368,15 @@ class HermesRuntime(
             client.newCall(request).execute().use { response ->
                 val raw = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
-                    return@use "HTTP ${response.code}: ${raw.take(400).ifBlank { response.message }}"
+                    val snippet = raw.take(400).ifBlank { response.message }
+                    if (response.code == 403 || "FreeTierError" in raw || "only be used from within OpenCode" in raw) {
+                        return@use (
+                            "OpenCode Free is blocked for third-party clients (including Hermes). " +
+                                "OpenCode only allows free models inside the official OpenCode app. " +
+                                "Connect OpenRouter, Anthropic, Gemini, or another provider with an API key under Settings → Providers."
+                        )
+                    }
+                    return@use "HTTP ${response.code}: $snippet"
                 }
                 parseOpenCodeFreeStream(raw).ifBlank { raw.take(500).ifBlank { "(empty response)" } }
             }

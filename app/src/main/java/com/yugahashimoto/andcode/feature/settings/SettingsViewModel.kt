@@ -265,7 +265,7 @@ class SettingsViewModel(
                     (
                         managed.connected.toSet() +
                             oauth.locallyConnected +
-                            if (core.selected?.agent == LocalAgent.HERMES) setOf("opencode-free") else emptySet()
+                            emptySet()
                     ) - oauth.locallyDisconnected,
                 agents = core.runtime.agents.filter { it.mode == null || it.mode == "primary" },
                 providerId = core.preferences.providerId,
