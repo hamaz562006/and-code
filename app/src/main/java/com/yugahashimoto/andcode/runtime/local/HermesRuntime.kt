@@ -15,9 +15,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
-import java.util.concurrent.TimeUnit
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 /**
  * Host-side Hermes sessions via non-interactive CLI (`hermes -z` / `hermes chat -q`).
@@ -312,7 +312,10 @@ class HermesRuntime(
      * OpenCode Zen free tier: requires User-Agent opencode/1.18+, x-opencode-session,
      * stream=true, and the four tool stubs. Verified live against opencode.ai/zen/v1.
      */
-    private fun chatOpenCodeFree(modelId: String, userText: String): String {
+    private fun chatOpenCodeFree(
+        modelId: String,
+        userText: String,
+    ): String {
         val client =
             OkHttpClient.Builder()
                 .connectTimeout(60, TimeUnit.SECONDS)

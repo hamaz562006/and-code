@@ -111,8 +111,7 @@ class HermesTarget(
 
     override suspend fun abortSession(sessionId: String): Boolean = true
 
-    override suspend fun deleteSession(sessionId: String): Boolean =
-        withContext(Dispatchers.IO) { runtime.deleteSession(sessionId) }
+    override suspend fun deleteSession(sessionId: String): Boolean = withContext(Dispatchers.IO) { runtime.deleteSession(sessionId) }
 
     override suspend fun respondToPermission(
         sessionId: String,
