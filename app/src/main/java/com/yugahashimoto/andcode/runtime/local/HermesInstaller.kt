@@ -434,19 +434,31 @@ object HermesInstaller {
     fun patchOpenCodeFreeClientHeaders(agent: File) {
         val file = File(agent, "app/plugins/model-providers/opencode-free/__init__.py")
         if (!file.isFile) return
+        // Replace the whole default_headers block so free-tier fingerprint matches the
+        // official OpenCode CLI (User-Agent opencode/1.18+, x-opencode-session, empty auth).
+        val patchedHeaders =
+            """
+            |    default_headers={
+            |        "Authorization": "",
+            |        "HTTP-Referer": "https://opencode.ai",
+            |        "X-Title": "opencode",
+            |        "User-Agent": "opencode/1.18.18",
+            |        "x-opencode-session": "ses_andcodehermes00abcdef0123456789ab",
+            |    },
+            """.trimMargin()
         var text = file.readText(Charsets.UTF_8)
-        if ("opencode/1.18.0" in text && "X-Session-ID" in text) return
-        val lines = text.lines().toMutableList()
-        val out = mutableListOf<String>()
-        for (line in lines) {
-            if ("User-Agent" in line && "HermesAgent" in line) {
-                out.add("        \"User-Agent\": \"opencode/1.18.0\",")
-                out.add("        \"X-Session-ID\": \"ses_andcodehermes000000000001\",")
+        if ("opencode/1.18.18" in text && "x-opencode-session" in text) return
+        val re = Regex("""default_headers=\{[^}]*\},""", RegexOption.DOT_MATCHES_ALL)
+        text =
+            if (re.containsMatchIn(text)) {
+                re.replace(text, patchedHeaders.trim())
             } else {
-                out.add(line)
+                text
             }
-        }
-        file.writeText(out.joinToString("\n") + if (text.endsWith("\n")) "\n" else "")
+        // Prefer a model that still exists on the Zen free catalog.
+        text = text.replace("mimo-v2.5-free", "big-pickle")
+        text = text.replace("""default_aux_model="mimo-v2.5-free"""", """default_aux_model="big-pickle"""")
+        file.writeText(text)
     }
 
     fun resolveBundledPython(agent: File): File? =

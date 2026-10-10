@@ -111,6 +111,9 @@ class HermesTarget(
 
     override suspend fun abortSession(sessionId: String): Boolean = true
 
+    override suspend fun deleteSession(sessionId: String): Boolean =
+        withContext(Dispatchers.IO) { runtime.deleteSession(sessionId) }
+
     override suspend fun respondToPermission(
         sessionId: String,
         permissionId: String,
@@ -124,10 +127,11 @@ class HermesTarget(
         runtime.ensureOpenCodeFreeDefault()
         val freeModels =
             listOf(
-                "mimo-v2.5-free",
                 "big-pickle",
-                "nemotron-3-ultra-free",
+                "mimo-v2.6-flash-free",
                 "muse-spark-1.2-contributor-free",
+                "nemotron-3-ultra-free",
+                "ling-3.1-flash-free",
             ).associateWith { id ->
                 OpenCodeModel(id = id, providerId = "opencode-free", name = id)
             }
@@ -153,7 +157,7 @@ class HermesTarget(
         return ProviderCatalog(
             all = listOf(free) + others,
             connected = listOf("opencode-free"),
-            default = mapOf("opencode-free" to "mimo-v2.5-free"),
+            default = mapOf("opencode-free" to "big-pickle"),
         )
     }
 

@@ -243,12 +243,23 @@ class SettingsViewModel(
                             },
                     )
                 }
-            val baseAvailable = managed.all.ifEmpty { piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed } } }
+            val baseAvailable =
+                when {
+                    managed.all.isNotEmpty() -> managed.all
+                    core.selected?.agent == LocalAgent.OPEN_CODE -> emptyList()
+                    else -> piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed } }
+                }
             val mergedAvailable =
                 (baseAvailable + customAsProviders).distinctBy { it.id }
             SettingsUiState(
                 providers =
-                    (core.runtime.providers.all.ifEmpty { piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed } } }).filter { it.id in chatConnected },
+                    (
+                        when {
+                            core.runtime.providers.all.isNotEmpty() -> core.runtime.providers.all
+                            core.selected?.agent == LocalAgent.OPEN_CODE -> emptyList()
+                            else -> piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed } }
+                        }
+                    ).filter { it.id in chatConnected },
                 availableProviders = mergedAvailable,
                 connectedProviderIds =
                     (
@@ -821,14 +832,18 @@ class SettingsViewModel(
                 if (target.id == registry.selected.value?.id) {
                     null
                 } else {
-                    // A failure keeps whatever was fetched before: the runtime may simply not be
-                    // running yet, and falling back would put the other agent's models on screen,
-                    // which is the very thing this exists to prevent.
-                    runCatching { target.listProviders() }.getOrNull()
-                        ?: providerCatalog.value
-                        // The runtime may simply be stopped. Its stored catalogue is still the
-                        // truth about which providers exist and which are connected.
-                        ?: catalog.cachedProviders(target.id)
+                    val fetched = runCatching { target.listProviders() }.getOrNull()
+                    when {
+                        // OpenCode not installed → empty list, never show stale/Hermes models.
+                        target.agent == LocalAgent.OPEN_CODE &&
+                            fetched != null &&
+                            fetched.all.isEmpty() -> ProviderCatalog()
+                        fetched != null -> fetched
+                        target.agent == LocalAgent.OPEN_CODE -> ProviderCatalog()
+                        else ->
+                            providerCatalog.value
+                                ?: catalog.cachedProviders(target.id)
+                    }
                 }
             runCatching { target.providerAuthMethods() }
                 .onSuccess { methods ->
@@ -907,9 +922,9 @@ class SettingsViewModel(
                                     providerId = "opencode-free",
                                     name = "Big Pickle",
                                 ),
-                            "mimo-v2.5-free" to
+                            "mimo-v2.6-flash-free" to
                                 OpenCodeModel(
-                                    id = "mimo-v2.5-free",
+                                    id = "mimo-v2.6-flash-free",
                                     providerId = "opencode-free",
                                     name = "MiMo V2.5 Free",
                                 ),
