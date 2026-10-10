@@ -306,6 +306,7 @@ class HermesRuntime(
             sessions[sessionId] = s.copy(time = s.time.copy(updated = doneAt))
         }
     }
+
     /**
      * OpenCode Zen free tier: requires User-Agent opencode/1.18+, x-opencode-session,
      * stream=true, and the four tool stubs. Verified live against opencode.ai/zen/v1.
