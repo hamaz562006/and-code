@@ -203,6 +203,15 @@ fun AndCodeApp(
     val codexState by app.codexController.state.collectAsState()
     val piState by app.piController.state.collectAsState()
     val grokBuildState by app.grokBuildController.state.collectAsState()
+    val hermesState by app.hermesController.state.collectAsState()
+
+    // Only auto-select Hermes when its install just completed — never override OpenCode/Pi/etc.
+    LaunchedEffect(hermesState.install) {
+        if (hermesState.install is com.yugahashimoto.andcode.runtime.local.HermesInstallStatus.Ready) {
+            app.runtimeRegistry.selectIfUnset(app.hermesTarget.id)
+            runCatching { app.hermesTarget.connect() }
+        }
+    }
     val codexSignInViewModel: CodexSignInViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel(
             key = "setup-codex-sign-in",
@@ -682,6 +691,10 @@ fun AndCodeApp(
     val startDestination = remember { if (app.settings.onboardingCompleted) ROUTE_CHAT else ROUTE_ONBOARDING }
     val completeOnboardingAndGoToChat: () -> Unit = {
         app.settings.onboardingCompleted = true
+        // Prefer Hermes when it is the agent that was just provisioned (no OpenCode HTTP port).
+        if (com.yugahashimoto.andcode.runtime.local.HermesInstaller.isInstalledIn(java.io.File(app.filesDir, "runtime"))) {
+            app.runtimeRegistry.select(app.hermesTarget.id)
+        }
         navController.navigate(ROUTE_CHAT) {
             popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
             launchSingleTop = true
@@ -962,14 +975,26 @@ fun AndCodeApp(
                                                 } ?: error("Unable to read package")
                                                 try {
                                                     // Offline-first: never network-install during import.
+                                                    val hostRuntime = java.io.File(app.filesDir, "runtime")
+                                                    hostRuntime.mkdirs()
+                                                    val peek = RuntimeAgentPackage.peekManifest(tmp)
+                                                    val isHermes =
+                                                        peek?.agentId ==
+                                                            com.yugahashimoto.andcode.runtime.LocalAgent.HERMES.id
                                                     var rootfs =
                                                         app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                                    if (rootfs == null || !rootfs.isDirectory) {
+                                                    if (!isHermes && (rootfs == null || !rootfs.isDirectory)) {
                                                         rootfs =
                                                             app.localRuntimeInstaller.ensureRootfsForOfflineImport()
                                                     }
-                                                    val imported = RuntimeAgentPackage.import(tmp, rootfs)
+                                                    val imported =
+                                                        RuntimeAgentPackage.import(
+                                                            packageFile = tmp,
+                                                            rootfs = rootfs,
+                                                            hostRuntimeDir = hostRuntime,
+                                                        )
                                                     app.localRuntimeInstaller.recordAgent(imported.agent)
+                                                    runCatching { app.hermesController.refresh() }
                                                     runCatching { app.piController.refresh() }
                                                     runCatching { app.grokBuildController.refresh() }
                                                     runCatching { app.codexController.refresh() }
@@ -1038,6 +1063,9 @@ fun AndCodeApp(
                                     app.piController.install(agents, developmentToolGroups)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.GROK_BUILD in agents) {
                                     app.grokBuildController.install(agents, developmentToolGroups)
+                                } else if (com.yugahashimoto.andcode.runtime.LocalAgent.HERMES in agents) {
+                                    // Same path as Pi / Grok: controller owns install state for setup UI.
+                                    app.hermesController.install(agents, developmentToolGroups)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE in agents) {
                                     workspaceViewModel.installClaudeCode(developmentToolGroups)
                                 }
@@ -1056,6 +1084,7 @@ fun AndCodeApp(
                             codex = codexState,
                             pi = piState,
                             grok = grokBuildState,
+                            hermes = hermesState,
                             codexSignInDialog = codexSignInDialog,
                             codexSignIn =
                                 CodexSignInActions(

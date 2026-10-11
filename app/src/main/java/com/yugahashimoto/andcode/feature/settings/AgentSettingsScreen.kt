@@ -67,6 +67,8 @@ import com.yugahashimoto.andcode.runtime.local.CodexInstallStatus
 import com.yugahashimoto.andcode.runtime.local.CodexUiState
 import com.yugahashimoto.andcode.runtime.local.GrokBuildInstallStatus
 import com.yugahashimoto.andcode.runtime.local.GrokBuildUiState
+import com.yugahashimoto.andcode.runtime.local.HermesInstallStatus
+import com.yugahashimoto.andcode.runtime.local.HermesUiState
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeUpdateCheck
 import com.yugahashimoto.andcode.runtime.local.PiInstallStatus
 import com.yugahashimoto.andcode.runtime.local.PiUiState
@@ -93,6 +95,7 @@ fun AgentSettingsScreen(
     onOpenCodex: () -> Unit,
     onOpenPi: () -> Unit,
     onOpenGrokBuild: () -> Unit,
+    onOpenHermes: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(R.string.settings_agents_row), onBack = onBack) {
@@ -107,6 +110,7 @@ fun AgentSettingsScreen(
             SettingsDivider()
             AgentRow(LocalAgent.PI, onOpenPi)
             AgentRow(LocalAgent.GROK_BUILD, onOpenGrokBuild)
+            AgentRow(LocalAgent.HERMES, onOpenHermes)
         }
     }
 }
@@ -975,6 +979,106 @@ fun AgentPackageSection(
                 title = stringResource(R.string.agent_import_button),
                 onClick = onImport,
             )
+        }
+    }
+}
+
+/** Hermes agent settings: install status, version, reinstall. No localhost OpenCode port. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HermesAgentSettingsScreen(
+    hermes: HermesUiState,
+    onInstall: () -> Unit = {},
+    onRefresh: () -> Unit = {},
+    onOpenProviders: (() -> Unit)? = null,
+    onOpenMcp: (() -> Unit)? = null,
+    onImportPackage: (() -> Unit)? = null,
+    onBack: () -> Unit,
+) {
+    AgentSettingsScaffold(title = stringResource(LocalAgent.HERMES.displayNameRes), onBack = onBack) {
+        AgentCardSection {
+            val statusText =
+                when (val install = hermes.install) {
+                    is HermesInstallStatus.Installing ->
+                        install.step?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.install_step_installing_hermes)
+                    is HermesInstallStatus.Failed ->
+                        install.message ?: stringResource(R.string.agent_status_install_failed)
+                    is HermesInstallStatus.Ready ->
+                        hermes.version?.let { "Hermes $it" } ?: stringResource(R.string.agent_hermes_name)
+                    else ->
+                        if (hermes.installed) {
+                            hermes.version?.let { "Hermes $it" } ?: stringResource(R.string.agent_hermes_name)
+                        } else {
+                            stringResource(R.string.runtime_status_not_installed)
+                        }
+                }
+            AgentStatusCard(
+                status = statusText,
+                active = hermes.isReady(),
+                metrics =
+                    hermes.version?.takeIf(String::isNotBlank)?.let { v ->
+                        listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
+                    }.orEmpty(),
+            ) {
+                when (val install = hermes.install) {
+                    is HermesInstallStatus.Installing -> {
+                        Text(
+                            install.step?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.install_step_installing_hermes),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        val progress = install.progress
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    is HermesInstallStatus.Failed -> {
+                        Text(
+                            install.message ?: stringResource(R.string.agent_status_install_failed),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.claude_retry_install_button))
+                        }
+                    }
+                    else -> {
+                        if (!hermes.installed) {
+                            Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.install_step_installing_hermes))
+                            }
+                        } else {
+                            Text(
+                                text = stringResource(R.string.setup_agent_hermes_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.check_for_update_button))
+                            }
+                            if (onOpenProviders != null) {
+                                Button(onClick = onOpenProviders, modifier = Modifier.fillMaxWidth()) {
+                                    Text(stringResource(R.string.server_info_tab_providers))
+                                }
+                            }
+                            if (onOpenMcp != null) {
+                                OutlinedButton(onClick = onOpenMcp, modifier = Modifier.fillMaxWidth()) {
+                                    Text(stringResource(R.string.mcp_settings_row))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (!hermes.installed && onImportPackage != null) {
+            AgentPackageSection(installed = false, onImport = onImportPackage)
         }
     }
 }

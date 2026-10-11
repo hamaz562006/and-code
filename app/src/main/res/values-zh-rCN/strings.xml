@@ -899,6 +899,9 @@
     <string name="agent_antigravity_name">Antigravity</string>
     <string name="agent_codex_name">Codex</string>
     <string name="agent_pi_name">Pi</string>
+    <string name="agent_hermes_name">Hermes</string>
+    <string name="setup_agent_hermes_desc">Nous Research Hermes Agent (Termux aarch64 package). ~160 MB download.</string>
+    <string name="install_step_installing_hermes">Installing Hermes…</string>
     <string name="runtime_error_install_failed">无法安装本地运行时</string>
     <string name="runtime_error_reinstall_failed">无法重新安装本地运行时</string>
     <string name="runtime_error_start_failed">无法启动本地 OpenCode</string>
@@ -1237,4 +1240,5 @@
     <string name="agent_grok_build_api_key_saved">API key saved</string>
     <string name="grok_build_install_button">Install Grok Build</string>
     <string name="grok_build_installed_version">Grok Build %1$s</string>
+    <string name="hermes_installed_version">Hermes %1$s · 127.0.0.1:8642</string>
 </resources>

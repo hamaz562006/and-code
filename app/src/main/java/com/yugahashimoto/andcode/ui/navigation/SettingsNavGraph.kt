@@ -30,6 +30,7 @@ import com.yugahashimoto.andcode.feature.settings.CodexSignInActions
 import com.yugahashimoto.andcode.feature.settings.CodexSignInViewModel
 import com.yugahashimoto.andcode.feature.settings.GitHubSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.GrokBuildAgentSettingsScreen
+import com.yugahashimoto.andcode.feature.settings.HermesAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ModelVisibilityScreen
 import com.yugahashimoto.andcode.feature.settings.OpenCodeAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.OpenCodeAgentSettingsViewModel
@@ -300,6 +301,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenCodex = { navController.navigate(ROUTE_SETTINGS_AGENT_CODEX) },
             onOpenPi = { navController.navigate(ROUTE_SETTINGS_AGENT_PI) },
             onOpenGrokBuild = { navController.navigate(ROUTE_SETTINGS_AGENT_GROK_BUILD) },
+            onOpenHermes = { navController.navigate(ROUTE_SETTINGS_AGENT_HERMES) },
             onBack = { navController.popBackStack() },
         )
     }
@@ -384,9 +386,20 @@ fun NavGraphBuilder.settingsNavGraph(
 
     composable(ROUTE_SETTINGS_MODEL_VISIBILITY) {
         val settingsState by settingsViewModel.state.collectAsState()
-        androidx.compose.runtime.LaunchedEffect(Unit) { settingsViewModel.refreshProviderAuth() }
+        // Strictly OpenCode runtime catalogue — not Hermes/Pi seeds.
+        var openCodeProviders by androidx.compose.runtime.remember {
+            androidx.compose.runtime.mutableStateOf<List<com.yugahashimoto.andcode.core.api.OpenCodeProvider>>(emptyList())
+        }
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            val target = runtimeRegistry.targetFor(com.yugahashimoto.andcode.runtime.LocalAgent.OPEN_CODE)
+            openCodeProviders =
+                target
+                    ?.let { runCatching { it.listProviders() }.getOrNull() }
+                    ?.all
+                    .orEmpty()
+        }
         ModelVisibilityScreen(
-            providers = settingsState.availableProviders.filter { it.id in settingsState.connectedProviderIds },
+            providers = openCodeProviders,
             hiddenModelKeys = settingsState.hiddenModelKeys,
             onToggleModelVisibility = settingsViewModel::toggleModelVisibility,
             onBack = { navController.popBackStack() },
@@ -466,6 +479,25 @@ fun NavGraphBuilder.settingsNavGraph(
                 navController.navigate(ROUTE_SETTINGS_PROVIDERS)
             },
             onApiKey = { key -> app.grokBuildController.setApiKey(key) },
+            onImportPackage = importPackage,
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable(ROUTE_SETTINGS_AGENT_HERMES) {
+        val app = LocalContext.current.applicationContext as AndCodeApplication
+        val hermesState by app.hermesController.state.collectAsState()
+        androidx.compose.runtime.LaunchedEffect(Unit) { app.hermesController.refresh() }
+        val importPackage = rememberAgentPackageImporter()
+        HermesAgentSettingsScreen(
+            hermes = hermesState,
+            onInstall = { app.hermesController.install() },
+            onRefresh = { app.hermesController.refresh() },
+            onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_HERMES) },
+            onOpenProviders = {
+                app.runtimeRegistry.select(app.hermesTarget.id)
+                navController.navigate(ROUTE_SETTINGS_PROVIDERS)
+            },
             onImportPackage = importPackage,
             onBack = { navController.popBackStack() },
         )
@@ -599,6 +631,15 @@ fun NavGraphBuilder.settingsNavGraph(
         )
     }
 
+    composable(ROUTE_SETTINGS_MCP_HERMES) {
+        com.yugahashimoto.andcode.feature.settings.McpScreen(
+            registry = runtimeRegistry,
+            agent = com.yugahashimoto.andcode.runtime.LocalAgent.HERMES,
+            onOpenBrowser = {},
+            onBack = { navController.popBackStack() },
+        )
+    }
+
     composable(ROUTE_SETTINGS_SERVER_INFO) {
         com.yugahashimoto.andcode.feature.settings.ServerInfoScreen(
             registry = runtimeRegistry,
@@ -669,16 +710,25 @@ private fun rememberAgentPackageImporter(): () -> Unit {
                             } ?: error("Unable to read package")
                             try {
                                 // Offline-first: never call network install() during import.
-                                // Packages (format v2) ship agent + base Alpine tree.
+                                val hostRuntime = File(app.filesDir, "runtime")
+                                hostRuntime.mkdirs()
+                                val peek = RuntimeAgentPackage.peekManifest(tmp)
+                                val isHermes = peek?.agentId == LocalAgent.HERMES.id
                                 var rootfs = app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                if (rootfs == null || !rootfs.isDirectory) {
+                                if (!isHermes && (rootfs == null || !rootfs.isDirectory)) {
                                     rootfs = app.localRuntimeInstaller.ensureRootfsForOfflineImport()
                                 }
-                                val imported = RuntimeAgentPackage.import(tmp, rootfs)
+                                val imported =
+                                    RuntimeAgentPackage.import(
+                                        packageFile = tmp,
+                                        rootfs = rootfs,
+                                        hostRuntimeDir = hostRuntime,
+                                    )
                                 app.localRuntimeInstaller.recordAgent(imported.agent)
                                 when (imported.agent) {
                                     LocalAgent.PI -> runCatching { app.piController.refresh() }
                                     LocalAgent.GROK_BUILD -> runCatching { app.grokBuildController.refresh() }
+                                    LocalAgent.HERMES -> runCatching { app.hermesController.refresh() }
                                     LocalAgent.CODEX -> runCatching { app.codexController.refresh() }
                                     LocalAgent.CLAUDE_CODE -> runCatching { app.claudeCodeController.refresh() }
                                     LocalAgent.ANTIGRAVITY -> runCatching { app.antigravityController.refresh() }

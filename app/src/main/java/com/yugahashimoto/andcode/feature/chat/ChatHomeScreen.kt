@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -1240,7 +1241,13 @@ private fun ChatComposer(
                             .padding(bottom = 4.dp),
                     shape = RoundedCornerShape(12.dp),
                 ) {
-                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                    Column(
+                        modifier =
+                            Modifier
+                                .padding(vertical = 4.dp)
+                                .heightIn(max = 320.dp)
+                                .verticalScroll(rememberScrollState()),
+                    ) {
                         filtered.forEach { suggestion ->
                             val description =
                                 suggestion.descriptionRes?.let { stringResource(it) }

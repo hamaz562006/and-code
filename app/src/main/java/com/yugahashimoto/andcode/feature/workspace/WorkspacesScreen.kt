@@ -257,11 +257,13 @@ fun WorkspacesScreen(
                             enabled =
                                 when (target.agent) {
                                     LocalAgent.CLAUDE_CODE -> state.claude.installed
-                                    LocalAgent.OPEN_CODE -> state.localStatus is LocalRuntimeStatus.Ready
+                                    // Ready can be a Hermes/Pi-only sandbox — OpenCode itself must be Connected.
+                                    LocalAgent.OPEN_CODE -> target.state is RuntimeState.Connected
                                     LocalAgent.ANTIGRAVITY -> target.state is RuntimeState.Connected
                                     LocalAgent.CODEX -> target.state is RuntimeState.Connected
                                     LocalAgent.PI -> target.state is RuntimeState.Connected
                                     LocalAgent.GROK_BUILD -> target.state is RuntimeState.Connected
+                                    LocalAgent.HERMES -> target.state is RuntimeState.Connected
                                     null -> true
                                 },
                         ) {
@@ -859,6 +861,11 @@ private fun targetSubtitle(
         localAgentSubtitle(target.state, R.string.pi_installed_version, R.string.runtime_status_not_installed)
     } else if (target.agent == LocalAgent.GROK_BUILD) {
         localAgentSubtitle(target.state, R.string.grok_build_installed_version, R.string.runtime_status_not_installed)
+    } else if (target.agent == LocalAgent.HERMES) {
+        localAgentSubtitle(target.state, R.string.hermes_installed_version, R.string.runtime_status_not_installed)
+    } else if (target.agent == LocalAgent.OPEN_CODE || target.agent == null) {
+        // Do NOT use localStatus here: a Hermes-only sandbox is Ready without OpenCode binary.
+        localAgentSubtitle(target.state, R.string.capability_version, R.string.runtime_status_not_installed)
     } else {
         when (target.type) {
             RuntimeType.REMOTE ->

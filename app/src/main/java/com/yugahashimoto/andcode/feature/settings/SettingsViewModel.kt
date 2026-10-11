@@ -207,6 +207,7 @@ class SettingsViewModel(
                         core.selected?.agent == LocalAgent.OPEN_CODE ||
                         core.selected?.agent == LocalAgent.PI ||
                         core.selected?.agent == LocalAgent.GROK_BUILD ||
+                        core.selected?.agent == LocalAgent.HERMES ||
                         core.selected?.agent == null
                     ) {
                         core.runtime.providers
@@ -225,6 +226,12 @@ class SettingsViewModel(
                 } else {
                     emptyList()
                 }
+            val hermesSeed =
+                if (core.selected?.agent == LocalAgent.HERMES && managed.all.isEmpty()) {
+                    HERMES_SEED_PROVIDERS
+                } else {
+                    emptyList()
+                }
             val customAsProviders =
                 customProviders.definitions().map { def ->
                     OpenCodeProvider(
@@ -236,14 +243,30 @@ class SettingsViewModel(
                             },
                     )
                 }
-            val baseAvailable = managed.all.ifEmpty { piSeed.ifEmpty { grokSeed } }
+            val baseAvailable =
+                when {
+                    managed.all.isNotEmpty() -> managed.all
+                    core.selected?.agent == LocalAgent.OPEN_CODE -> emptyList()
+                    else -> piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed } }
+                }
             val mergedAvailable =
                 (baseAvailable + customAsProviders).distinctBy { it.id }
             SettingsUiState(
                 providers =
-                    (core.runtime.providers.all.ifEmpty { piSeed.ifEmpty { grokSeed } }).filter { it.id in chatConnected },
+                    (
+                        when {
+                            core.runtime.providers.all.isNotEmpty() -> core.runtime.providers.all
+                            core.selected?.agent == LocalAgent.OPEN_CODE -> emptyList()
+                            else -> piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed } }
+                        }
+                    ).filter { it.id in chatConnected },
                 availableProviders = mergedAvailable,
-                connectedProviderIds = (managed.connected.toSet() + oauth.locallyConnected) - oauth.locallyDisconnected,
+                connectedProviderIds =
+                    (
+                        managed.connected.toSet() +
+                            oauth.locallyConnected +
+                            emptySet()
+                    ) - oauth.locallyDisconnected,
                 agents = core.runtime.agents.filter { it.mode == null || it.mode == "primary" },
                 providerId = core.preferences.providerId,
                 modelId = core.preferences.modelId,
@@ -423,6 +446,7 @@ class SettingsViewModel(
         val selected = registry.selected.value
         if (selected?.agent == LocalAgent.PI) return selected
         if (selected?.agent == LocalAgent.GROK_BUILD) return selected
+        if (selected?.agent == LocalAgent.HERMES) return selected
         if (selected?.agent == LocalAgent.OPEN_CODE) return selected
         return registry.targetFor(LocalAgent.OPEN_CODE)
     }
@@ -808,14 +832,18 @@ class SettingsViewModel(
                 if (target.id == registry.selected.value?.id) {
                     null
                 } else {
-                    // A failure keeps whatever was fetched before: the runtime may simply not be
-                    // running yet, and falling back would put the other agent's models on screen,
-                    // which is the very thing this exists to prevent.
-                    runCatching { target.listProviders() }.getOrNull()
-                        ?: providerCatalog.value
-                        // The runtime may simply be stopped. Its stored catalogue is still the
-                        // truth about which providers exist and which are connected.
-                        ?: catalog.cachedProviders(target.id)
+                    val fetched = runCatching { target.listProviders() }.getOrNull()
+                    when {
+                        // OpenCode not installed → empty list, never show stale/Hermes models.
+                        target.agent == LocalAgent.OPEN_CODE &&
+                            fetched != null &&
+                            fetched.all.isEmpty() -> ProviderCatalog()
+                        fetched != null -> fetched
+                        target.agent == LocalAgent.OPEN_CODE -> ProviderCatalog()
+                        else ->
+                            providerCatalog.value
+                                ?: catalog.cachedProviders(target.id)
+                    }
                 }
             runCatching { target.providerAuthMethods() }
                 .onSuccess { methods ->
@@ -878,6 +906,104 @@ class SettingsViewModel(
                             "grok-4" to OpenCodeModel(id = "grok-4", providerId = "xai", name = "Grok 4"),
                             "grok-3" to OpenCodeModel(id = "grok-3", providerId = "xai", name = "Grok 3"),
                         ),
+                ),
+            )
+
+        val HERMES_SEED_PROVIDERS =
+            listOf(
+                OpenCodeProvider(
+                    id = "opencode-free",
+                    name = "OpenCode Free",
+                    models =
+                        mapOf(
+                            "big-pickle" to
+                                OpenCodeModel(
+                                    id = "big-pickle",
+                                    providerId = "opencode-free",
+                                    name = "Big Pickle",
+                                ),
+                            "mimo-v2.6-flash-free" to
+                                OpenCodeModel(
+                                    id = "mimo-v2.6-flash-free",
+                                    providerId = "opencode-free",
+                                    name = "MiMo V2.5 Free",
+                                ),
+                        ),
+                ),
+                OpenCodeProvider(
+                    id = "openrouter",
+                    name = "OpenRouter",
+                    models =
+                        mapOf(
+                            "openrouter/auto" to
+                                OpenCodeModel(id = "openrouter/auto", providerId = "openrouter", name = "Auto"),
+                        ),
+                ),
+                OpenCodeProvider(
+                    id = "nous",
+                    name = "Nous Portal",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "anthropic",
+                    name = "Anthropic",
+                    models =
+                        mapOf(
+                            "claude-sonnet-4-5" to
+                                OpenCodeModel(
+                                    id = "claude-sonnet-4-5",
+                                    providerId = "anthropic",
+                                    name = "Claude Sonnet 4.5",
+                                ),
+                        ),
+                ),
+                OpenCodeProvider(
+                    id = "openai",
+                    name = "OpenAI",
+                    models =
+                        mapOf(
+                            "gpt-4.1" to OpenCodeModel(id = "gpt-4.1", providerId = "openai", name = "GPT-4.1"),
+                        ),
+                ),
+                OpenCodeProvider(
+                    id = "gemini",
+                    name = "Google Gemini",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "deepseek",
+                    name = "DeepSeek",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "xai",
+                    name = "xAI",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "fireworks",
+                    name = "Fireworks AI",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "groq",
+                    name = "Groq",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "mistral",
+                    name = "Mistral",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "huggingface",
+                    name = "Hugging Face",
+                    models = emptyMap(),
+                ),
+                OpenCodeProvider(
+                    id = "custom",
+                    name = "Custom (OpenAI-compatible)",
+                    models = emptyMap(),
                 ),
             )
     }

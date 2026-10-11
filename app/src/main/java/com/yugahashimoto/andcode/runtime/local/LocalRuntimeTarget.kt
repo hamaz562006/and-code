@@ -155,7 +155,10 @@ class LocalRuntimeTarget(
         messageId: String,
     ): Boolean = backend.deleteMessage(sessionId, messageId)
 
-    override suspend fun listProviders(): ProviderCatalog = backend.listProviders()
+    override suspend fun listProviders(): ProviderCatalog {
+        if (!runtimeManager.hasOpenCode()) return ProviderCatalog()
+        return backend.listProviders()
+    }
 
     override suspend fun listAgents(): List<OpenCodeAgent> = backend.listAgents()
 
@@ -256,7 +259,10 @@ class LocalRuntimeTarget(
 
     override suspend fun archiveSession(sessionId: String): OpenCodeSession = backend.archiveSession(sessionId)
 
-    override suspend fun mcpServers(): List<com.yugahashimoto.andcode.core.api.McpServer> = backend.mcpServers()
+    override suspend fun mcpServers(): List<com.yugahashimoto.andcode.core.api.McpServer> {
+        if (!runtimeManager.hasOpenCode()) return emptyList()
+        return backend.mcpServers()
+    }
 
     override suspend fun addMcpServer(body: kotlinx.serialization.json.JsonObject): com.yugahashimoto.andcode.core.api.McpServer =
         backend.addMcpServer(body)
