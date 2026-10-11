@@ -29,6 +29,7 @@ object RuntimeAgentPackage {
     const val MANIFEST_NAME = "manifest.json"
     const val FILE_EXTENSION = "andcode.zip"
     private const val PAYLOAD_PREFIX = "rootfs/"
+
     /** Host-side agent trees (Hermes Termux deb) live outside Alpine rootfs. */
     private const val HOST_PREFIX = "host/"
 
@@ -185,7 +186,6 @@ object RuntimeAgentPackage {
         addIfExists(paths, rootfs, "lib/apk")
         addIfExists(paths, rootfs, "var/lib")
     }
-
 
     /**
      * Relative paths under the app [runtimeDirectory] for host-side agents (Hermes).
