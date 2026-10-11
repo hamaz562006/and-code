@@ -115,10 +115,13 @@ class HermesRuntime(
         python.setExecutable(true, false)
         val repo = File(agent, "app")
         val site = File(agent, "venv/lib/python3.14/site-packages")
+        // Set full argv inside -c so hermes_cli sees "hermes gateway run" (extra ProcessBuilder
+        // args after -c are unreliable with linker64 wrapping).
         val bootstrap =
-            "import os, site, sys; sys.argv[0]='hermes'; " +
+            "import os, site, sys; " +
+                "sys.argv=['hermes','gateway','run']; " +
                 "site.addsitedir(os.environ['HERMES_SITE']); " +
-                "from hermes_cli.main import main; sys.exit(main())"
+                "from hermes_cli.main import main; raise SystemExit(main())"
         val linker = HermesInstaller.resolveLinker64()
         val command =
             buildList {
@@ -127,8 +130,6 @@ class HermesRuntime(
                 add("-P")
                 add("-c")
                 add(bootstrap)
-                add("gateway")
-                add("run")
             }
         val pb =
             ProcessBuilder(command)

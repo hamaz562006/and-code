@@ -335,6 +335,12 @@ fun NavGraphBuilder.workspaceNavGraph(
     composable(GUEST_BROWSER_ROUTE_PATTERN) { backStack ->
         val requestedUrl = backStack.arguments?.getString(GUEST_BROWSER_ARG_URL)?.let { decodeRouteArg(it) }
         val selectedRuntime by app.runtimeRegistry.selected.collectAsState()
+        // Ensure Hermes gateway is up before the WebView hits :8642.
+        androidx.compose.runtime.LaunchedEffect(selectedRuntime?.id) {
+            if (selectedRuntime?.agent == com.yugahashimoto.andcode.runtime.LocalAgent.HERMES) {
+                runCatching { selectedRuntime?.connect() }
+            }
+        }
         GuestBrowserScreen(
             initialUrl =
                 requestedUrl
