@@ -127,6 +127,7 @@ fun PiAgentSettingsScreen(
     onUpdate: (() -> Unit)? = null,
     onOpenMcp: () -> Unit = {},
     onImportPackage: () -> Unit = {},
+    isImportingPackage: Boolean = false,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.PI.displayNameRes), onBack = onBack) {
@@ -167,7 +168,7 @@ fun PiAgentSettingsScreen(
             }
         }
         if (!pi.installed) {
-            AgentPackageSection(installed = false, onImport = onImportPackage)
+            AgentPackageSection(installed = false, onImport = onImportPackage, isImporting = isImportingPackage)
         }
         SettingsSection(title = stringResource(R.string.settings_agents_section)) {
             SettingsRow(
@@ -191,6 +192,7 @@ fun GrokBuildAgentSettingsScreen(
     onOpenProviders: () -> Unit = {},
     onApiKey: (String) -> Unit = {},
     onImportPackage: () -> Unit = {},
+    isImportingPackage: Boolean = false,
     onBack: () -> Unit,
 ) {
     var apiKey by remember { mutableStateOf("") }
@@ -304,7 +306,7 @@ fun GrokBuildAgentSettingsScreen(
             }
         }
         if (!grok.installed) {
-            AgentPackageSection(installed = false, onImport = onImportPackage)
+            AgentPackageSection(installed = false, onImport = onImportPackage, isImporting = isImportingPackage)
         }
         if (grok.installed) {
             AgentCardSection {
@@ -369,6 +371,7 @@ fun CodexAgentSettingsScreen(
     onSignOut: () -> Unit,
     onOpenMcp: () -> Unit,
     onImportPackage: () -> Unit = {},
+    isImportingPackage: Boolean = false,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.CODEX.displayNameRes), onBack = onBack) {
@@ -390,7 +393,7 @@ fun CodexAgentSettingsScreen(
             }
         }
         if (!codex.installed) {
-            AgentPackageSection(installed = false, onImport = onImportPackage)
+            AgentPackageSection(installed = false, onImport = onImportPackage, isImporting = isImportingPackage)
         }
         // The same agent-scoped section Claude Code and Antigravity have, so every agent's MCP
         // servers are configured from that agent's own screen.
@@ -442,6 +445,7 @@ fun AntigravityAgentSettingsScreen(
     onOpenMcp: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onImportPackage: () -> Unit = {},
+    isImportingPackage: Boolean = false,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.ANTIGRAVITY.displayNameRes), onBack = onBack) {
@@ -469,7 +473,7 @@ fun AntigravityAgentSettingsScreen(
             }
         }
         if (!antigravity.installed) {
-            AgentPackageSection(installed = false, onImport = onImportPackage)
+            AgentPackageSection(installed = false, onImport = onImportPackage, isImporting = isImportingPackage)
         }
         SettingsSection(title = stringResource(R.string.settings_agents_section)) {
             SettingsRow(
@@ -497,6 +501,7 @@ fun ClaudeCodeAgentSettingsScreen(
     onOpenMcp: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onImportPackage: () -> Unit = {},
+    isImportingPackage: Boolean = false,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.CLAUDE_CODE.displayNameRes), onBack = onBack) {
@@ -524,7 +529,7 @@ fun ClaudeCodeAgentSettingsScreen(
             }
         }
         if (!claude.installed) {
-            AgentPackageSection(installed = false, onImport = onImportPackage)
+            AgentPackageSection(installed = false, onImport = onImportPackage, isImporting = isImportingPackage)
         }
         SettingsSection(title = stringResource(R.string.settings_agents_section)) {
             SettingsRow(
@@ -577,6 +582,7 @@ fun OpenCodeAgentSettingsScreen(
     systemPromptLabel: String,
     onOpenMcp: () -> Unit,
     onImportPackage: () -> Unit = {},
+    isImportingPackage: Boolean = false,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.OPEN_CODE.displayNameRes), onBack = onBack) {
@@ -602,7 +608,7 @@ fun OpenCodeAgentSettingsScreen(
                         Spacer(Modifier.padding(horizontal = 4.dp))
                         Text(stringResource(R.string.opencode_install_button))
                     }
-                    OutlinedButton(onClick = onImportPackage, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = onImportPackage, enabled = !isImportingPackage, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Default.Download, contentDescription = null)
                         Spacer(Modifier.padding(horizontal = 4.dp))
                         Text(stringResource(R.string.agent_import_button))
@@ -964,21 +970,52 @@ fun AgentPackageSection(
     installed: Boolean,
     onExport: () -> Unit = {},
     onImport: () -> Unit = {},
+    isImporting: Boolean = false,
 ) {
     // Only for agents that are not installed — offline restore next to Install.
+    // Same UX as setup step 1 (progress + disabled button while restoring).
     if (!installed) {
         SettingsSection(title = stringResource(R.string.agent_package_section)) {
-            Text(
-                text = stringResource(R.string.agent_import_description),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-            SettingsRow(
-                icon = Icons.Default.Download,
-                title = stringResource(R.string.agent_import_button),
-                onClick = onImport,
-            )
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text =
+                        when {
+                            isImporting -> stringResource(R.string.agent_import_preparing_body)
+                            else -> stringResource(R.string.agent_import_description)
+                        },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedButton(
+                    onClick = onImport,
+                    enabled = !isImporting,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (isImporting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        Spacer(modifier = Modifier.size(10.dp))
+                    }
+                    Text(
+                        if (isImporting) {
+                            stringResource(R.string.agent_import_preparing_title)
+                        } else {
+                            stringResource(R.string.agent_import_button)
+                        },
+                    )
+                }
+                if (isImporting) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+            }
         }
     }
 }
@@ -993,6 +1030,7 @@ fun HermesAgentSettingsScreen(
     onOpenProviders: (() -> Unit)? = null,
     onOpenMcp: (() -> Unit)? = null,
     onImportPackage: (() -> Unit)? = null,
+    isImportingPackage: Boolean = false,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.HERMES.displayNameRes), onBack = onBack) {
@@ -1078,7 +1116,11 @@ fun HermesAgentSettingsScreen(
             }
         }
         if (!hermes.installed && onImportPackage != null) {
-            AgentPackageSection(installed = false, onImport = onImportPackage)
+            AgentPackageSection(
+                installed = false,
+                onImport = onImportPackage,
+                isImporting = isImportingPackage,
+            )
         }
     }
 }
