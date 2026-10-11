@@ -975,14 +975,26 @@ fun AndCodeApp(
                                                 } ?: error("Unable to read package")
                                                 try {
                                                     // Offline-first: never network-install during import.
+                                                    val hostRuntime = java.io.File(app.filesDir, "runtime")
+                                                    hostRuntime.mkdirs()
+                                                    val peek = RuntimeAgentPackage.peekManifest(tmp)
+                                                    val isHermes =
+                                                        peek?.agentId ==
+                                                            com.yugahashimoto.andcode.runtime.LocalAgent.HERMES.id
                                                     var rootfs =
                                                         app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                                    if (rootfs == null || !rootfs.isDirectory) {
+                                                    if (!isHermes && (rootfs == null || !rootfs.isDirectory)) {
                                                         rootfs =
                                                             app.localRuntimeInstaller.ensureRootfsForOfflineImport()
                                                     }
-                                                    val imported = RuntimeAgentPackage.import(tmp, rootfs)
+                                                    val imported =
+                                                        RuntimeAgentPackage.import(
+                                                            packageFile = tmp,
+                                                            rootfs = rootfs,
+                                                            hostRuntimeDir = hostRuntime,
+                                                        )
                                                     app.localRuntimeInstaller.recordAgent(imported.agent)
+                                                    runCatching { app.hermesController.refresh() }
                                                     runCatching { app.piController.refresh() }
                                                     runCatching { app.grokBuildController.refresh() }
                                                     runCatching { app.codexController.refresh() }

@@ -160,9 +160,11 @@ fun NavGraphBuilder.workspaceNavGraph(
             }
         val piUi by app.piController.state.collectAsState()
         val grokUi by app.grokBuildController.state.collectAsState()
+        val hermesUi by app.hermesController.state.collectAsState()
         val canExportAgent =
             piUi.installed ||
                 grokUi.installed ||
+                hermesUi.installed ||
                 app.localRuntimeManager.hasOpenCode() ||
                 app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.CODEX) ||
                 app.localRuntimeManager.hasAgent(com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE) ||
@@ -188,13 +190,14 @@ fun NavGraphBuilder.workspaceNavGraph(
                         runCatching {
                             val (file, name) =
                                 withContext(Dispatchers.IO) {
-                                    val rootfs =
-                                        app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                            ?: error(app.getString(R.string.agent_import_need_runtime))
+                                    val rootfs = app.localRuntimeInstaller.installedRuntime()?.rootfs
+                                    val hostRuntime = File(app.filesDir, "runtime")
                                     val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
                                     val selectedAgent = app.runtimeRegistry.selected.value?.agent
                                     val agent =
                                         when {
+                                            selectedAgent == com.yugahashimoto.andcode.runtime.LocalAgent.HERMES && hermesUi.installed ->
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.HERMES
                                             selectedAgent == com.yugahashimoto.andcode.runtime.LocalAgent.PI && piUi.installed ->
                                                 com.yugahashimoto.andcode.runtime.LocalAgent.PI
                                             selectedAgent == com.yugahashimoto.andcode.runtime.LocalAgent.GROK_BUILD && grokUi.installed ->
@@ -217,6 +220,8 @@ fun NavGraphBuilder.workspaceNavGraph(
                                                     com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY,
                                                 ) ->
                                                 com.yugahashimoto.andcode.runtime.LocalAgent.ANTIGRAVITY
+                                            hermesUi.installed ->
+                                                com.yugahashimoto.andcode.runtime.LocalAgent.HERMES
                                             piUi.installed ->
                                                 com.yugahashimoto.andcode.runtime.LocalAgent.PI
                                             grokUi.installed ->
@@ -235,6 +240,11 @@ fun NavGraphBuilder.workspaceNavGraph(
                                             else -> error(app.getString(R.string.agent_export_not_installed))
                                         }
 
+                                    if (agent != com.yugahashimoto.andcode.runtime.LocalAgent.HERMES) {
+                                        require(rootfs != null && rootfs.isDirectory) {
+                                            app.getString(R.string.agent_import_need_runtime)
+                                        }
+                                    }
                                     val exported =
                                         RuntimeAgentPackage.export(
                                             agent = agent,
@@ -242,6 +252,12 @@ fun NavGraphBuilder.workspaceNavGraph(
                                             abi = abi,
                                             outputDir = File(app.cacheDir, "agent-export"),
                                             includeConfig = true,
+                                            hostRuntimeDir =
+                                                if (agent == com.yugahashimoto.andcode.runtime.LocalAgent.HERMES) {
+                                                    hostRuntime
+                                                } else {
+                                                    null
+                                                },
                                         )
                                     exported.file to exported.suggestedName
                                 }

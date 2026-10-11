@@ -487,6 +487,8 @@ fun NavGraphBuilder.settingsNavGraph(
     composable(ROUTE_SETTINGS_AGENT_HERMES) {
         val app = LocalContext.current.applicationContext as AndCodeApplication
         val hermesState by app.hermesController.state.collectAsState()
+        androidx.compose.runtime.LaunchedEffect(Unit) { app.hermesController.refresh() }
+        val importPackage = rememberAgentPackageImporter()
         HermesAgentSettingsScreen(
             hermes = hermesState,
             onInstall = { app.hermesController.install() },
@@ -496,6 +498,7 @@ fun NavGraphBuilder.settingsNavGraph(
                 app.runtimeRegistry.select(app.hermesTarget.id)
                 navController.navigate(ROUTE_SETTINGS_PROVIDERS)
             },
+            onImportPackage = importPackage,
             onBack = { navController.popBackStack() },
         )
     }
@@ -707,12 +710,20 @@ private fun rememberAgentPackageImporter(): () -> Unit {
                             } ?: error("Unable to read package")
                             try {
                                 // Offline-first: never call network install() during import.
-                                // Packages (format v2) ship agent + base Alpine tree.
+                                val hostRuntime = File(app.filesDir, "runtime")
+                                hostRuntime.mkdirs()
+                                val peek = RuntimeAgentPackage.peekManifest(tmp)
+                                val isHermes = peek?.agentId == LocalAgent.HERMES.id
                                 var rootfs = app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                if (rootfs == null || !rootfs.isDirectory) {
+                                if (!isHermes && (rootfs == null || !rootfs.isDirectory)) {
                                     rootfs = app.localRuntimeInstaller.ensureRootfsForOfflineImport()
                                 }
-                                val imported = RuntimeAgentPackage.import(tmp, rootfs)
+                                val imported =
+                                    RuntimeAgentPackage.import(
+                                        packageFile = tmp,
+                                        rootfs = rootfs,
+                                        hostRuntimeDir = hostRuntime,
+                                    )
                                 app.localRuntimeInstaller.recordAgent(imported.agent)
                                 when (imported.agent) {
                                     LocalAgent.PI -> runCatching { app.piController.refresh() }

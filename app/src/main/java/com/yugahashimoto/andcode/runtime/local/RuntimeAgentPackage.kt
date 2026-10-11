@@ -29,6 +29,8 @@ object RuntimeAgentPackage {
     const val MANIFEST_NAME = "manifest.json"
     const val FILE_EXTENSION = "andcode.zip"
     private const val PAYLOAD_PREFIX = "rootfs/"
+    /** Host-side agent trees (Hermes Termux deb) live outside Alpine rootfs. */
+    private const val HOST_PREFIX = "host/"
 
     private val json =
         Json {
@@ -125,8 +127,7 @@ object RuntimeAgentPackage {
                 }
             }
             LocalAgent.HERMES -> {
-                // Host install under runtimeDirectory/hermes — not under Alpine rootfs.
-                // Offline export for Hermes is wired in a follow-up (host tree packaging).
+                // Host paths collected separately via collectHostPaths().
             }
             LocalAgent.OPEN_CODE -> {
                 addIfExists(paths, rootfs, "usr/local/bin/opencode")
@@ -185,6 +186,45 @@ object RuntimeAgentPackage {
         addIfExists(paths, rootfs, "var/lib")
     }
 
+
+    /**
+     * Relative paths under the app [runtimeDirectory] for host-side agents (Hermes).
+     * Packaged into the zip under [HOST_PREFIX] so import does not need Alpine rootfs.
+     */
+    fun collectHostPaths(
+        agent: LocalAgent,
+        runtimeDirectory: File,
+        includeConfig: Boolean = true,
+    ): List<String> {
+        val paths = linkedSetOf<String>()
+        when (agent) {
+            LocalAgent.HERMES -> {
+                val hermesRoot = File(runtimeDirectory, HermesManifest.INSTALL_DIR)
+                if (hermesRoot.isDirectory) {
+                    hermesRoot.walkTopDown().forEach { file ->
+                        if (file.isFile) {
+                            val rel = file.relativeTo(runtimeDirectory).path.replace('\\', '/')
+                            paths.add(rel)
+                        }
+                    }
+                }
+                if (includeConfig) {
+                    val home = File(runtimeDirectory, "hermes-home")
+                    if (home.isDirectory) {
+                        home.walkTopDown().forEach { file ->
+                            if (file.isFile) {
+                                val rel = file.relativeTo(runtimeDirectory).path.replace('\\', '/')
+                                paths.add(rel)
+                            }
+                        }
+                    }
+                }
+            }
+            else -> Unit
+        }
+        return paths.toList()
+    }
+
     private fun addIfExists(
         paths: MutableSet<String>,
         rootfs: File,
@@ -212,21 +252,39 @@ object RuntimeAgentPackage {
 
     fun export(
         agent: LocalAgent,
-        rootfs: File,
+        rootfs: File?,
         abi: String,
         outputDir: File,
         includeConfig: Boolean = true,
+        hostRuntimeDir: File? = null,
     ): ExportResult {
-        require(rootfs.isDirectory) { "Rootfs is not installed" }
+        val isHostAgent = agent == LocalAgent.HERMES
+        if (!isHostAgent) {
+            require(rootfs != null && rootfs.isDirectory) { "Rootfs is not installed" }
+        } else {
+            require(hostRuntimeDir != null && hostRuntimeDir.isDirectory) {
+                "Hermes runtime directory is missing"
+            }
+        }
         val version =
             when (agent) {
-                LocalAgent.PI -> PiInstaller.installedVersion(rootfs) ?: PiInstaller.PI_VERSION
+                LocalAgent.PI ->
+                    PiInstaller.installedVersion(rootfs!!) ?: PiInstaller.PI_VERSION
                 LocalAgent.GROK_BUILD ->
-                    GrokBuildInstaller.installedVersion(rootfs) ?: GrokBuildManifest.VERSION
+                    GrokBuildInstaller.installedVersion(rootfs!!) ?: GrokBuildManifest.VERSION
+                LocalAgent.HERMES ->
+                    HermesInstaller.installedVersion(hostRuntimeDir!!)
+                        ?: HermesManifest.VERSION
                 else -> "installed"
             }
-        val paths = collectPaths(agent, rootfs, includeConfig)
-        require(paths.isNotEmpty()) { "Nothing to export for ${agent.id}; is it installed?" }
+        val rootPaths =
+            if (!isHostAgent) collectPaths(agent, rootfs!!, includeConfig) else emptyList()
+        val hostPaths =
+            if (isHostAgent) collectHostPaths(agent, hostRuntimeDir!!, includeConfig) else emptyList()
+        require(rootPaths.isNotEmpty() || hostPaths.isNotEmpty()) {
+            "Nothing to export for ${agent.id}; is it installed?"
+        }
+        val paths = rootPaths + hostPaths.map { "$HOST_PREFIX$it" }
 
         val exportedAt =
             SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).apply {
@@ -240,7 +298,7 @@ object RuntimeAgentPackage {
                 exportedAt = exportedAt,
                 paths = paths,
                 includeConfig = includeConfig,
-                includeBaseRuntime = true,
+                includeBaseRuntime = !isHostAgent,
             )
         val suggested = suggestedFileName(agent, version, abi)
         outputDir.mkdirs()
@@ -262,14 +320,31 @@ object RuntimeAgentPackage {
                 putFile(zip, file, entryName)
             }
             for (relative in paths) {
-                val source = File(rootfs, relative)
-                if (source.isFile) {
-                    putUnique(source, PAYLOAD_PREFIX + relative)
-                } else if (source.isDirectory) {
-                    source.walkTopDown().forEach { child ->
-                        if (child.isFile) {
-                            val rel = child.relativeTo(rootfs).path.replace(File.separatorChar, '/')
-                            putUnique(child, PAYLOAD_PREFIX + rel)
+                if (relative.startsWith(HOST_PREFIX)) {
+                    val hostRel = relative.removePrefix(HOST_PREFIX)
+                    val source = File(hostRuntimeDir!!, hostRel)
+                    if (source.isFile) {
+                        putUnique(source, HOST_PREFIX + hostRel)
+                    } else if (source.isDirectory) {
+                        source.walkTopDown().forEach { child ->
+                            if (child.isFile) {
+                                val rel =
+                                    child.relativeTo(hostRuntimeDir).path.replace(File.separatorChar, '/')
+                                putUnique(child, HOST_PREFIX + rel)
+                            }
+                        }
+                    }
+                } else {
+                    val source = File(rootfs!!, relative)
+                    if (source.isFile) {
+                        putUnique(source, PAYLOAD_PREFIX + relative)
+                    } else if (source.isDirectory) {
+                        source.walkTopDown().forEach { child ->
+                            if (child.isFile) {
+                                val rel =
+                                    child.relativeTo(rootfs).path.replace(File.separatorChar, '/')
+                                putUnique(child, PAYLOAD_PREFIX + rel)
+                            }
                         }
                     }
                 }
@@ -316,14 +391,15 @@ object RuntimeAgentPackage {
      */
     fun import(
         packageFile: File,
-        rootfs: File,
+        rootfs: File?,
         expectedAbi: String? = null,
+        hostRuntimeDir: File? = null,
     ): ImportResult {
         require(packageFile.isFile) { "Package file not found" }
-        require(rootfs.isDirectory) { "Rootfs is not installed; set up the Linux environment first" }
 
         var manifest: Manifest? = null
         var written = 0
+        var wroteRootfs = false
         ZipInputStream(BufferedInputStream(FileInputStream(packageFile))).use { zip ->
             var entry = zip.nextEntry
             while (entry != null) {
@@ -338,22 +414,46 @@ object RuntimeAgentPackage {
                     entry = zip.nextEntry
                     continue
                 }
-                if (name.startsWith(PAYLOAD_PREFIX)) {
+                if (name.startsWith(HOST_PREFIX)) {
+                    val relative = name.removePrefix(HOST_PREFIX)
+                    if (relative.isBlank() || relative.contains("..")) {
+                        entry = zip.nextEntry
+                        continue
+                    }
+                    val base =
+                        hostRuntimeDir
+                            ?: error("Package contains host payload but hostRuntimeDir was not provided")
+                    val dest = File(base, relative)
+                    dest.parentFile?.mkdirs()
+                    FileOutputStream(dest).use { out -> zip.copyTo(out) }
+                    dest.setReadable(true, false)
+                    dest.setExecutable(true, false)
+                    runCatching {
+                        android.system.Os.chmod(dest.absolutePath, 0b111_101_101)
+                    }
+                    written++
+                } else if (name.startsWith(PAYLOAD_PREFIX)) {
                     val relative = name.removePrefix(PAYLOAD_PREFIX)
                     if (relative.isBlank() || relative.contains("..")) {
                         entry = zip.nextEntry
                         continue
                     }
-                    val dest = File(rootfs, relative)
+                    val base =
+                        rootfs
+                            ?: error("Package contains rootfs payload but rootfs is not installed")
+                    val dest = File(base, relative)
                     dest.parentFile?.mkdirs()
                     FileOutputStream(dest).use { out -> zip.copyTo(out) }
                     written++
+                    wroteRootfs = true
                 }
                 entry = zip.nextEntry
             }
         }
-        // Zip extraction drops Unix +x; proot then fails with execve("/bin/sh"): Permission denied.
-        restoreExecutablePermissions(rootfs)
+        if (wroteRootfs && rootfs != null) {
+            // Zip extraction drops Unix +x; proot then fails with execve("/bin/sh"): Permission denied.
+            restoreExecutablePermissions(rootfs)
+        }
         val m = manifest ?: error("Package is missing $MANIFEST_NAME")
         require(m.format == FORMAT) { "Unsupported package format: ${m.format}" }
         require(m.formatVersion <= FORMAT_VERSION) { "Package format version ${m.formatVersion} is newer than this app" }
