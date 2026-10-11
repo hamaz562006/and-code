@@ -105,32 +105,20 @@ class HermesController(
             runtimeWork.withLease("hermes-install") {
                 try {
                     val existing = installer.installedMetadata()
-                    val othersMissing = (agents - LocalAgent.HERMES).any { existing?.has(it) != true }
-                    if (installer.installedRuntime() == null || othersMissing) {
-                        installer.install(agents + LocalAgent.HERMES, developmentToolGroups) { progress, step, _ ->
+                    val others = agents - LocalAgent.HERMES
+                    val othersMissing = others.any { existing?.has(it) != true }
+                    // Hermes is host-side (.deb). Only pull in the shared Alpine sandbox when
+                    // another agent that needs it was also requested — never install OpenCode
+                    // just because Hermes was selected.
+                    if (others.isNotEmpty() && (installer.installedRuntime() == null || othersMissing)) {
+                        installer.install(others, developmentToolGroups) { progress, step, _ ->
                             mutableState.update {
                                 it.copy(install = HermesInstallStatus.Installing(progress, step))
                             }
                         }
-                    } else {
-                        if (developmentToolGroups.isNotEmpty()) {
-                            installer.installDevelopmentToolGroups(developmentToolGroups)
-                        }
-                        HermesInstaller.install(runtime.runtimeDirectory) { fraction ->
-                            mutableState.update {
-                                it.copy(
-                                    install =
-                                        HermesInstallStatus.Installing(
-                                            progress = fraction,
-                                            step = "Installing Hermes…",
-                                        ),
-                                )
-                            }
-                        }
-                        installer.recordAgent(LocalAgent.HERMES)
+                    } else if (developmentToolGroups.isNotEmpty() && installer.installedRuntime() != null) {
+                        installer.installDevelopmentToolGroups(developmentToolGroups)
                     }
-                    // installer.install already runs HermesInstaller when HERMES is requested;
-                    // if shared env existed and we only did HermesInstaller above, still OK.
                     if (!HermesInstaller.isInstalledIn(runtime.runtimeDirectory)) {
                         HermesInstaller.install(runtime.runtimeDirectory) { fraction ->
                             mutableState.update {
@@ -143,8 +131,8 @@ class HermesController(
                                 )
                             }
                         }
-                        installer.recordAgent(LocalAgent.HERMES)
                     }
+                    installer.recordAgent(LocalAgent.HERMES)
                     mutableState.update { it.copy(install = HermesInstallStatus.Ready) }
                     runCatching { rehydrate() }
                 } catch (e: CancellationException) {
