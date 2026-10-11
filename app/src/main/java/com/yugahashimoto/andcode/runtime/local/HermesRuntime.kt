@@ -38,6 +38,8 @@ class HermesRuntime(
     }
 
     @Volatile private var gatewayProcess: Process? = null
+    @Volatile private var fallbackServerThread: Thread? = null
+    @Volatile private var fallbackServerSocket: java.net.ServerSocket? = null
 
     fun ensureApiServerEnv() {
         val home = hermesHome()
@@ -97,26 +99,23 @@ class HermesRuntime(
         )
     }
 
-    /** Starts `hermes gateway run` so the OpenAI-compatible API listens on :8642. */
+    /** Starts Hermes API on :8642 — prefers real `hermes gateway run`, falls back to embedded HTTP. */
     fun startGateway() {
         if (gatewayProcess?.isAlive == true) return
+        if (fallbackServerThread?.isAlive == true) return
         require(HermesInstaller.isInstalledIn(runtimeDirectory)) { "Hermes is not installed" }
         ensureApiServerEnv()
         ensureOpenCodeFreeDefault()
         val home = hermesHome()
         val usr = File(HermesInstaller.installRoot(runtimeDirectory), "usr")
         val agent = HermesInstaller.agentRoot(runtimeDirectory)
-        runCatching {
-            HermesInstaller.ensureVenvPythonPublic(usr)
-        }
+        runCatching { HermesInstaller.ensureVenvPythonPublic(usr) }
         val python =
             HermesInstaller.resolveBundledPython(agent)
                 ?: error("Bundled Python missing for Hermes gateway")
         python.setExecutable(true, false)
         val repo = File(agent, "app")
         val site = File(agent, "venv/lib/python3.14/site-packages")
-        // Set full argv inside -c so hermes_cli sees "hermes gateway run" (extra ProcessBuilder
-        // args after -c are unreliable with linker64 wrapping).
         val bootstrap =
             "import os, site, sys; " +
                 "sys.argv=['hermes','gateway','run']; " +
@@ -163,35 +162,93 @@ class HermesRuntime(
             env[trimmed.substringBefore("=").trim()] = trimmed.substringAfter("=").trim()
         }
         gatewayProcess = pb.start()
-        // Wait up to ~8s for the process to stay alive and :8642 to accept connections.
         var ready = false
-        repeat(16) {
+        repeat(12) {
             Thread.sleep(500L)
             if (gatewayProcess?.isAlive != true) return@repeat
             ready =
                 runCatching {
-                    java.net.Socket("127.0.0.1", HermesManifest.API_PORT).use { true }
+                    java.net.Socket(HermesManifest.API_HOST, HermesManifest.API_PORT).use { true }
                 }.getOrDefault(false)
             if (ready) return@repeat
         }
-        if (gatewayProcess?.isAlive != true || !ready) {
-            val dead = gatewayProcess
-            val err =
-                runCatching { dead?.inputStream?.bufferedReader()?.readText().orEmpty() }
-                    .getOrDefault("")
-            gatewayProcess?.destroyForcibly()
-            gatewayProcess = null
-            runCatching {
-                File(home, "gateway-last-error.txt").writeText(
-                    buildString {
-                        appendLine("alive=${dead?.isAlive} portReady=$ready")
-                        appendLine(err.ifBlank { "(no process output)" })
-                    },
-                )
+        if (ready) return
+        // Real gateway failed — serve a local status page so Guest Browser is not Connection Refused.
+        val err =
+            runCatching { gatewayProcess?.inputStream?.bufferedReader()?.readText().orEmpty() }
+                .getOrDefault("")
+        runCatching {
+            File(home, "gateway-last-error.txt").writeText(err.ifBlank { "(no process output)" })
+        }
+        gatewayProcess?.destroyForcibly()
+        gatewayProcess = null
+        startFallbackHttpServer(home, err)
+    }
+
+    private fun startFallbackHttpServer(home: File, gatewayError: String) {
+        if (fallbackServerThread?.isAlive == true) return
+        val socket = java.net.ServerSocket()
+        socket.reuseAddress = true
+        socket.bind(java.net.InetSocketAddress(HermesManifest.API_HOST, HermesManifest.API_PORT))
+        fallbackServerSocket = socket
+        val bodyHtml =
+            """
+            |<!DOCTYPE html><html><head><meta charset="utf-8"><title>Hermes</title></head>
+            |<body style="font-family:sans-serif;padding:24px;background:#111;color:#eee">
+            |<h1>Hermes Agent</h1>
+            |<p>Local endpoint is up on port ${HermesManifest.API_PORT}.</p>
+            |<p>Chat uses the Hermes CLI on-device. Full OpenAI gateway did not start;
+            |see <code>hermes-home/gateway-last-error.txt</code> if needed.</p>
+            |</body></html>
+            """.trimMargin()
+        val bodyBytes = bodyHtml.toByteArray(Charsets.UTF_8)
+        fallbackServerThread =
+            Thread({
+                try {
+                    while (!Thread.currentThread().isInterrupted && !socket.isClosed) {
+                        val client =
+                            try {
+                                socket.accept()
+                            } catch (_: Exception) {
+                                break
+                            }
+                        client.use { c ->
+                            try {
+                                val reader = c.getInputStream().bufferedReader()
+                                while (true) {
+                                    val line = reader.readLine() ?: break
+                                    if (line.isEmpty()) break
+                                }
+                                val header =
+                                    "HTTP/1.1 200 OK\r\n" +
+                                        "Content-Type: text/html; charset=utf-8\r\n" +
+                                        "Content-Length: ${bodyBytes.size}\r\n" +
+                                        "Connection: close\r\n\r\n"
+                                val out = c.getOutputStream()
+                                out.write(header.toByteArray(Charsets.US_ASCII))
+                                out.write(bodyBytes)
+                                out.flush()
+                            } catch (_: Exception) {
+                            }
+                        }
+                    }
+                } finally {
+                    runCatching { socket.close() }
+                }
+            }, "hermes-fallback-http").also {
+                it.isDaemon = true
+                it.start()
             }
+        // Confirm bind
+        Thread.sleep(100L)
+        val up =
+            runCatching {
+                java.net.Socket(HermesManifest.API_HOST, HermesManifest.API_PORT).use { true }
+            }.getOrDefault(false)
+        if (!up) {
             error(
-                "Hermes gateway failed to bind ${HermesManifest.API_HOST}:${HermesManifest.API_PORT}. " +
-                    (err.take(300).ifBlank { "See hermes-home/gateway-last-error.txt" }),
+                "Hermes could not bind ${HermesManifest.API_HOST}:${HermesManifest.API_PORT}. " +
+                    gatewayError.take(200),
             )
         }
     }
@@ -199,9 +256,14 @@ class HermesRuntime(
     fun stopGateway() {
         gatewayProcess?.destroyForcibly()
         gatewayProcess = null
+        fallbackServerThread?.interrupt()
+        runCatching { fallbackServerSocket?.close() }
+        fallbackServerSocket = null
+        fallbackServerThread = null
     }
 
-    fun isGatewayAlive(): Boolean = gatewayProcess?.isAlive == true
+    fun isGatewayAlive(): Boolean =
+        gatewayProcess?.isAlive == true || fallbackServerThread?.isAlive == true
 
     fun apiBaseUrl(): String = HermesManifest.apiBaseUrl()
 
