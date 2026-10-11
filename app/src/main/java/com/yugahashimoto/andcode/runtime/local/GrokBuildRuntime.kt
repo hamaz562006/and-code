@@ -1,5 +1,6 @@
 package com.yugahashimoto.andcode.runtime.local
 
+import com.yugahashimoto.andcode.core.api.McpServer
 import com.yugahashimoto.andcode.core.api.OpenCodeEvent
 import com.yugahashimoto.andcode.core.api.OpenCodeMessage
 import com.yugahashimoto.andcode.core.api.OpenCodeMessageInfo
@@ -567,4 +568,21 @@ class GrokBuildRuntime(
         }
         setProviderApiKey(rootfs, id, null)
     }
+
+    private fun mcpConfigFile(rootfs: File): File = File(rootfs, "root/.grok/mcp.json")
+
+    fun mcpServers(rootfs: File): List<McpServer> = PiMcp.list(mcpConfigFile(rootfs))
+
+    fun addMcpServer(
+        rootfs: File,
+        name: String,
+        url: String?,
+        command: String?,
+    ): McpServer = PiMcp.add(mcpConfigFile(rootfs), name, url, command)
+
+    fun removeMcpServer(
+        rootfs: File,
+        name: String,
+    ): Boolean = PiMcp.remove(mcpConfigFile(rootfs), name)
+
 }

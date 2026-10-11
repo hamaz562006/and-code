@@ -647,6 +647,15 @@ fun NavGraphBuilder.settingsNavGraph(
         )
     }
 
+    composable(ROUTE_SETTINGS_MCP_GROK) {
+        com.yugahashimoto.andcode.feature.settings.McpScreen(
+            registry = runtimeRegistry,
+            agent = com.yugahashimoto.andcode.runtime.LocalAgent.GROK_BUILD,
+            onOpenBrowser = {},
+            onBack = { navController.popBackStack() },
+        )
+    }
+
     composable(ROUTE_SETTINGS_SERVER_INFO) {
         com.yugahashimoto.andcode.feature.settings.ServerInfoScreen(
             registry = runtimeRegistry,

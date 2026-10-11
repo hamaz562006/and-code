@@ -1,5 +1,6 @@
 package com.yugahashimoto.andcode.runtime.local
 
+import com.yugahashimoto.andcode.core.api.McpServer
 import com.yugahashimoto.andcode.core.api.OpenCodeAgent
 import com.yugahashimoto.andcode.core.api.OpenCodeEvent
 import com.yugahashimoto.andcode.core.api.OpenCodeFileContent
@@ -228,4 +229,32 @@ class GrokBuildTarget(
     ): OpenCodeFileContent = withContext(Dispatchers.IO) { files.read(directory, path) }
 
     override fun events(): Flow<OpenCodeEvent> = runtime.events()
+
+    override suspend fun mcpServers(): List<McpServer> =
+        withContext(Dispatchers.IO) {
+            val rootfs = installer.installedRuntime()?.rootfs ?: return@withContext emptyList()
+            if (!GrokBuildInstaller.isInstalledIn(rootfs)) return@withContext emptyList()
+            runtime.mcpServers(rootfs)
+        }
+
+    override suspend fun addMcpServer(body: JsonObject): McpServer =
+        withContext(Dispatchers.IO) {
+            val rootfs = installer.installedRuntime()?.rootfs ?: error("Linux environment is not installed")
+            require(GrokBuildInstaller.isInstalledIn(rootfs)) { "Grok Build is not installed" }
+            val name =
+                body["name"]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: error("An MCP server needs a name")
+            val url = body["url"]?.jsonPrimitive?.contentOrNull
+            val command = body["command"]?.jsonPrimitive?.contentOrNull
+            runtime.addMcpServer(rootfs, name, url, command)
+        }
+
+    override suspend fun connectMcpServer(name: String): Boolean = false
+
+    override suspend fun disconnectMcpServer(name: String): Boolean =
+        withContext(Dispatchers.IO) {
+            val rootfs = installer.installedRuntime()?.rootfs ?: return@withContext false
+            runtime.removeMcpServer(rootfs, name)
+        }
+
 }
