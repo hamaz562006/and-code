@@ -111,8 +111,7 @@ class HermesTarget(
 
     override suspend fun abortSession(sessionId: String): Boolean = true
 
-    override suspend fun commands(): List<com.yugahashimoto.andcode.core.api.OpenCodeCommand> =
-        HermesCommandCatalog.commands
+    override suspend fun commands(): List<com.yugahashimoto.andcode.core.api.OpenCodeCommand> = HermesCommandCatalog.commands
 
     override suspend fun deleteSession(sessionId: String): Boolean = withContext(Dispatchers.IO) { runtime.deleteSession(sessionId) }
 

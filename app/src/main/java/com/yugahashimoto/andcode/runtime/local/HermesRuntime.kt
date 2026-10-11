@@ -38,7 +38,9 @@ class HermesRuntime(
     }
 
     @Volatile private var gatewayProcess: Process? = null
+
     @Volatile private var fallbackServerThread: Thread? = null
+
     @Volatile private var fallbackServerSocket: java.net.ServerSocket? = null
 
     fun ensureApiServerEnv() {
@@ -185,7 +187,10 @@ class HermesRuntime(
         startFallbackHttpServer(home, err)
     }
 
-    private fun startFallbackHttpServer(home: File, gatewayError: String) {
+    private fun startFallbackHttpServer(
+        home: File,
+        gatewayError: String,
+    ) {
         if (fallbackServerThread?.isAlive == true) return
         val socket = java.net.ServerSocket()
         socket.reuseAddress = true
@@ -262,8 +267,7 @@ class HermesRuntime(
         fallbackServerThread = null
     }
 
-    fun isGatewayAlive(): Boolean =
-        gatewayProcess?.isAlive == true || fallbackServerThread?.isAlive == true
+    fun isGatewayAlive(): Boolean = gatewayProcess?.isAlive == true || fallbackServerThread?.isAlive == true
 
     fun apiBaseUrl(): String = HermesManifest.apiBaseUrl()
 
