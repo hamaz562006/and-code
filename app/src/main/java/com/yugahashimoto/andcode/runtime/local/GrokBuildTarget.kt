@@ -256,5 +256,4 @@ class GrokBuildTarget(
             val rootfs = installer.installedRuntime()?.rootfs ?: return@withContext false
             runtime.removeMcpServer(rootfs, name)
         }
-
 }

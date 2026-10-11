@@ -584,5 +584,4 @@ class GrokBuildRuntime(
         rootfs: File,
         name: String,
     ): Boolean = PiMcp.remove(mcpConfigFile(rootfs), name)
-
 }
