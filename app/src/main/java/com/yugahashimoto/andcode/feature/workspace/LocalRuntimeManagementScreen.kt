@@ -180,8 +180,6 @@ fun LocalRuntimeManagementScreen(
                     )
                 }
             }
-
-
             // Offline backup — same UX as Grok Build export (dialog + progress).
             // Shown for host-side agents (Hermes) even when Alpine rootfs is absent.
             if (canExportAgentPackage) {
