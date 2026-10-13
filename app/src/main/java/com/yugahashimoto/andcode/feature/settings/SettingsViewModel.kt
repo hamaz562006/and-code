@@ -444,11 +444,22 @@ class SettingsViewModel(
      */
     private fun providerTarget(): RuntimeTarget? {
         val selected = registry.selected.value
-        if (selected?.agent == LocalAgent.PI) return selected
-        if (selected?.agent == LocalAgent.GROK_BUILD) return selected
-        if (selected?.agent == LocalAgent.HERMES) return selected
-        if (selected?.agent == LocalAgent.OPEN_CODE) return selected
-        return registry.targetFor(LocalAgent.OPEN_CODE)
+        // Each agent owns its own provider catalogue. Never cross-wire Hermes/Pi/Grok to OpenCode.
+        when (selected?.agent) {
+            LocalAgent.PI,
+            LocalAgent.GROK_BUILD,
+            LocalAgent.HERMES,
+            LocalAgent.OPEN_CODE,
+            LocalAgent.CODEX,
+            LocalAgent.CLAUDE_CODE,
+            LocalAgent.ANTIGRAVITY,
+            -> return selected
+            else -> Unit
+        }
+        // No agent selected: only use OpenCode if that target is the local OpenCode runtime
+        // and is actually present — never invent an OpenCode HTTP client for Hermes.
+        val openCode = registry.targetFor(LocalAgent.OPEN_CODE) ?: return null
+        return openCode.takeIf { it.agent == LocalAgent.OPEN_CODE || it.agent == null }
     }
 
     fun openProviderAuth(providerId: String) {

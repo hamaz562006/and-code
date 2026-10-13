@@ -323,6 +323,20 @@ fun AndroidSetupScreen(
         onRefreshProviderAuth()
     }
 
+    // Hermes is independent of OpenCode: select its runtime and load seed providers without
+    // ever touching OpenCode's HTTP client (avoids "Invalid OpenCode endpoint").
+    LaunchedEffect(hermesSelected, hermesReady, currentStep, settingsState.availableProviders) {
+        if (!hermesSelected || !hermesReady) return@LaunchedEffect
+        if (currentStep != 4) return@LaunchedEffect
+        val app = context.applicationContext as? AndCodeApplication
+        if (app != null) {
+            app.runtimeRegistry.select(app.hermesTarget.id)
+        }
+        if (settingsState.availableProviders.isNotEmpty()) return@LaunchedEffect
+        delay(300)
+        onRefreshProviderAuth()
+    }
+
     val primaryAction: SetupPrimaryAction? =
         when (currentStep) {
             1 ->

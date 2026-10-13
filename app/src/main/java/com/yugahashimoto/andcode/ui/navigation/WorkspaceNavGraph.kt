@@ -336,6 +336,11 @@ fun NavGraphBuilder.workspaceNavGraph(
                             agentLabel = {
                                 app.runtimeRegistry.selected.value?.displayName ?: "OpenCode"
                             },
+                            isHermesHost = {
+                                app.runtimeRegistry.selected.value?.agent ==
+                                    com.yugahashimoto.andcode.runtime.LocalAgent.HERMES
+                            },
+                            hermesRuntimeDirectory = java.io.File(app.filesDir, "runtime"),
                         )
                     },
             )

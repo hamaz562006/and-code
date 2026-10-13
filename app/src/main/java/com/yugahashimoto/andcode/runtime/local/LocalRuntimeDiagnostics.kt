@@ -113,21 +113,43 @@ class LocalRuntimeDiagnosticsCollector(
                 REQUIRED_TOOLS +
                 OPTIONAL_TOOLS.takeIf { fullDevelopmentToolsInstalledProvider() }.orEmpty()
         val tools =
-            if (environmentProvisioned) {
-                definitions.map { definition ->
+            definitions.map { definition ->
+                val isHostAgent = definition.id == "hermes" || definition.id == "grok"
+                // Host-side agents (Hermes/Grok) do not need Alpine rootfs to report status.
+                if (!environmentProvisioned && !isHostAgent) {
+                    LocalRuntimeToolCheck(
+                        id = definition.id,
+                        label = displayLabel(definition),
+                        available = false,
+                        detail = messages.diagnosticsToolNotInstalled,
+                    )
+                } else {
                     runCatching {
                         when (definition.id) {
                             "grok" ->
                                 // Bionic/Termux binary — must run on the Android host, not Alpine proot.
                                 GrokBuildInstaller.runOnHost(rootfs, listOf("--version"))
                             "hermes" -> {
-                                val result =
-                                    HermesInstaller.runOnHost(
-                                        runtimeDirectory,
-                                        listOf("--version"),
-                                        timeoutSeconds = 20L,
-                                    )
-                                LocalRuntimeCommandResult(result.exitCode, result.output)
+                                // Binary present counts as installed even if --version is slow/noisy.
+                                if (HermesInstaller.isInstalledIn(runtimeDirectory)) {
+                                    val result =
+                                        HermesInstaller.runOnHost(
+                                            runtimeDirectory,
+                                            listOf("--version"),
+                                            timeoutSeconds = 20L,
+                                        )
+                                    if (result.exitCode == 0) {
+                                        result
+                                    } else {
+                                        LocalRuntimeCommandResult(
+                                            0,
+                                            HermesInstaller.installedVersion(runtimeDirectory)
+                                                ?: HermesManifest.VERSION,
+                                        )
+                                    }
+                                } else {
+                                    LocalRuntimeCommandResult(127, messages.diagnosticsToolNotInstalled)
+                                }
                             }
                             else -> commandExecutor(definition)
                         }
@@ -154,20 +176,15 @@ class LocalRuntimeDiagnosticsCollector(
                                 LocalRuntimeToolCheck(
                                     id = definition.id,
                                     label = displayLabel(definition),
-                                    available = false,
-                                    detail = error.message?.takeIf(String::isNotBlank) ?: messages.diagnosticsToolCheckFailed,
+                                    available =
+                                        definition.id == "hermes" &&
+                                            HermesInstaller.isInstalledIn(runtimeDirectory),
+                                    detail =
+                                        error.message?.takeIf(String::isNotBlank)
+                                            ?: messages.diagnosticsToolCheckFailed,
                                 )
                             },
                         )
-                }
-            } else {
-                definitions.map { definition ->
-                    LocalRuntimeToolCheck(
-                        id = definition.id,
-                        label = displayLabel(definition),
-                        available = false,
-                        detail = messages.diagnosticsToolNotInstalled,
-                    )
                 }
             }
 
