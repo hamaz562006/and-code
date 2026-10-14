@@ -339,13 +339,14 @@ fun GrokBuildAgentSettingsScreen(
                     Text(stringResource(R.string.provider_credentials))
                 }
             }
-            SettingsSection(title = stringResource(R.string.settings_agents_section)) {
-                SettingsRow(
-                    icon = Icons.Default.Extension,
-                    title = stringResource(R.string.mcp_settings_row),
-                    onClick = onOpenMcp,
-                )
-            }
+        }
+        // Same placement as Pi: MCP row is always visible for this agent (not OpenCode).
+        SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+            SettingsRow(
+                icon = Icons.Default.Extension,
+                title = stringResource(R.string.mcp_settings_row),
+                onClick = onOpenMcp,
+            )
         }
     }
 }

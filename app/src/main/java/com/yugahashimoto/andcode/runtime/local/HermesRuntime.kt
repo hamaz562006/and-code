@@ -14,6 +14,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -27,6 +29,13 @@ import java.util.concurrent.TimeUnit
 class HermesRuntime(
     internal val runtimeDirectory: File,
 ) {
+    private val json =
+        kotlinx.serialization.json.Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+            prettyPrint = true
+        }
+
     private val events = MutableSharedFlow<OpenCodeEvent>(extraBufferCapacity = 64)
     private val sessions = ConcurrentHashMap<String, OpenCodeSession>()
     private val messageStore = ConcurrentHashMap<String, MutableList<OpenCodeMessage>>()
@@ -114,7 +123,10 @@ class HermesRuntime(
         runCatching { HermesInstaller.ensureVenvPythonPublic(usr) }
         val python =
             HermesInstaller.resolveBundledPython(agent)
-                ?: error("Bundled Python missing for Hermes gateway")
+        if (python == null) {
+            startFallbackHttpServer(home, "Bundled Python missing for Hermes gateway")
+            return
+        }
         python.setExecutable(true, false)
         val repo = File(agent, "app")
         val site = File(agent, "venv/lib/python3.14/site-packages")
@@ -194,7 +206,13 @@ class HermesRuntime(
         if (fallbackServerThread?.isAlive == true) return
         val socket = java.net.ServerSocket()
         socket.reuseAddress = true
-        socket.bind(java.net.InetSocketAddress(HermesManifest.API_HOST, HermesManifest.API_PORT))
+        try {
+            socket.bind(java.net.InetSocketAddress(HermesManifest.API_HOST, HermesManifest.API_PORT))
+        } catch (e: java.net.BindException) {
+            // Port busy from a dying gateway — brief wait then retry once.
+            Thread.sleep(400L)
+            socket.bind(java.net.InetSocketAddress(HermesManifest.API_HOST, HermesManifest.API_PORT))
+        }
         fallbackServerSocket = socket
         val bodyHtml =
             """
@@ -574,4 +592,144 @@ class HermesRuntime(
             }
         return envFile.readLines().any { it.trim().startsWith("$keyName=") && it.substringAfter("=").isNotBlank() }
     }
+
+    private fun customProvidersFile(): File = File(hermesHome(), "custom-providers.json")
+
+    data class CustomProviderEntry(
+        val id: String,
+        val name: String,
+        val baseUrl: String,
+        val modelIds: List<String>,
+    )
+
+    fun listCustomProviders(): List<CustomProviderEntry> {
+        val file = customProvidersFile()
+        if (!file.isFile) return emptyList()
+        return runCatching {
+            val root = json.parseToJsonElement(file.readText()).jsonObject
+            val providers = root["providers"]?.jsonObject ?: return emptyList()
+            providers.mapNotNull { (id, value) ->
+                val obj = value.jsonObject
+                val models =
+                    obj["models"]?.jsonObject?.keys?.toList()
+                        ?: obj["models"]?.let { el ->
+                            (el as? kotlinx.serialization.json.JsonArray)?.mapNotNull {
+                                it.jsonPrimitive.contentOrNull
+                            }
+                        }.orEmpty()
+                val baseUrl = obj["baseUrl"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                if (models.isEmpty()) return@mapNotNull null
+                CustomProviderEntry(
+                    id = id,
+                    name = obj["name"]?.jsonPrimitive?.contentOrNull ?: id,
+                    baseUrl = baseUrl,
+                    modelIds = models,
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun registerCustomProvider(
+        id: String,
+        name: String,
+        baseUrl: String,
+        modelIds: List<String>,
+    ) {
+        val file = customProvidersFile()
+        file.parentFile?.mkdirs()
+        val existing =
+            if (file.isFile) {
+                runCatching { json.parseToJsonElement(file.readText()).jsonObject }
+                    .getOrDefault(buildJsonObject {})
+            } else {
+                buildJsonObject {}
+            }
+        val existingProviders = (existing["providers"] as? JsonObject) ?: buildJsonObject {}
+        var normalizedBase = baseUrl.trim().trimEnd('/')
+        // Strip accidental scheme-less paste and full completions path (same UX as Pi).
+        if (normalizedBase.startsWith("//")) {
+            normalizedBase = "https:$normalizedBase"
+        }
+        for (suffix in listOf("/chat/completions", "/completions", "/v1/chat/completions")) {
+            if (normalizedBase.endsWith(suffix)) {
+                // Keep /v1 when present for OpenAI-compatible roots.
+                if (suffix == "/v1/chat/completions") {
+                    normalizedBase = normalizedBase.removeSuffix("/chat/completions")
+                } else {
+                    normalizedBase = normalizedBase.removeSuffix(suffix)
+                }
+                break
+            }
+        }
+        val modelsObj =
+            buildJsonObject {
+                modelIds.forEach { mid ->
+                    put(
+                        mid,
+                        buildJsonObject {
+                            put("id", JsonPrimitive(mid))
+                            put("name", JsonPrimitive(mid))
+                        },
+                    )
+                }
+            }
+        val providerEntry =
+            buildJsonObject {
+                put("baseUrl", JsonPrimitive(normalizedBase))
+                put("name", JsonPrimitive(name))
+                put("models", modelsObj)
+            }
+        val updatedProviders =
+            buildJsonObject {
+                existingProviders.forEach { (k, v) -> if (k != id) put(k, v) }
+                put(id, providerEntry)
+            }
+        val updated =
+            buildJsonObject {
+                existing.forEach { (k, v) -> if (k != "providers") put(k, v) }
+                put("providers", updatedProviders)
+            }
+        file.writeText(json.encodeToString(JsonObject.serializer(), updated))
+        // Also seed env key slot so hasApiKey can track custom keys by id.
+        File(hermesHome(), ".env").let { env ->
+            if (!env.isFile) env.writeText("")
+        }
+    }
+
+    /** True when something is accepting connections on the Hermes API port. */
+    fun isGatewayListening(): Boolean =
+        runCatching {
+            java.net.Socket().use { s ->
+                s.connect(java.net.InetSocketAddress(HermesManifest.API_HOST, HermesManifest.API_PORT), 400)
+                true
+            }
+        }.getOrDefault(false)
+
+    /**
+     * OpenCode-style ensureRunning: start gateway (or fallback HTTP) until the port answers.
+     */
+    fun ensureGatewayRunning() {
+        if (isGatewayListening()) return
+        if (!HermesInstaller.isInstalledIn(runtimeDirectory)) {
+            error("Hermes is not installed")
+        }
+        startGateway()
+        // One more wait after start/fallback.
+        repeat(6) {
+            if (isGatewayListening()) return
+            Thread.sleep(250L)
+        }
+        if (!isGatewayListening()) {
+            // Last resort: try fallback alone.
+            startFallbackHttpServer(hermesHome(), "ensureGatewayRunning: port still closed")
+            repeat(4) {
+                if (isGatewayListening()) return
+                Thread.sleep(200L)
+            }
+        }
+        require(isGatewayListening()) {
+            "Hermes local endpoint ${HermesManifest.apiBaseUrl()} did not start"
+        }
+    }
+
 }

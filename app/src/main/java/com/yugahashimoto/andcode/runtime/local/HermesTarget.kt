@@ -28,6 +28,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 
 /**
@@ -68,7 +71,8 @@ class HermesTarget(
                 }
                 runtime.ensureApiServerEnv()
                 runtime.ensureOpenCodeFreeDefault()
-                runtime.startGateway()
+                // Same idea as OpenCode ensureRunning: block until local port answers.
+                runtime.ensureGatewayRunning()
                 val version =
                     HermesInstaller.installedVersion(runtime.runtimeDirectory)
                         ?: HermesManifest.VERSION
@@ -155,9 +159,38 @@ class HermesTarget(
                 "xai" to "xAI",
                 "custom" to "Custom (OpenAI-compatible)",
             ).map { (id, name) -> OpenCodeProvider(id = id, name = name, models = emptyMap()) }
+        val customs =
+            runtime.listCustomProviders().map { entry ->
+                OpenCodeProvider(
+                    id = entry.id,
+                    name = entry.name,
+                    models =
+                        entry.modelIds.associateWith { mid ->
+                            OpenCodeModel(id = mid, providerId = entry.id, name = mid)
+                        },
+                )
+            }
+        val connected =
+            buildList {
+                add("opencode-free")
+                customs.forEach { add(it.id) }
+                listOf(
+                    "openrouter",
+                    "nous",
+                    "anthropic",
+                    "openai",
+                    "opencode-zen",
+                    "opencode-go",
+                    "gemini",
+                    "deepseek",
+                    "xai",
+                ).forEach { id ->
+                    if (runtime.hasApiKey(id)) add(id)
+                }
+            }
         return ProviderCatalog(
-            all = listOf(free) + others,
-            connected = emptyList(),
+            all = listOf(free) + others.filter { it.id != "custom" } + customs,
+            connected = connected,
             default = mapOf("opencode-free" to "big-pickle"),
         )
     }
@@ -215,6 +248,28 @@ class HermesTarget(
         withContext(Dispatchers.IO) {
             runtime.setApiKey(providerId, null)
             true
+        }
+
+
+    override suspend fun updateConfig(patch: JsonObject): kotlinx.serialization.json.JsonElement =
+        withContext(Dispatchers.IO) {
+            val providers =
+                patch["provider"]?.jsonObject
+                    ?: error("Hermes config update expects a provider object")
+            providers.forEach { (providerId, value) ->
+                val obj = value.jsonObject
+                val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: providerId
+                val baseUrl =
+                    obj["options"]?.jsonObject?.get("baseURL")?.jsonPrimitive?.contentOrNull
+                        ?: obj["baseUrl"]?.jsonPrimitive?.contentOrNull
+                        ?: error("Custom provider needs a base URL")
+                val modelIds =
+                    obj["models"]?.jsonObject?.keys?.toList().orEmpty().ifEmpty {
+                        error("Custom provider needs at least one model id")
+                    }
+                runtime.registerCustomProvider(providerId, name, baseUrl, modelIds)
+            }
+            patch
         }
 
     override suspend fun listFiles(
