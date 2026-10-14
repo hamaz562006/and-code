@@ -375,34 +375,71 @@ class HermesRuntime(
 
         val assistantText =
             when {
-                // Hermes slash commands (/model, /help, …) always go to the Hermes CLI —
-                // never to OpenCode Free HTTP, regardless of the selected model chip.
+                // Slash commands must never hit OpenCode Free HTTP (returns 403 outside the
+                // official OpenCode app). Handle /model locally; other commands go to Hermes
+                // CLI only with a non-free provider when one is selected.
                 isSlash -> {
-                    val mid = modelId ?: "big-pickle"
-                    val pid = providerId ?: custom?.id ?: "opencode-free"
-                    syncCustomProvidersIntoHermesConfig()
-                    val result =
-                        HermesInstaller.runOnHost(
-                            runtimeDirectory = runtimeDirectory,
-                            args =
-                                listOf(
-                                    "-z",
-                                    text,
-                                    "-m",
-                                    mid,
-                                    "--provider",
-                                    pid,
-                                ),
-                            timeoutSeconds = 120L,
-                        )
-                    result.output.trim().ifBlank {
-                        if (result.exitCode != 0) {
-                            result.output.trim().ifBlank {
+                    val cmd = text.trim()
+                    val cmdLower = cmd.lowercase()
+                    if (cmdLower == "/model" || cmdLower.startsWith("/model ")) {
+                        formatHermesModelList(selectedModelId = modelId, custom = custom)
+                    } else if (custom != null) {
+                        // Custom OpenAI endpoint is active — do not fall back to opencode-free.
+                        syncCustomProvidersIntoHermesConfig()
+                        val result =
+                            HermesInstaller.runOnHost(
+                                runtimeDirectory = runtimeDirectory,
+                                args =
+                                    listOf(
+                                        "-z",
+                                        text,
+                                        "-m",
+                                        modelId ?: custom.modelIds.firstOrNull() ?: "default",
+                                        "--provider",
+                                        custom.id,
+                                    ),
+                                timeoutSeconds = 120L,
+                            )
+                        val out = result.output.trim()
+                        when {
+                            out.contains("OpenCode") && out.contains("403") ->
+                                "Slash command could not run against the custom provider. " +
+                                    "Try a normal message, or check Settings → Providers."
+                            out.isNotBlank() -> out
+                            result.exitCode != 0 ->
                                 "Hermes command failed (exit ${result.exitCode})."
-                            }
-                        } else {
-                            "(empty response)"
+                            else -> "(empty response)"
                         }
+                    } else if (!providerId.isNullOrBlank() && providerId != "opencode-free") {
+                        syncCustomProvidersIntoHermesConfig()
+                        val result =
+                            HermesInstaller.runOnHost(
+                                runtimeDirectory = runtimeDirectory,
+                                args =
+                                    listOf(
+                                        "-z",
+                                        text,
+                                        "-m",
+                                        modelId ?: "default",
+                                        "--provider",
+                                        providerId,
+                                    ),
+                                timeoutSeconds = 120L,
+                            )
+                        result.output.trim().ifBlank {
+                            if (result.exitCode != 0) {
+                                "Hermes command failed (exit ${result.exitCode})."
+                            } else {
+                                "(empty response)"
+                            }
+                        }
+                    } else {
+                        // No API-key / custom provider selected — OpenCode Free cannot run slash
+                        // commands from this app (403). Tell the user what to do instead of
+                        // calling the blocked endpoint.
+                        "Slash commands need a connected provider (custom API, OpenRouter, " +
+                            "Anthropic, …). OpenCode Free is blocked outside the official " +
+                            "OpenCode app. Select a model from Settings → Providers, then retry."
                     }
                 }
                 custom != null -> {
@@ -893,6 +930,48 @@ class HermesRuntime(
         }.getOrElse { e ->
             "Custom API request failed: ${e.message ?: e.javaClass.simpleName}"
         }
+    }
+
+
+    private fun formatHermesModelList(
+        selectedModelId: String?,
+        custom: CustomProviderEntry?,
+    ): String {
+        val lines = mutableListOf<String>()
+        lines.add("Available models")
+        lines.add("")
+        if (custom != null) {
+            lines.add("${custom.name} (${custom.id})")
+            for (mid in custom.modelIds) {
+                val mark = if (mid == selectedModelId) "  ← selected" else ""
+                lines.add("  • $mid$mark")
+            }
+            lines.add("")
+        }
+        // Other custom providers
+        for (entry in listCustomProviders()) {
+            if (custom != null && entry.id == custom.id) continue
+            lines.add("${entry.name} (${entry.id})")
+            for (mid in entry.modelIds) {
+                val mark = if (mid == selectedModelId) "  ← selected" else ""
+                lines.add("  • $mid$mark")
+            }
+            lines.add("")
+        }
+        lines.add("OpenCode Free (keyless — may be blocked outside OpenCode app)")
+        for (mid in listOf(
+            "big-pickle",
+            "mimo-v2.6-flash-free",
+            "muse-spark-1.2-contributor-free",
+            "nemotron-3-ultra-free",
+            "ling-3.1-flash-free",
+        )) {
+            val mark = if (mid == selectedModelId) "  ← selected" else ""
+            lines.add("  • $mid$mark")
+        }
+        lines.add("")
+        lines.add("Pick a model from the chip under the message box.")
+        return lines.joinToString("\n")
     }
 
     /** True when something is accepting connections on the Hermes API port. */
