@@ -931,8 +931,6 @@ class HermesRuntime(
             "Custom API request failed: ${e.message ?: e.javaClass.simpleName}"
         }
     }
-
-
     private fun formatHermesModelList(
         selectedModelId: String?,
         custom: CustomProviderEntry?,
