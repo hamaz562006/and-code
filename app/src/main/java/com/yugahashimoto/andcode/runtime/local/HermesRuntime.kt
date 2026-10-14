@@ -16,6 +16,12 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -610,13 +616,14 @@ class HermesRuntime(
             val providers = root["providers"]?.jsonObject ?: return emptyList()
             providers.mapNotNull { (id, value) ->
                 val obj = value.jsonObject
-                val models =
-                    obj["models"]?.jsonObject?.keys?.toList()
-                        ?: obj["models"]?.let { el ->
-                            (el as? kotlinx.serialization.json.JsonArray)?.mapNotNull {
-                                it.jsonPrimitive.contentOrNull
-                            }
-                        }.orEmpty()
+                val modelsElement = obj["models"]
+                val models: List<String> =
+                    when {
+                        modelsElement is JsonObject -> modelsElement.keys.toList()
+                        modelsElement is JsonArray ->
+                            modelsElement.mapNotNull { it.jsonPrimitive.contentOrNull }
+                        else -> emptyList()
+                    }
                 val baseUrl = obj["baseUrl"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
                 if (models.isEmpty()) return@mapNotNull null
                 CustomProviderEntry(
