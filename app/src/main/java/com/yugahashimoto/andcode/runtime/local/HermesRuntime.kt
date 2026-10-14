@@ -135,7 +135,11 @@ class HermesRuntime(
         }
         python.setExecutable(true, false)
         val repo = File(agent, "app")
-        val site = File(agent, "venv/lib/python3.14/site-packages")
+        val site =
+            File(agent, "venv/lib").listFiles()
+                ?.firstOrNull { it.isDirectory && it.name.startsWith("python") }
+                ?.let { File(it, "site-packages") }
+                ?: File(agent, "venv/lib/python3.12/site-packages")
         val bootstrap =
             "import os, site, sys; " +
                 "sys.argv=['hermes','gateway','run']; " +
@@ -215,22 +219,25 @@ class HermesRuntime(
         try {
             socket.bind(java.net.InetSocketAddress(HermesManifest.API_HOST, HermesManifest.API_PORT))
         } catch (e: java.net.BindException) {
-            // Port busy from a dying gateway — brief wait then retry once.
             Thread.sleep(400L)
             socket.bind(java.net.InetSocketAddress(HermesManifest.API_HOST, HermesManifest.API_PORT))
         }
         fallbackServerSocket = socket
-        val bodyHtml =
+        val statusHtml =
             """
             |<!DOCTYPE html><html><head><meta charset="utf-8"><title>Hermes</title></head>
             |<body style="font-family:sans-serif;padding:24px;background:#111;color:#eee">
             |<h1>Hermes Agent</h1>
-            |<p>Local endpoint is up on port ${HermesManifest.API_PORT}.</p>
-            |<p>Chat uses the Hermes CLI on-device. Full OpenAI gateway did not start;
-            |see <code>hermes-home/gateway-last-error.txt</code> if needed.</p>
+            |<p>OpenAI-compatible endpoint on port ${HermesManifest.API_PORT}.</p>
+            |<ul>
+            |  <li><code>GET /health</code></li>
+            |  <li><code>GET /v1/models</code></li>
+            |  <li><code>POST /v1/chat/completions</code></li>
+            |</ul>
+            |<p>Auth: <code>Authorization: Bearer ${HermesManifest.API_KEY.take(8)}…</code></p>
+            |<p style="opacity:.7;font-size:12px">Native gateway note: ${gatewayError.take(180).ifBlank { "using on-device proxy" }}</p>
             |</body></html>
             """.trimMargin()
-        val bodyBytes = bodyHtml.toByteArray(Charsets.UTF_8)
         fallbackServerThread =
             Thread({
                 try {
@@ -241,25 +248,14 @@ class HermesRuntime(
                             } catch (_: Exception) {
                                 break
                             }
-                        client.use { c ->
-                            try {
-                                val reader = c.getInputStream().bufferedReader()
-                                while (true) {
-                                    val line = reader.readLine() ?: break
-                                    if (line.isEmpty()) break
+                        Thread({
+                            client.use { c ->
+                                try {
+                                    handleFallbackClient(c, statusHtml)
+                                } catch (_: Exception) {
                                 }
-                                val header =
-                                    "HTTP/1.1 200 OK\r\n" +
-                                        "Content-Type: text/html; charset=utf-8\r\n" +
-                                        "Content-Length: ${bodyBytes.size}\r\n" +
-                                        "Connection: close\r\n\r\n"
-                                val out = c.getOutputStream()
-                                out.write(header.toByteArray(Charsets.US_ASCII))
-                                out.write(bodyBytes)
-                                out.flush()
-                            } catch (_: Exception) {
                             }
-                        }
+                        }, "hermes-fallback-req").also { it.isDaemon = true; it.start() }
                     }
                 } finally {
                     runCatching { socket.close() }
@@ -268,8 +264,7 @@ class HermesRuntime(
                 it.isDaemon = true
                 it.start()
             }
-        // Confirm bind
-        Thread.sleep(100L)
+        Thread.sleep(120L)
         val up =
             runCatching {
                 java.net.Socket(HermesManifest.API_HOST, HermesManifest.API_PORT).use { true }
@@ -279,6 +274,155 @@ class HermesRuntime(
                 "Hermes could not bind ${HermesManifest.API_HOST}:${HermesManifest.API_PORT}. " +
                     gatewayError.take(200),
             )
+        }
+    }
+
+    private fun handleFallbackClient(
+        client: java.net.Socket,
+        statusHtml: String,
+    ) {
+        val input = client.getInputStream()
+        val reader = input.bufferedReader()
+        val requestLine = reader.readLine() ?: return
+        val parts = requestLine.split(" ")
+        val method = parts.getOrNull(0)?.uppercase() ?: "GET"
+        val pathRaw = parts.getOrNull(1) ?: "/"
+        val path = pathRaw.substringBefore("?").trimEnd('/')
+            .ifEmpty { "/" }
+        var contentLength = 0
+        while (true) {
+            val line = reader.readLine() ?: break
+            if (line.isEmpty()) break
+            if (line.startsWith("Content-Length:", ignoreCase = true)) {
+                contentLength = line.substringAfter(":").trim().toIntOrNull() ?: 0
+            }
+        }
+        val body =
+            if (contentLength > 0) {
+                val buf = CharArray(contentLength)
+                var read = 0
+                while (read < contentLength) {
+                    val n = reader.read(buf, read, contentLength - read)
+                    if (n < 0) break
+                    read += n
+                }
+                String(buf, 0, read)
+            } else {
+                ""
+            }
+        val (code, contentType, responseBody) =
+            when {
+                method == "GET" && (path == "/" || path == "/index.html") ->
+                    Triple(200, "text/html; charset=utf-8", statusHtml)
+                method == "GET" && (path == "/health" || path == "/v1/health") ->
+                    Triple(200, "application/json", """{"status":"ok","service":"hermes-andcode"}""")
+                method == "GET" && (path == "/v1/models" || path == "/models") ->
+                    Triple(200, "application/json", fallbackModelsJson())
+                method == "POST" && (path == "/v1/chat/completions" || path == "/chat/completions") -> {
+                    val result = fallbackChatCompletions(body)
+                    Triple(result.first, "application/json", result.second)
+                }
+                else ->
+                    Triple(
+                        404,
+                        "application/json",
+                        """{"error":{"message":"not found: $path","type":"invalid_request_error"}}""",
+                    )
+            }
+        val bytes = responseBody.toByteArray(Charsets.UTF_8)
+        val header =
+            "HTTP/1.1 $code OK\r\n" +
+                "Content-Type: $contentType\r\n" +
+                "Content-Length: ${bytes.size}\r\n" +
+                "Access-Control-Allow-Origin: *\r\n" +
+                "Connection: close\r\n\r\n"
+        val out = client.getOutputStream()
+        out.write(header.toByteArray(Charsets.US_ASCII))
+        out.write(bytes)
+        out.flush()
+    }
+
+    private fun fallbackModelsJson(): String {
+        val models = mutableListOf<String>()
+        listCustomProviders().forEach { entry -> models.addAll(entry.modelIds) }
+        if (models.isEmpty()) {
+            models.addAll(
+                listOf(
+                    "hermes-agent",
+                    "big-pickle",
+                    "mimo-v2.6-flash-free",
+                ),
+            )
+        }
+        if ("hermes-agent" !in models) models.add(0, "hermes-agent")
+        val data =
+            models.distinct().joinToString(",") { id ->
+                """{"id":${jsonString(id)},"object":"model","owned_by":"hermes"}"""
+            }
+        return """{"object":"list","data":[$data]}"""
+    }
+
+    private fun fallbackChatCompletions(body: String): Pair<Int, String> {
+        return runCatching {
+            val root = json.parseToJsonElement(body).jsonObject
+            val model =
+                root["model"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                    ?: "hermes-agent"
+            val messages = root["messages"] as? JsonArray
+            val userText =
+                messages
+                    ?.mapNotNull { el ->
+                        val obj = el.jsonObject
+                        if (obj["role"]?.jsonPrimitive?.contentOrNull == "user") {
+                            obj["content"]?.jsonPrimitive?.contentOrNull
+                        } else {
+                            null
+                        }
+                    }
+                    ?.lastOrNull()
+                    ?.takeIf { it.isNotBlank() }
+                    ?: return@runCatching 400 to
+                        """{"error":{"message":"messages must include a user turn","type":"invalid_request_error"}}"""
+            val custom =
+                listCustomProviders().firstOrNull { model in it.modelIds }
+                    ?: listCustomProviders().firstOrNull()
+            val reply =
+                when {
+                    custom != null ->
+                        chatOpenAiCompatible(
+                            custom.baseUrl,
+                            readCustomApiKey(custom.id),
+                            model,
+                            userText,
+                        )
+                    else -> {
+                        val result =
+                            HermesInstaller.runOnHost(
+                                runtimeDirectory = runtimeDirectory,
+                                args = listOf("-z", userText, "-m", model),
+                                timeoutSeconds = 180L,
+                            )
+                        result.output.trim().ifBlank { "(empty response)" }
+                    }
+                }
+            val payload =
+                """
+                |{
+                |  "id": "chatcmpl-hermes",
+                |  "object": "chat.completion",
+                |  "created": ${System.currentTimeMillis() / 1000},
+                |  "model": ${jsonString(model)},
+                |  "choices": [{
+                |    "index": 0,
+                |    "message": {"role": "assistant", "content": ${jsonString(reply)}},
+                |    "finish_reason": "stop"
+                |  }]
+                |}
+                """.trimMargin()
+            200 to payload
+        }.getOrElse { e ->
+            500 to
+                """{"error":{"message":${jsonString(e.message ?: "internal error")},"type":"server_error"}}"""
         }
     }
 
