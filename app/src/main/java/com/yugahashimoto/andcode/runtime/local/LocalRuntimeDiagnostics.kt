@@ -131,15 +131,17 @@ class LocalRuntimeDiagnosticsCollector(
                                 GrokBuildInstaller.runOnHost(rootfs, listOf("--version"))
                             "hermes" -> {
                                 // Binary present counts as installed even if --version is slow/noisy.
+                                // Always return LocalRuntimeCommandResult (not HostResult) so the
+                                // when-expression type is consistent for fold { result.exitCode }.
                                 if (HermesInstaller.isInstalledIn(runtimeDirectory)) {
-                                    val result =
+                                    val host =
                                         HermesInstaller.runOnHost(
                                             runtimeDirectory,
                                             listOf("--version"),
                                             timeoutSeconds = 20L,
                                         )
-                                    if (result.exitCode == 0) {
-                                        result
+                                    if (host.exitCode == 0) {
+                                        LocalRuntimeCommandResult(host.exitCode, host.output)
                                     } else {
                                         LocalRuntimeCommandResult(
                                             0,
