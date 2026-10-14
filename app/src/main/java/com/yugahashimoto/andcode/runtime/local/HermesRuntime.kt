@@ -255,7 +255,10 @@ class HermesRuntime(
                                 } catch (_: Exception) {
                                 }
                             }
-                        }, "hermes-fallback-req").also { it.isDaemon = true; it.start() }
+                        }, "hermes-fallback-req").also {
+                            it.isDaemon = true
+                            it.start()
+                        }
                     }
                 } finally {
                     runCatching { socket.close() }
@@ -287,8 +290,9 @@ class HermesRuntime(
         val parts = requestLine.split(" ")
         val method = parts.getOrNull(0)?.uppercase() ?: "GET"
         val pathRaw = parts.getOrNull(1) ?: "/"
-        val path = pathRaw.substringBefore("?").trimEnd('/')
-            .ifEmpty { "/" }
+        val path =
+            pathRaw.substringBefore("?").trimEnd('/')
+                .ifEmpty { "/" }
         var contentLength = 0
         while (true) {
             val line = reader.readLine() ?: break
