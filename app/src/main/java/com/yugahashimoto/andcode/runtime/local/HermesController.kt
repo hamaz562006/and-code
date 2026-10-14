@@ -105,34 +105,35 @@ class HermesController(
             runtimeWork.withLease("hermes-install") {
                 try {
                     val existing = installer.installedMetadata()
-                    val others = agents - LocalAgent.HERMES
-                    val othersMissing = others.any { existing?.has(it) != true }
-                    // Hermes is host-side (.deb). Only pull in the shared Alpine sandbox when
-                    // another agent that needs it was also requested — never install OpenCode
-                    // just because Hermes was selected.
-                    if (others.isNotEmpty() && (installer.installedRuntime() == null || othersMissing)) {
-                        installer.install(others, developmentToolGroups) { progress, step, _ ->
+                    val othersMissing = (agents - LocalAgent.HERMES).any { existing?.has(it) != true }
+                    // Same as Pi: always provision the shared Alpine sandbox first (git, bash,
+                    // curl, CA certs, …) when missing. OpenCode binary is only added when
+                    // OPEN_CODE is in the selection — LocalRuntimeInstaller already gates that.
+                    if (installer.installedRuntime() == null || othersMissing) {
+                        installer.install(agents + LocalAgent.HERMES, developmentToolGroups) { progress, step, _ ->
                             mutableState.update {
                                 it.copy(install = HermesInstallStatus.Installing(progress, step))
                             }
                         }
-                    } else if (developmentToolGroups.isNotEmpty() && installer.installedRuntime() != null) {
-                        installer.installDevelopmentToolGroups(developmentToolGroups)
-                    }
-                    if (!HermesInstaller.isInstalledIn(runtime.runtimeDirectory)) {
-                        HermesInstaller.install(runtime.runtimeDirectory) { fraction ->
-                            mutableState.update {
-                                it.copy(
-                                    install =
-                                        HermesInstallStatus.Installing(
-                                            progress = fraction,
-                                            step = "Installing Hermes…",
-                                        ),
-                                )
+                    } else {
+                        if (developmentToolGroups.isNotEmpty()) {
+                            installer.installDevelopmentToolGroups(developmentToolGroups)
+                        }
+                        if (!HermesInstaller.isInstalledIn(runtime.runtimeDirectory)) {
+                            HermesInstaller.install(runtime.runtimeDirectory) { fraction ->
+                                mutableState.update {
+                                    it.copy(
+                                        install =
+                                            HermesInstallStatus.Installing(
+                                                progress = fraction,
+                                                step = "Installing Hermes…",
+                                            ),
+                                    )
+                                }
                             }
                         }
+                        installer.recordAgent(LocalAgent.HERMES)
                     }
-                    installer.recordAgent(LocalAgent.HERMES)
                     mutableState.update { it.copy(install = HermesInstallStatus.Ready) }
                     runCatching { rehydrate() }
                 } catch (e: CancellationException) {
