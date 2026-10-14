@@ -109,7 +109,9 @@ fun AgentSettingsScreen(
             AgentRow(LocalAgent.CODEX, onOpenCodex)
             SettingsDivider()
             AgentRow(LocalAgent.PI, onOpenPi)
+            SettingsDivider()
             AgentRow(LocalAgent.GROK_BUILD, onOpenGrokBuild)
+            SettingsDivider()
             AgentRow(LocalAgent.HERMES, onOpenHermes)
         }
     }
@@ -170,12 +172,14 @@ fun PiAgentSettingsScreen(
         if (!pi.installed) {
             AgentPackageSection(installed = false, onImport = onImportPackage, isImporting = isImportingPackage)
         }
-        SettingsSection(title = stringResource(R.string.settings_agents_section)) {
-            SettingsRow(
-                icon = Icons.Default.Extension,
-                title = stringResource(R.string.mcp_settings_row),
-                onClick = onOpenMcp,
-            )
+        if (pi.installed) {
+            SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+                SettingsRow(
+                    icon = Icons.Default.Extension,
+                    title = stringResource(R.string.mcp_settings_row),
+                    onClick = onOpenMcp,
+                )
+            }
         }
     }
 }
@@ -340,13 +344,14 @@ fun GrokBuildAgentSettingsScreen(
                 }
             }
         }
-        // Same placement as Pi: MCP row is always visible for this agent (not OpenCode).
-        SettingsSection(title = stringResource(R.string.settings_agents_section)) {
-            SettingsRow(
-                icon = Icons.Default.Extension,
-                title = stringResource(R.string.mcp_settings_row),
-                onClick = onOpenMcp,
-            )
+        if (grok.installed) {
+            SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+                SettingsRow(
+                    icon = Icons.Default.Extension,
+                    title = stringResource(R.string.mcp_settings_row),
+                    onClick = onOpenMcp,
+                )
+            }
         }
     }
 }
@@ -396,14 +401,14 @@ fun CodexAgentSettingsScreen(
         if (!codex.installed) {
             AgentPackageSection(installed = false, onImport = onImportPackage, isImporting = isImportingPackage)
         }
-        // The same agent-scoped section Claude Code and Antigravity have, so every agent's MCP
-        // servers are configured from that agent's own screen.
-        SettingsSection(title = stringResource(R.string.settings_agents_section)) {
-            SettingsRow(
-                icon = Icons.Default.Extension,
-                title = stringResource(R.string.mcp_settings_row),
-                onClick = onOpenMcp,
-            )
+        if (codex.installed) {
+            SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+                SettingsRow(
+                    icon = Icons.Default.Extension,
+                    title = stringResource(R.string.mcp_settings_row),
+                    onClick = onOpenMcp,
+                )
+            }
         }
     }
     if (signInDialog != null) {
@@ -476,12 +481,14 @@ fun AntigravityAgentSettingsScreen(
         if (!antigravity.installed) {
             AgentPackageSection(installed = false, onImport = onImportPackage, isImporting = isImportingPackage)
         }
-        SettingsSection(title = stringResource(R.string.settings_agents_section)) {
-            SettingsRow(
-                icon = Icons.Default.Extension,
-                title = stringResource(R.string.mcp_settings_row),
-                onClick = onOpenMcp,
-            )
+        if (antigravity.installed) {
+            SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+                SettingsRow(
+                    icon = Icons.Default.Extension,
+                    title = stringResource(R.string.mcp_settings_row),
+                    onClick = onOpenMcp,
+                )
+            }
         }
     }
 }
@@ -532,22 +539,24 @@ fun ClaudeCodeAgentSettingsScreen(
         if (!claude.installed) {
             AgentPackageSection(installed = false, onImport = onImportPackage, isImporting = isImportingPackage)
         }
-        SettingsSection(title = stringResource(R.string.settings_agents_section)) {
-            SettingsRow(
-                icon = Icons.Default.Psychology,
-                title = stringResource(R.string.system_prompt_settings_row),
-                value =
-                    claude.systemPromptPresets.firstOrNull { it.id == claude.systemPromptId }
-                        ?.let { systemPromptPresetLabel(it) }
-                        ?: stringResource(R.string.system_prompt_none),
-                onClick = onOpenSystemPrompt,
-            )
-            SettingsDivider()
-            SettingsRow(
-                icon = Icons.Default.Extension,
-                title = stringResource(R.string.mcp_settings_row),
-                onClick = onOpenMcp,
-            )
+        if (claude.installed) {
+            SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+                SettingsRow(
+                    icon = Icons.Default.Psychology,
+                    title = stringResource(R.string.system_prompt_settings_row),
+                    value =
+                        claude.systemPromptPresets.firstOrNull { it.id == claude.systemPromptId }
+                            ?.let { systemPromptPresetLabel(it) }
+                            ?: stringResource(R.string.system_prompt_none),
+                    onClick = onOpenSystemPrompt,
+                )
+                SettingsDivider()
+                SettingsRow(
+                    icon = Icons.Default.Extension,
+                    title = stringResource(R.string.mcp_settings_row),
+                    onClick = onOpenMcp,
+                )
+            }
         }
     }
 }

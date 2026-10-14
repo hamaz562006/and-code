@@ -354,36 +354,32 @@ class HermesRuntime(
         messageStore.getOrPut(sessionId) { mutableListOf() }.add(userMessage)
         events.tryEmit(OpenCodeEvent.MessageUpdated(userInfo))
 
-        val modelId = request.modelId?.takeIf { it.isNotBlank() } ?: "big-pickle"
-        // Resolve provider from the request, then by matching the selected model to a custom
-        // endpoint. Never fall back to OpenCode Free when the user picked another model.
+        val modelId = request.modelId?.takeIf { it.isNotBlank() }
         var providerId = request.providerId?.takeIf { it.isNotBlank() }
         val custom =
             listCustomProviders().firstOrNull { entry ->
-                entry.id.equals(providerId, ignoreCase = true) || modelId in entry.modelIds
+                entry.id.equals(providerId, ignoreCase = true) ||
+                    (modelId != null && modelId in entry.modelIds)
             }
         if (providerId.isNullOrBlank() && custom != null) {
             providerId = custom.id
         }
-        if (providerId.isNullOrBlank()) {
-            providerId = "opencode-free"
-        }
+        val isSlash = text.trimStart().startsWith("/")
+        val isFreeModel =
+            modelId != null && (modelId.endsWith("-free") || modelId == "big-pickle")
+        val useFreePath =
+            !isSlash &&
+                custom == null &&
+                (providerId == null || providerId == "opencode-free") &&
+                (modelId == null || isFreeModel)
+
         val assistantText =
             when {
-                custom != null -> {
-                    // OpenAI-compatible custom endpoint (e.g. Clean APIs) — including slash text.
-                    chatOpenAiCompatible(custom.baseUrl, readCustomApiKey(custom.id), modelId, text)
-                }
-                providerId == "opencode-free" &&
-                    (modelId.endsWith("-free") || modelId == "big-pickle") -> {
-                    // Only the explicit free-tier provider uses the OpenCode Zen free path.
-                    // This is Hermes's free provider — not the OpenCode agent.
-                    chatOpenCodeFree(modelId, text)
-                }
-                else -> {
-                    // Built-in Hermes providers (openrouter, anthropic, …) via host CLI.
-                    // Slash commands (/model, /help, …) also go here so they are not tied to
-                    // OpenCode Free.
+                // Hermes slash commands (/model, /help, …) always go to the Hermes CLI —
+                // never to OpenCode Free HTTP, regardless of the selected model chip.
+                isSlash -> {
+                    val mid = modelId ?: "big-pickle"
+                    val pid = providerId ?: custom?.id ?: "opencode-free"
                     syncCustomProvidersIntoHermesConfig()
                     val result =
                         HermesInstaller.runOnHost(
@@ -393,9 +389,49 @@ class HermesRuntime(
                                     "-z",
                                     text,
                                     "-m",
-                                    modelId,
+                                    mid,
                                     "--provider",
-                                    providerId!!,
+                                    pid,
+                                ),
+                            timeoutSeconds = 120L,
+                        )
+                    result.output.trim().ifBlank {
+                        if (result.exitCode != 0) {
+                            result.output.trim().ifBlank {
+                                "Hermes command failed (exit ${result.exitCode})."
+                            }
+                        } else {
+                            "(empty response)"
+                        }
+                    }
+                }
+                custom != null -> {
+                    chatOpenAiCompatible(
+                        custom.baseUrl,
+                        readCustomApiKey(custom.id),
+                        modelId ?: custom.modelIds.firstOrNull() ?: "default",
+                        text,
+                    )
+                }
+                useFreePath -> {
+                    // Hermes's free provider only — not the OpenCode agent.
+                    chatOpenCodeFree(modelId ?: "big-pickle", text)
+                }
+                else -> {
+                    val mid = modelId ?: "big-pickle"
+                    val pid = providerId ?: "opencode-free"
+                    syncCustomProvidersIntoHermesConfig()
+                    val result =
+                        HermesInstaller.runOnHost(
+                            runtimeDirectory = runtimeDirectory,
+                            args =
+                                listOf(
+                                    "-z",
+                                    text,
+                                    "-m",
+                                    mid,
+                                    "--provider",
+                                    pid,
                                 ),
                             timeoutSeconds = 300L,
                         )
