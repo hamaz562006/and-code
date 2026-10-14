@@ -249,6 +249,7 @@ class HermesTarget(
             runtime.setApiKey(providerId, null)
             true
         }
+
     override suspend fun updateConfig(patch: JsonObject): kotlinx.serialization.json.JsonElement =
         withContext(Dispatchers.IO) {
             val providers =
