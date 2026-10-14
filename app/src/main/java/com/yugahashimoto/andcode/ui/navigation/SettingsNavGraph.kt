@@ -499,10 +499,6 @@ fun NavGraphBuilder.settingsNavGraph(
             onInstall = { app.hermesController.install() },
             onRefresh = { app.hermesController.refresh() },
             onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_HERMES) },
-            onOpenProviders = {
-                app.runtimeRegistry.select(app.hermesTarget.id)
-                navController.navigate(ROUTE_SETTINGS_PROVIDERS)
-            },
             onImportPackage = importControl.launch,
             isImportingPackage = importControl.isImporting,
             onBack = { navController.popBackStack() },

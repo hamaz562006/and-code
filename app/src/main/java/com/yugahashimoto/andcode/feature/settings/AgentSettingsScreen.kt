@@ -633,31 +633,34 @@ fun OpenCodeAgentSettingsScreen(
             }
         }
 
-        SettingsSection(title = stringResource(R.string.settings_agents_section)) {
-            SettingsRow(
-                icon = Icons.Default.Key,
-                title = stringResource(R.string.provider_settings_row),
-                onClick = onOpenProviderSettings,
-            )
-            SettingsDivider()
-            SettingsRow(
-                icon = Icons.Default.Visibility,
-                title = stringResource(R.string.model_visibility_row),
-                onClick = onOpenModelVisibility,
-            )
-            SettingsDivider()
-            SettingsRow(
-                icon = Icons.Default.Psychology,
-                title = stringResource(R.string.system_prompt_settings_row),
-                value = systemPromptLabel,
-                onClick = onOpenSystemPrompt,
-            )
-            SettingsDivider()
-            SettingsRow(
-                icon = Icons.Default.Extension,
-                title = stringResource(R.string.mcp_settings_row),
-                onClick = onOpenMcp,
-            )
+        // Provider / model / MCP rows only when the OpenCode agent itself is installed.
+        if (state.installed) {
+            SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+                SettingsRow(
+                    icon = Icons.Default.Key,
+                    title = stringResource(R.string.provider_settings_row),
+                    onClick = onOpenProviderSettings,
+                )
+                SettingsDivider()
+                SettingsRow(
+                    icon = Icons.Default.Visibility,
+                    title = stringResource(R.string.model_visibility_row),
+                    onClick = onOpenModelVisibility,
+                )
+                SettingsDivider()
+                SettingsRow(
+                    icon = Icons.Default.Psychology,
+                    title = stringResource(R.string.system_prompt_settings_row),
+                    value = systemPromptLabel,
+                    onClick = onOpenSystemPrompt,
+                )
+                SettingsDivider()
+                SettingsRow(
+                    icon = Icons.Default.Extension,
+                    title = stringResource(R.string.mcp_settings_row),
+                    onClick = onOpenMcp,
+                )
+            }
         }
     }
 
@@ -1028,7 +1031,6 @@ fun HermesAgentSettingsScreen(
     hermes: HermesUiState,
     onInstall: () -> Unit = {},
     onRefresh: () -> Unit = {},
-    onOpenProviders: (() -> Unit)? = null,
     onOpenMcp: (() -> Unit)? = null,
     onImportPackage: (() -> Unit)? = null,
     isImportingPackage: Boolean = false,
@@ -1101,19 +1103,20 @@ fun HermesAgentSettingsScreen(
                             OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
                                 Text(stringResource(R.string.check_for_update_button))
                             }
-                            if (onOpenProviders != null) {
-                                Button(onClick = onOpenProviders, modifier = Modifier.fillMaxWidth()) {
-                                    Text(stringResource(R.string.server_info_tab_providers))
-                                }
-                            }
-                            if (onOpenMcp != null) {
-                                OutlinedButton(onClick = onOpenMcp, modifier = Modifier.fillMaxWidth()) {
-                                    Text(stringResource(R.string.mcp_settings_row))
-                                }
-                            }
                         }
                     }
                 }
+            }
+        }
+        // Same layout as Pi: MCP in its own section (no Provider button here —
+        // providers live under global Settings → Providers for the selected agent).
+        if (hermes.installed && onOpenMcp != null) {
+            SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+                SettingsRow(
+                    icon = Icons.Default.Extension,
+                    title = stringResource(R.string.mcp_settings_row),
+                    onClick = onOpenMcp,
+                )
             }
         }
         if (!hermes.installed && onImportPackage != null) {
