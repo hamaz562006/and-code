@@ -356,31 +356,43 @@ class HermesRuntime(
 
         val modelId = request.modelId?.takeIf { it.isNotBlank() } ?: "big-pickle"
         val providerId = request.providerId?.takeIf { it.isNotBlank() } ?: "opencode-free"
+        val custom = listCustomProviders().firstOrNull { it.id.equals(providerId, ignoreCase = true) }
         val assistantText =
-            if (providerId == "opencode-free" || modelId.endsWith("-free") || modelId == "big-pickle") {
-                // OpenCode closed anonymous free-tier to third-party clients (Hermes included).
-                // Still attempt once; on 403 return a clear actionable message.
-                chatOpenCodeFree(modelId, text)
-            } else {
-                val result =
-                    HermesInstaller.runOnHost(
-                        runtimeDirectory = runtimeDirectory,
-                        args =
-                            listOf(
-                                "-z",
-                                text,
-                                "-m",
-                                modelId,
-                                "--provider",
-                                providerId,
-                            ),
-                        timeoutSeconds = 300L,
-                    )
-                result.output.trim().ifBlank {
-                    if (result.exitCode != 0) {
-                        "Hermes failed (exit ${result.exitCode}). Configure a provider API key under Settings → Providers."
-                    } else {
-                        "(empty response)"
+            when {
+                providerId == "opencode-free" || modelId.endsWith("-free") || modelId == "big-pickle" -> {
+                    // OpenCode closed anonymous free-tier to third-party clients (Hermes included).
+                    chatOpenCodeFree(modelId, text)
+                }
+                custom != null -> {
+                    // OpenAI-compatible custom endpoint (e.g. Clean APIs): call HTTP directly.
+                    // Hermes CLI only knows built-in provider ids unless config.yaml is synced.
+                    chatOpenAiCompatible(custom.baseUrl, readCustomApiKey(custom.id), modelId, text)
+                }
+                else -> {
+                    // Built-in Hermes providers (openrouter, anthropic, …) via host CLI.
+                    syncCustomProvidersIntoHermesConfig()
+                    val result =
+                        HermesInstaller.runOnHost(
+                            runtimeDirectory = runtimeDirectory,
+                            args =
+                                listOf(
+                                    "-z",
+                                    text,
+                                    "-m",
+                                    modelId,
+                                    "--provider",
+                                    providerId,
+                                ),
+                            timeoutSeconds = 300L,
+                        )
+                    result.output.trim().ifBlank {
+                        if (result.exitCode != 0) {
+                            result.output.trim().ifBlank {
+                                "Hermes failed (exit ${result.exitCode}). Configure a provider API key under Settings → Providers."
+                            }
+                        } else {
+                            "(empty response)"
+                        }
                     }
                 }
             }
@@ -555,7 +567,7 @@ class HermesRuntime(
                 "groq" -> "GROQ_API_KEY"
                 "mistral" -> "MISTRAL_API_KEY"
                 "huggingface" -> "HF_TOKEN"
-                else -> providerId.uppercase().replace("-", "_") + "_API_KEY"
+                else -> providerId.uppercase().replace(Regex("[^A-Z0-9]+"), "_").trim('_') + "_API_KEY"
             }
         val existing =
             if (envFile.isFile) {
@@ -594,7 +606,7 @@ class HermesRuntime(
                 "groq" -> "GROQ_API_KEY"
                 "mistral" -> "MISTRAL_API_KEY"
                 "huggingface" -> "HF_TOKEN"
-                else -> providerId.uppercase().replace("-", "_") + "_API_KEY"
+                else -> providerId.uppercase().replace(Regex("[^A-Z0-9]+"), "_").trim('_') + "_API_KEY"
             }
         return envFile.readLines().any { it.trim().startsWith("$keyName=") && it.substringAfter("=").isNotBlank() }
     }
@@ -700,6 +712,136 @@ class HermesRuntime(
         // Also seed env key slot so hasApiKey can track custom keys by id.
         File(hermesHome(), ".env").let { env ->
             if (!env.isFile) env.writeText("")
+        }
+        // Write Hermes-native config so CLI (`hermes -z --provider …`) also sees the endpoint.
+        syncCustomProvidersIntoHermesConfig()
+    }
+
+    private fun customKeyEnvName(providerId: String): String =
+        providerId.uppercase().replace(Regex("[^A-Z0-9]+"), "_").trim('_') + "_API_KEY"
+
+    fun readCustomApiKey(providerId: String): String? {
+        val envFile = File(hermesHome(), ".env")
+        if (!envFile.isFile) return null
+        val keyName = customKeyEnvName(providerId)
+        return envFile.readLines()
+            .firstOrNull { it.trim().startsWith("$keyName=") }
+            ?.substringAfter("=")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+    }
+
+    /**
+     * Persist named custom providers into HERMES_HOME/config.yaml in the format Hermes expects:
+     * ```
+     * providers:
+     *   cleanapis:
+     *     api: https://cleanapis.com/v1
+     *     key_env: CLEANAPIS_API_KEY
+     * ```
+     */
+    fun syncCustomProvidersIntoHermesConfig() {
+        val customs = listCustomProviders()
+        if (customs.isEmpty()) return
+        val home = hermesHome()
+        val config = File(home, "config.yaml")
+        val existing = if (config.isFile) config.readText() else ""
+        // Remove previous auto-managed block if present.
+        val without =
+            existing
+                .replace(Regex("(?s)\n?# BEGIN ANDCODE_CUSTOM_PROVIDERS.*?\n# END ANDCODE_CUSTOM_PROVIDERS\n?"), "\n")
+                .trimEnd()
+        val block =
+            buildString {
+                appendLine()
+                appendLine("# BEGIN ANDCODE_CUSTOM_PROVIDERS")
+                appendLine("providers:")
+                for (c in customs) {
+                    val envName = customKeyEnvName(c.id)
+                    appendLine("  ${c.id}:")
+                    appendLine("    name: ${c.name}")
+                    appendLine("    api: ${c.baseUrl}")
+                    appendLine("    key_env: $envName")
+                    appendLine("    transport: openai_chat")
+                    appendLine("    api_mode: chat_completions")
+                    if (c.modelIds.isNotEmpty()) {
+                        appendLine("    default_model: ${c.modelIds.first()}")
+                        appendLine("    models:")
+                        for (mid in c.modelIds) {
+                            appendLine("      $mid:")
+                            appendLine("        display_name: $mid")
+                        }
+                    }
+                }
+                appendLine("# END ANDCODE_CUSTOM_PROVIDERS")
+            }
+        config.writeText((without + block).trimStart() + "\n")
+    }
+
+    /**
+     * Direct OpenAI-compatible chat (Clean APIs, local vLLM, etc.) — does not go through Hermes CLI
+     * provider registry, so unknown-provider errors cannot happen.
+     */
+    private fun chatOpenAiCompatible(
+        baseUrl: String,
+        apiKey: String?,
+        modelId: String,
+        userText: String,
+    ): String {
+        val root = baseUrl.trim().trimEnd('/')
+        val url =
+            when {
+                root.endsWith("/chat/completions") -> root
+                root.endsWith("/v1") -> "$root/chat/completions"
+                else -> "$root/chat/completions"
+            }
+        if (apiKey.isNullOrBlank()) {
+            return "Custom provider has no API key. Open Settings → Providers → Connect and paste your key."
+        }
+        val bodyJson =
+            """
+            |{
+            |  "model": ${jsonString(modelId)},
+            |  "messages": [{"role":"user","content":${jsonString(userText)}}],
+            |  "stream": false
+            |}
+            """.trimMargin()
+        return runCatching {
+            val client =
+                OkHttpClient.Builder()
+                    .connectTimeout(30, TimeUnit.SECONDS)
+                    .readTimeout(180, TimeUnit.SECONDS)
+                    .writeTimeout(60, TimeUnit.SECONDS)
+                    .build()
+            val request =
+                Request.Builder()
+                    .url(url)
+                    .header("Authorization", "Bearer $apiKey")
+                    .header("Content-Type", "application/json")
+                    .post(bodyJson.toRequestBody("application/json".toMediaType()))
+                    .build()
+            client.newCall(request).execute().use { response ->
+                val raw = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    return@use "Custom API HTTP ${response.code}: ${raw.take(400)}"
+                }
+                val choices =
+                    json.parseToJsonElement(raw)
+                        .jsonObject["choices"]
+                        ?.let { it as? JsonArray }
+                val content =
+                    choices
+                        ?.firstOrNull()
+                        ?.jsonObject
+                        ?.get("message")
+                        ?.jsonObject
+                        ?.get("content")
+                        ?.jsonPrimitive
+                        ?.contentOrNull
+                content?.takeIf { it.isNotBlank() } ?: raw.take(500).ifBlank { "(empty response)" }
+            }
+        }.getOrElse { e ->
+            "Custom API request failed: ${e.message ?: e.javaClass.simpleName}"
         }
     }
 
