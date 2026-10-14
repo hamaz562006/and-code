@@ -83,7 +83,7 @@ fun NavGraphBuilder.workspaceNavGraph(
                 navController.navigate(WORKSPACE_DETAIL_ROUTE)
             },
             onImportFolder = onImportFolder,
-            onCloneGithub = onShowCloneDialog,
+            onCloneGithub = { navController.navigate(ROUTE_SETTINGS_GITHUB) },
             onChooseFolder = workspaceViewModel::openFolderPicker,
             onBrowseFolderInto = workspaceViewModel::browseFolderInto,
             onBrowseFolderUp = workspaceViewModel::browseFolderUp,

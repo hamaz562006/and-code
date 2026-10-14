@@ -419,6 +419,26 @@ class SettingsViewModel(
         }
     }
 
+    fun connectGitHubPat(token: String) {
+        viewModelScope.launch {
+            try {
+                val clean = token.trim()
+                require(clean.isNotEmpty() && clean.none { it.isWhitespace() }) {
+                    "Paste the complete personal access token."
+                }
+                githubState.value = GitHubState(polling = true, message = null)
+                checkNotNull(githubAuth.refreshAccount(clean)) {
+                    "GitHub rejected this token. Check scopes and try again."
+                }
+                githubAuth.saveToken(clean)
+                githubState.value = GitHubState()
+            } catch (error: Throwable) {
+                githubState.value =
+                    GitHubState(message = error.message ?: "GitHub token verification failed")
+            }
+        }
+    }
+
     fun disconnectGitHub() {
         githubAuth.disconnect()
         githubState.value = GitHubState()

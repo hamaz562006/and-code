@@ -1324,6 +1324,7 @@ fun AndCodeApp(
                     settingsNavGraph(
                         navController = navController,
                         settingsViewModel = settingsViewModel,
+                        onShowGithubCloneDialog = { showCloneDialog = true },
                         notificationsEnabled = { notificationsEnabled },
                         onToggleNotifications = { enabled ->
                             notificationsEnabled = enabled

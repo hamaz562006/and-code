@@ -55,6 +55,7 @@ import java.io.File
 fun NavGraphBuilder.settingsNavGraph(
     navController: NavController,
     settingsViewModel: SettingsViewModel,
+    onShowGithubCloneDialog: () -> Unit = {},
     // Getters throughout: NavHost remembers these lambdas, so anything passed as a value is frozen
     // at the composition that built the graph and never updates again.
     notificationsEnabled: () -> Boolean,
@@ -99,7 +100,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenGitHubSettings = { navController.navigate(ROUTE_SETTINGS_GITHUB) },
             onOpenLocalRuntime = { navController.navigate(LOCAL_RUNTIME_MANAGEMENT_ROUTE) },
             onOpenGuestBrowser = { navController.navigate(ROUTE_GUEST_BROWSER) },
-            showGitHubSettings = com.yugahashimoto.andcode.BuildConfig.GITHUB_CLIENT_ID.isNotBlank(),
+            showGitHubSettings = true,
             onOpenRemoteConnection = { navController.navigate(ROUTE_REMOTE_CONNECTION) },
             onOpenWorkspaces = { navController.navigate(ROUTE_WORKSPACES) },
             onOpenDiagnostics = onShowDiagnostics,
@@ -577,12 +578,14 @@ fun NavGraphBuilder.settingsNavGraph(
         GitHubSettingsScreen(
             state = settingsState,
             onConnect = settingsViewModel::beginGitHubDeviceFlow,
+            onConnectPat = settingsViewModel::connectGitHubPat,
             onDisconnect = settingsViewModel::disconnectGitHub,
             onOpenVerification = { url ->
                 if (!UrlLauncher.openUrl(context, url)) {
                     settingsViewModel.reportOAuthError(context.getString(R.string.provider_auth_failed))
                 }
             },
+            onImportFromGithub = onShowGithubCloneDialog,
             onBack = { navController.popBackStack() },
         )
     }

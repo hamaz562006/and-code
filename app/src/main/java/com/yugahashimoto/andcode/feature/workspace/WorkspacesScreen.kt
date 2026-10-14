@@ -374,11 +374,11 @@ fun WorkspacesScreen(
                         ) {
                             Icon(
                                 Icons.Default.CloudDownload,
-                                contentDescription = stringResource(R.string.cd_clone_github),
+                                contentDescription = stringResource(R.string.cd_connect_github),
                                 modifier = Modifier.size(18.dp),
                             )
                             Spacer(Modifier.width(6.dp))
-                            Text(stringResource(R.string.workspace_clone_github))
+                            Text(stringResource(R.string.workspace_connect_github))
                         }
                     }
                     Spacer(Modifier.height(8.dp))
