@@ -1590,7 +1590,10 @@ private fun CommitPushDialog(
                     )
                     OutlinedTextField(
                         value = message,
-                        onValueChange = { message = it; error = null },
+                        onValueChange = {
+                            message = it
+                            error = null
+                        },
                         label = { Text(stringResource(R.string.github_commit_message_label)) },
                         singleLine = false,
                         enabled = !isRunning,
