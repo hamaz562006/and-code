@@ -13,7 +13,6 @@ import okhttp3.Request
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
-
 /**
  * Shared keyless free-model catalog for every agent (not Hermes-only).
  *

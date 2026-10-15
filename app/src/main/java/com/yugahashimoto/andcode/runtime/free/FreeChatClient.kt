@@ -14,7 +14,6 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
-
 /**
  * Keyless OpenAI-compatible chat for [FreeModelsCatalog] models (all agents).
  */
