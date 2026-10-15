@@ -105,7 +105,6 @@ class GitCloneRepository(
             }
         }
 
-
     /**
      * Stages all changes in [workspacePath] (relative to /workspace or absolute under it),
      * commits with [message], and pushes to the configured remote.
