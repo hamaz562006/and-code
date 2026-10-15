@@ -1562,8 +1562,6 @@ fun AndCodeApp(
 private enum class CloneSource { REPOS, URL }
 
 @Composable
-
-@Composable
 private fun CommitPushDialog(
     workspacePath: String?,
     workspaceLabel: String,
@@ -1635,6 +1633,7 @@ private fun CommitPushDialog(
     )
 }
 
+@Composable
 private fun GithubCloneDialog(
     githubConfigured: Boolean,
     onClone: suspend (String) -> GitCloneResult,
