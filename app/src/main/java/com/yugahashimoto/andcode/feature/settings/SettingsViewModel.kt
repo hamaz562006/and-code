@@ -23,6 +23,7 @@ import com.yugahashimoto.andcode.feature.wakeword.VoskVocabulary
 import com.yugahashimoto.andcode.feature.wakeword.WakeWordGrammar
 import com.yugahashimoto.andcode.runtime.BackendKind
 import com.yugahashimoto.andcode.runtime.LocalAgent
+import com.yugahashimoto.andcode.runtime.free.FreeModelsCatalog
 import com.yugahashimoto.andcode.runtime.RuntimeRegistry
 import com.yugahashimoto.andcode.runtime.RuntimeTarget
 import com.yugahashimoto.andcode.runtime.local.CustomProviderDefinition
@@ -243,6 +244,8 @@ class SettingsViewModel(
                             },
                     )
                 }
+            // Shared keyless free models for every agent (Kilo + curated fallbacks).
+            val freeProvider = FreeModelsCatalog.asProvider()
             val baseAvailable =
                 when {
                     managed.all.isNotEmpty() -> managed.all
@@ -250,22 +253,26 @@ class SettingsViewModel(
                     else -> piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed } }
                 }
             val mergedAvailable =
-                (baseAvailable + customAsProviders).distinctBy { it.id }
+                (listOf(freeProvider) + baseAvailable + customAsProviders).distinctBy { it.id }
+            val freeConnected = chatConnected + FreeModelsCatalog.PROVIDER_ID
             SettingsUiState(
                 providers =
                     (
                         when {
-                            core.runtime.providers.all.isNotEmpty() -> core.runtime.providers.all
-                            core.selected?.agent == LocalAgent.OPEN_CODE -> emptyList()
-                            else -> piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed } }
+                            core.runtime.providers.all.isNotEmpty() ->
+                                listOf(freeProvider) + core.runtime.providers.all
+                            core.selected?.agent == LocalAgent.OPEN_CODE -> listOf(freeProvider)
+                            else ->
+                                listOf(freeProvider) +
+                                    piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed } }
                         }
-                    ).filter { it.id in chatConnected },
+                    ).distinctBy { it.id }.filter { it.id in freeConnected },
                 availableProviders = mergedAvailable,
                 connectedProviderIds =
                     (
                         managed.connected.toSet() +
                             oauth.locallyConnected +
-                            emptySet()
+                            setOf(FreeModelsCatalog.PROVIDER_ID)
                     ) - oauth.locallyDisconnected,
                 agents = core.runtime.agents.filter { it.mode == null || it.mode == "primary" },
                 providerId = core.preferences.providerId,

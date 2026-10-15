@@ -61,6 +61,7 @@ import com.yugahashimoto.andcode.runtime.local.CodexTarget
 import com.yugahashimoto.andcode.runtime.local.CustomProviderStore
 import com.yugahashimoto.andcode.runtime.local.DefaultLocalRuntimeUpdateEngine
 import com.yugahashimoto.andcode.runtime.local.GitCloneRepository
+import com.yugahashimoto.andcode.runtime.free.FreeModelsCatalog
 import com.yugahashimoto.andcode.runtime.local.GitCredentialHelper
 import com.yugahashimoto.andcode.runtime.local.GrokBuildController
 import com.yugahashimoto.andcode.runtime.local.GrokBuildRuntime
@@ -510,6 +511,9 @@ class AndCodeApplication : Application() {
         applicationScope.launch { piTarget.connect() }
         applicationScope.launch { grokBuildTarget.connect() }
         applicationScope.launch { hermesTarget.connect() }
+        applicationScope.launch {
+            runCatching { FreeModelsCatalog.refreshFromNetwork(httpClient) }
+        }
 
         applicationScope.launch {
             grokBuildTarget.state.collect { state ->
