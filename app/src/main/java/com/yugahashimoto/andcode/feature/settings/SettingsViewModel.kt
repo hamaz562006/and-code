@@ -23,9 +23,9 @@ import com.yugahashimoto.andcode.feature.wakeword.VoskVocabulary
 import com.yugahashimoto.andcode.feature.wakeword.WakeWordGrammar
 import com.yugahashimoto.andcode.runtime.BackendKind
 import com.yugahashimoto.andcode.runtime.LocalAgent
-import com.yugahashimoto.andcode.runtime.free.FreeModelsCatalog
 import com.yugahashimoto.andcode.runtime.RuntimeRegistry
 import com.yugahashimoto.andcode.runtime.RuntimeTarget
+import com.yugahashimoto.andcode.runtime.free.FreeModelsCatalog
 import com.yugahashimoto.andcode.runtime.local.CustomProviderDefinition
 import com.yugahashimoto.andcode.runtime.local.CustomProviderStore
 import com.yugahashimoto.andcode.runtime.local.LocalProviderCredentialStore

@@ -2,8 +2,6 @@ package com.yugahashimoto.andcode.runtime.free
 
 import com.yugahashimoto.andcode.core.api.OpenCodeModel
 import com.yugahashimoto.andcode.core.api.OpenCodeProvider
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
@@ -12,6 +10,8 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 
 /**
@@ -64,12 +64,9 @@ object FreeModelsCatalog {
 
     fun isFreeModel(modelId: String?): Boolean {
         if (modelId.isNullOrBlank()) return false
-        val ids = modelIds()
-        return modelId in ids ||
-            modelId.endsWith("-free") ||
-            modelId.endsWith("/free") ||
-            modelId == "big-pickle" ||
-            modelId == "openai-fast"
+        if (modelId in modelIds()) return true
+        if (modelId.endsWith("-free") || modelId.endsWith("/free")) return true
+        return modelId == "big-pickle" || modelId == "openai-fast"
     }
 
     fun asProvider(): OpenCodeProvider {
