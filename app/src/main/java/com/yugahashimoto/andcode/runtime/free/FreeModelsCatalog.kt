@@ -59,8 +59,7 @@ object FreeModelsCatalog {
 
     fun modelIds(): List<String> = cachedIds.get()
 
-    fun isFreeProvider(providerId: String?): Boolean =
-        providerId == PROVIDER_ID || providerId == "opencode-free"
+    fun isFreeProvider(providerId: String?): Boolean = providerId == PROVIDER_ID || providerId == "opencode-free"
 
     fun isFreeModel(modelId: String?): Boolean {
         if (modelId.isNullOrBlank()) return false
@@ -85,11 +84,9 @@ object FreeModelsCatalog {
         )
     }
 
-    fun baseUrlFor(modelId: String): String =
-        if (modelId == "openai-fast") POLLINATIONS_BASE_URL else KILO_BASE_URL
+    fun baseUrlFor(modelId: String): String = if (modelId == "openai-fast") POLLINATIONS_BASE_URL else KILO_BASE_URL
 
-    fun displayName(id: String): String =
-        id.substringAfterLast('/').replace('-', ' ').replaceFirstChar { it.uppercase() }
+    fun displayName(id: String): String = id.substringAfterLast('/').replace('-', ' ').replaceFirstChar { it.uppercase() }
 
     /**
      * Refresh from Kilo (no API key). Keeps fallback on failure.
