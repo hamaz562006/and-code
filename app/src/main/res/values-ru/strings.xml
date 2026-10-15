@@ -1247,4 +1247,21 @@
     <string name="grok_build_install_button">Install Grok Build</string>
     <string name="grok_build_installed_version">Grok Build %1$s</string>
     <string name="hermes_installed_version">Hermes %1$s · 127.0.0.1:8642</string>
+    <string name="cd_connect_github">Connect GitHub</string>
+    <string name="github_client_id_missing_pat_hint">Sign in with GitHub is unavailable in this build. You can still use a personal access token.</string>
+    <string name="github_connect_section_body">Sign in to import private repositories and publish your work.</string>
+    <string name="github_connect_section_title">Connect GitHub</string>
+    <string name="github_import_from_github">Import from GitHub</string>
+    <string name="github_import_hint">Pick a repository from your account or paste a URL to clone into the workspace.</string>
+    <string name="github_import_requires_connect">Connect GitHub first to import or clone repositories.</string>
+    <string name="github_pat_field_label">Personal access token</string>
+    <string name="github_pat_instructions">Create a fine-grained or classic token with repo access, then paste it below. Organization SSO may be required.</string>
+    <string name="github_pat_verify_connect">Verify &amp; connect</string>
+    <string name="github_repositories_section_title">Repositories</string>
+    <string name="github_screen_title_short">GitHub</string>
+    <string name="github_sign_in_with_github">Sign in with GitHub</string>
+    <string name="github_signed_in_as">Signed in as %1$s</string>
+    <string name="github_use_pat">Use a personal access token</string>
+    <string name="github_workspace_header">Sign in, import repositories and publish changes</string>
+    <string name="workspace_connect_github">Connect GitHub</string>
 </resources>
