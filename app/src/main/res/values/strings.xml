@@ -72,7 +72,7 @@
     <string name="workspace_clone_url_placeholder">https://github.com/owner/repo</string>
     <string name="workspace_clone_action">Clone</string>
     <string name="workspace_clone_running">Cloning repository…</string>
-    <string name="workspace_clone_requires_auth">Connect GitHub in Settings to clone private repositories.</string>
+    <string name="workspace_clone_requires_auth">Public repositories can be imported without signing in. Connect GitHub for private repositories.</string>
     <string name="workspace_clone_my_repos">My repos</string>
     <string name="workspace_clone_url_tab">URL</string>
     <string name="workspace_clone_search">Search repositories</string>
@@ -460,6 +460,16 @@
     <string name="github_git_operations">GitHub Git operations</string>
     <string name="github_not_connected">Not connected</string>
     <string name="github_connect">Connect GitHub</string>
+    <string name="github_commit_push_success">Changes committed and pushed.</string>
+    <string name="github_commit_push_need_workspace">Open a workspace folder first, then try again.</string>
+    <string name="github_commit_push_failed">Commit or push failed (exit %1$d)</string>
+    <string name="github_commit_push_running">Publishing…</string>
+    <string name="github_commit_push_action">Commit &amp; push</string>
+    <string name="github_commit_message_label">Commit message</string>
+    <string name="github_import_hint_public">Public repositories can be imported without signing in. Connect GitHub to browse private repos and push changes.</string>
+    <string name="github_current_workspace">Current workspace: %1$s</string>
+    <string name="github_commit_and_push">Commit &amp; push</string>
+    <string name="github_allow_workflow_edit">Allow editing GitHub Actions workflows</string>
 
     <string name="github_screen_title_short">GitHub</string>
     <string name="github_workspace_header">Sign in, import repositories and publish changes</string>

@@ -1264,4 +1264,14 @@
     <string name="github_use_pat">Use a personal access token</string>
     <string name="github_workspace_header">Sign in, import repositories and publish changes</string>
     <string name="workspace_connect_github">Connect GitHub</string>
+    <string name="github_allow_workflow_edit">Allow editing GitHub Actions workflows</string>
+    <string name="github_commit_and_push">Commit &amp; push</string>
+    <string name="github_current_workspace">Current workspace: %1$s</string>
+    <string name="github_import_hint_public">Public repositories can be imported without signing in. Connect GitHub to browse private repos and push changes.</string>
+    <string name="github_commit_message_label">Commit message</string>
+    <string name="github_commit_push_action">Commit &amp; push</string>
+    <string name="github_commit_push_running">Publishing…</string>
+    <string name="github_commit_push_failed">Commit or push failed (exit %1$d)</string>
+    <string name="github_commit_push_need_workspace">Open a workspace folder first, then try again.</string>
+    <string name="github_commit_push_success">Changes committed and pushed.</string>
 </resources>

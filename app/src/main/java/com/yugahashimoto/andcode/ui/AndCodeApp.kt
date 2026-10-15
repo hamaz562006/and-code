@@ -194,6 +194,7 @@ fun AndCodeApp(
     var selectedWorkspace by remember { mutableStateOf<WorkspaceRef?>(null) }
     var notificationsEnabled by remember { mutableStateOf(true) }
     var showCloneDialog by remember { mutableStateOf(false) }
+    var showCommitPushDialog by remember { mutableStateOf(false) }
     var showDiagnostics by remember { mutableStateOf(false) }
 
     val selectedRuntime by app.runtimeRegistry.selected.collectAsState()
@@ -1325,6 +1326,8 @@ fun AndCodeApp(
                         navController = navController,
                         settingsViewModel = settingsViewModel,
                         onShowGithubCloneDialog = { showCloneDialog = true },
+                        onShowCommitPushDialog = { showCommitPushDialog = true },
+                        currentWorkspaceLabel = { selectedWorkspace?.name ?: selectedWorkspace?.path?.substringAfterLast('/') },
                         notificationsEnabled = { notificationsEnabled },
                         onToggleNotifications = { enabled ->
                             notificationsEnabled = enabled
@@ -1559,6 +1562,79 @@ fun AndCodeApp(
 private enum class CloneSource { REPOS, URL }
 
 @Composable
+
+@Composable
+private fun CommitPushDialog(
+    workspacePath: String?,
+    workspaceLabel: String,
+    onPush: suspend (String) -> com.yugahashimoto.andcode.runtime.local.GitCloneResult,
+    onDismiss: () -> Unit,
+) {
+    var message by remember { mutableStateOf("") }
+    var isRunning by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val failedTemplate = stringResource(R.string.github_commit_push_failed)
+    val needWorkspace = stringResource(R.string.github_commit_push_need_workspace)
+    val successMsg = stringResource(R.string.github_commit_push_success)
+
+    AlertDialog(
+        onDismissRequest = { if (!isRunning) onDismiss() },
+        title = { Text(stringResource(R.string.github_commit_and_push)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (workspacePath.isNullOrBlank()) {
+                    Text(needWorkspace, color = MaterialTheme.colorScheme.error)
+                } else {
+                    Text(
+                        stringResource(R.string.github_current_workspace, workspaceLabel.ifBlank { workspacePath }),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    OutlinedTextField(
+                        value = message,
+                        onValueChange = { message = it; error = null },
+                        label = { Text(stringResource(R.string.github_commit_message_label)) },
+                        singleLine = false,
+                        enabled = !isRunning,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    error?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (isRunning) {
+                        Text(stringResource(R.string.github_commit_push_running), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = !isRunning && !workspacePath.isNullOrBlank() && message.isNotBlank(),
+                onClick = {
+                    isRunning = true
+                    error = null
+                    scope.launch {
+                        val result = onPush(message.trim())
+                        isRunning = false
+                        if (result.exitCode == 0) {
+                            onDismiss()
+                        } else {
+                            error = failedTemplate.format(result.exitCode) + "\n" + result.output.takeLast(300)
+                        }
+                    }
+                },
+            ) {
+                Text(stringResource(R.string.github_commit_push_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isRunning) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
+}
+
 private fun GithubCloneDialog(
     githubConfigured: Boolean,
     onClone: suspend (String) -> GitCloneResult,

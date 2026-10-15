@@ -56,6 +56,8 @@ fun NavGraphBuilder.settingsNavGraph(
     navController: NavController,
     settingsViewModel: SettingsViewModel,
     onShowGithubCloneDialog: () -> Unit = {},
+    onShowCommitPushDialog: () -> Unit = {},
+    currentWorkspaceLabel: () -> String? = { null },
     // Getters throughout: NavHost remembers these lambdas, so anything passed as a value is frozen
     // at the composition that built the graph and never updates again.
     notificationsEnabled: () -> Boolean,
@@ -577,7 +579,8 @@ fun NavGraphBuilder.settingsNavGraph(
         val settingsState by settingsViewModel.state.collectAsState()
         GitHubSettingsScreen(
             state = settingsState,
-            onConnect = settingsViewModel::beginGitHubDeviceFlow,
+            currentWorkspaceLabel = currentWorkspaceLabel(),
+            onConnect = { allowWorkflow -> settingsViewModel.beginGitHubDeviceFlow(allowWorkflow) },
             onConnectPat = settingsViewModel::connectGitHubPat,
             onDisconnect = settingsViewModel::disconnectGitHub,
             onOpenVerification = { url ->
@@ -586,6 +589,7 @@ fun NavGraphBuilder.settingsNavGraph(
                 }
             },
             onImportFromGithub = onShowGithubCloneDialog,
+            onCommitAndPush = onShowCommitPushDialog,
             onBack = { navController.popBackStack() },
         )
     }

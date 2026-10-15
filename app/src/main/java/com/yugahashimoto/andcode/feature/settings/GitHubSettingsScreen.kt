@@ -2,6 +2,7 @@ package com.yugahashimoto.andcode.feature.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,29 +32,29 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.yugahashimoto.andcode.R
 
-/**
- * GitHub connection for workspaces and settings: Device Flow and personal access token,
- * plus import/clone when connected (AndroidHarness-style).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GitHubSettingsScreen(
     state: SettingsUiState,
-    onConnect: () -> Unit,
+    currentWorkspaceLabel: String? = null,
+    onConnect: (allowWorkflowEdit: Boolean) -> Unit,
     onConnectPat: (String) -> Unit,
     onDisconnect: () -> Unit,
     onOpenVerification: (String) -> Unit,
     onImportFromGithub: (() -> Unit)? = null,
+    onCommitAndPush: (() -> Unit)? = null,
     onBack: () -> Unit,
 ) {
     var showPatForm by remember { mutableStateOf(false) }
     var patToken by remember { mutableStateOf("") }
+    var allowWorkflowEdit by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.githubVerificationUrl) {
         state.githubVerificationUrl?.let(onOpenVerification)
@@ -87,7 +89,6 @@ fun GitHubSettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            // —— Connect section ——
             Card(
                 colors =
                     CardDefaults.cardColors(
@@ -131,7 +132,7 @@ fun GitHubSettingsScreen(
                     if (state.githubLogin == null) {
                         if (!showPatForm) {
                             Button(
-                                onClick = onConnect,
+                                onClick = { onConnect(allowWorkflowEdit) },
                                 enabled = state.githubConfigured && !state.githubPolling,
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
@@ -142,6 +143,23 @@ fun GitHubSettingsScreen(
                                         stringResource(R.string.github_sign_in_with_github)
                                     },
                                 )
+                            }
+                            if (state.githubConfigured) {
+                                Row(
+                                    verticalAlignment = Alignment.Top,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Checkbox(
+                                        checked = allowWorkflowEdit,
+                                        onCheckedChange = { allowWorkflowEdit = it },
+                                        enabled = !state.githubPolling,
+                                    )
+                                    Text(
+                                        stringResource(R.string.github_allow_workflow_edit),
+                                        modifier = Modifier.padding(top = 12.dp),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                }
                             }
                             OutlinedButton(
                                 onClick = {
@@ -195,7 +213,6 @@ fun GitHubSettingsScreen(
                 }
             }
 
-            // —— Repositories section (connected or still show import entry) ——
             Card(
                 colors =
                     CardDefaults.cardColors(
@@ -214,18 +231,29 @@ fun GitHubSettingsScreen(
                     if (onImportFromGithub != null) {
                         Button(
                             onClick = onImportFromGithub,
-                            enabled = state.githubLogin != null,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(stringResource(R.string.github_import_from_github))
                         }
                     }
+                    currentWorkspaceLabel?.takeIf { it.isNotBlank() }?.let { label ->
+                        Text(
+                            stringResource(R.string.github_current_workspace, label),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (onCommitAndPush != null) {
+                        OutlinedButton(
+                            onClick = onCommitAndPush,
+                            enabled = state.githubLogin != null,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.github_commit_and_push))
+                        }
+                    }
                     Text(
-                        if (state.githubLogin == null) {
-                            stringResource(R.string.github_import_requires_connect)
-                        } else {
-                            stringResource(R.string.github_import_hint)
-                        },
+                        stringResource(R.string.github_import_hint_public),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

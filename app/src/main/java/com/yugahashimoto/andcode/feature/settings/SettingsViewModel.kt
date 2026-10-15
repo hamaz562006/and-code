@@ -401,10 +401,10 @@ class SettingsViewModel(
         modelId: String,
     ) = preferences.toggleModelVisibility(providerId, modelId)
 
-    fun beginGitHubDeviceFlow() {
+    fun beginGitHubDeviceFlow(allowWorkflowEdit: Boolean = true) {
         viewModelScope.launch {
             runCatching {
-                val code = githubAuth.requestDeviceCode()
+                val code = githubAuth.requestDeviceCode(allowWorkflowEdit = allowWorkflowEdit)
                 githubState.value = GitHubState(deviceCode = code, polling = true)
                 val accessToken = githubAuth.pollToken(code.deviceCode, code.intervalSeconds, code.expiresInSeconds)
                 checkNotNull(githubAuth.refreshAccount(accessToken)) { "GitHub account could not be verified" }
