@@ -1,12 +1,26 @@
 name: Clear This Repo Artifacts
 on:
-  workflow_dispatch: # اجرای دستی با دکمه Run workflow
+  workflow_dispatch:
+
+permissions:
+  actions: write
 
 jobs:
   clear-current:
     runs-on: ubuntu-latest
     steps:
-      - name: Delete Artifacts
-        uses: cml-org/delete-artifact-by-name@v1
-        with:
-          name: '*' # پاک کردن تمام آرتیفکت‌های این ریپو
+      - name: Delete all artifacts using GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Fetching artifacts..."
+          artifacts=$(gh api repos/${{ github.repository }}/actions/artifacts --jq '.artifacts[].id')
+          if [ -z "$artifacts" ]; then
+            echo "No artifacts found."
+          else
+            for id in $artifacts; do
+              echo "Deleting artifact $id..."
+              gh api --method DELETE repos/${{ github.repository }}/actions/artifacts/$id
+            done
+            echo "All artifacts deleted successfully!"
+          fi
