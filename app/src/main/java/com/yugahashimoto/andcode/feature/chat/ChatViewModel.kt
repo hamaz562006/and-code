@@ -36,6 +36,7 @@ import com.yugahashimoto.andcode.runtime.PermissionResponse
 import com.yugahashimoto.andcode.runtime.RuntimeTarget
 import com.yugahashimoto.andcode.runtime.free.FreeChatClient
 import com.yugahashimoto.andcode.runtime.free.FreeModelsCatalog
+import com.yugahashimoto.andcode.runtime.free.ModelFallbackStore
 import com.yugahashimoto.andcode.runtime.local.StagedSystemPrompt
 import com.yugahashimoto.andcode.runtime.local.VideoAttachmentHelper
 import kotlinx.coroutines.CancellationException
@@ -1300,7 +1301,24 @@ class ChatViewModel(
         viewModelScope.launch {
             val reply =
                 withContext(Dispatchers.IO) {
-                    FreeChatClient.chat(modelId, text)
+                    val store = ModelFallbackStore.get()
+                    val policy = store?.load() ?: ModelFallbackStore.defaultPolicy()
+                    val chain =
+                        store?.chainFor(
+                            _uiState.value.selectedProviderId ?: FreeModelsCatalog.PROVIDER_ID,
+                            modelId,
+                        )
+                            ?: listOf(
+                                com.yugahashimoto.andcode.runtime.free.FallbackTarget(
+                                    FreeModelsCatalog.PROVIDER_ID,
+                                    modelId,
+                                ),
+                            )
+                    FreeChatClient.chatWithFallback(
+                        targets = chain,
+                        userText = text,
+                        retriesPerModel = policy.retries,
+                    ).text
                 }
             _uiState.update { state ->
                 val updated =

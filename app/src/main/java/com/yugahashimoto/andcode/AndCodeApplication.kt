@@ -44,6 +44,7 @@ import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import com.yugahashimoto.andcode.runtime.RuntimeRegistry
 import com.yugahashimoto.andcode.runtime.RuntimeState
 import com.yugahashimoto.andcode.runtime.free.FreeModelsCatalog
+import com.yugahashimoto.andcode.runtime.free.ModelFallbackStore
 import com.yugahashimoto.andcode.runtime.local.AdbConnectionManager
 import com.yugahashimoto.andcode.runtime.local.AdbShellRunner
 import com.yugahashimoto.andcode.runtime.local.AndroidClaudeMessages
@@ -514,6 +515,7 @@ class AndCodeApplication : Application() {
         applicationScope.launch {
             runCatching { FreeModelsCatalog.refreshFromNetwork(httpClient) }
         }
+        ModelFallbackStore.init(this)
 
         applicationScope.launch {
             grokBuildTarget.state.collect { state ->
