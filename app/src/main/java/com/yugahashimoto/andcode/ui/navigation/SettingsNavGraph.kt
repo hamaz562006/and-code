@@ -30,6 +30,7 @@ import com.yugahashimoto.andcode.feature.settings.CodexSignInActions
 import com.yugahashimoto.andcode.feature.settings.CodexSignInViewModel
 import com.yugahashimoto.andcode.feature.settings.GitHubSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.GrokBuildAgentSettingsScreen
+import com.yugahashimoto.andcode.feature.settings.HermesAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ModelVisibilityScreen
 import com.yugahashimoto.andcode.feature.settings.OpenCodeAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.OpenCodeAgentSettingsViewModel
@@ -54,6 +55,9 @@ import java.io.File
 fun NavGraphBuilder.settingsNavGraph(
     navController: NavController,
     settingsViewModel: SettingsViewModel,
+    onShowGithubCloneDialog: () -> Unit = {},
+    onShowCommitPushDialog: () -> Unit = {},
+    currentWorkspaceLabel: () -> String? = { null },
     // Getters throughout: NavHost remembers these lambdas, so anything passed as a value is frozen
     // at the composition that built the graph and never updates again.
     notificationsEnabled: () -> Boolean,
@@ -98,7 +102,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenGitHubSettings = { navController.navigate(ROUTE_SETTINGS_GITHUB) },
             onOpenLocalRuntime = { navController.navigate(LOCAL_RUNTIME_MANAGEMENT_ROUTE) },
             onOpenGuestBrowser = { navController.navigate(ROUTE_GUEST_BROWSER) },
-            showGitHubSettings = com.yugahashimoto.andcode.BuildConfig.GITHUB_CLIENT_ID.isNotBlank(),
+            showGitHubSettings = true,
             onOpenRemoteConnection = { navController.navigate(ROUTE_REMOTE_CONNECTION) },
             onOpenWorkspaces = { navController.navigate(ROUTE_WORKSPACES) },
             onOpenDiagnostics = onShowDiagnostics,
@@ -300,6 +304,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenCodex = { navController.navigate(ROUTE_SETTINGS_AGENT_CODEX) },
             onOpenPi = { navController.navigate(ROUTE_SETTINGS_AGENT_PI) },
             onOpenGrokBuild = { navController.navigate(ROUTE_SETTINGS_AGENT_GROK_BUILD) },
+            onOpenHermes = { navController.navigate(ROUTE_SETTINGS_AGENT_HERMES) },
             onBack = { navController.popBackStack() },
         )
     }
@@ -308,11 +313,12 @@ fun NavGraphBuilder.settingsNavGraph(
         val app = context.applicationContext as com.yugahashimoto.andcode.AndCodeApplication
         val pi by app.piController.state.collectAsState()
         androidx.compose.runtime.LaunchedEffect(Unit) { app.piController.refresh() }
-        val importPackage = rememberAgentPackageImporter()
+        val importControl = rememberAgentPackageImporter()
         PiAgentSettingsScreen(
             pi = pi,
             onInstall = { app.piController.install() },
-            onImportPackage = importPackage,
+            onImportPackage = importControl.launch,
+            isImportingPackage = importControl.isImporting,
             onRestart = { app.piRuntime.stopAll() },
             onStop = { app.piRuntime.stopAll() },
             onCheckForUpdate = { app.piController.checkForUpdate() },
@@ -346,10 +352,11 @@ fun NavGraphBuilder.settingsNavGraph(
                     },
             )
         val openCodeState by openCodeViewModel.state.collectAsState()
-        val importPackage = rememberAgentPackageImporter()
+        val importControl = rememberAgentPackageImporter()
         OpenCodeAgentSettingsScreen(
             state = openCodeState,
-            onImportPackage = importPackage,
+            onImportPackage = importControl.launch,
+            isImportingPackage = importControl.isImporting,
             onStart = openCodeViewModel::start,
             onStop = openCodeViewModel::stop,
             onRestart = openCodeViewModel::restart,
@@ -384,9 +391,20 @@ fun NavGraphBuilder.settingsNavGraph(
 
     composable(ROUTE_SETTINGS_MODEL_VISIBILITY) {
         val settingsState by settingsViewModel.state.collectAsState()
-        androidx.compose.runtime.LaunchedEffect(Unit) { settingsViewModel.refreshProviderAuth() }
+        // Strictly OpenCode runtime catalogue — not Hermes/Pi seeds.
+        var openCodeProviders by androidx.compose.runtime.remember {
+            androidx.compose.runtime.mutableStateOf<List<com.yugahashimoto.andcode.core.api.OpenCodeProvider>>(emptyList())
+        }
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            val target = runtimeRegistry.targetFor(com.yugahashimoto.andcode.runtime.LocalAgent.OPEN_CODE)
+            openCodeProviders =
+                target
+                    ?.let { runCatching { it.listProviders() }.getOrNull() }
+                    ?.all
+                    .orEmpty()
+        }
         ModelVisibilityScreen(
-            providers = settingsState.availableProviders.filter { it.id in settingsState.connectedProviderIds },
+            providers = openCodeProviders,
             hiddenModelKeys = settingsState.hiddenModelKeys,
             onToggleModelVisibility = settingsViewModel::toggleModelVisibility,
             onBack = { navController.popBackStack() },
@@ -394,11 +412,12 @@ fun NavGraphBuilder.settingsNavGraph(
     }
 
     composable(ROUTE_SETTINGS_AGENT_CLAUDE) {
-        val importPackage = rememberAgentPackageImporter()
+        val importControl = rememberAgentPackageImporter()
         ClaudeCodeAgentSettingsScreen(
             claude = claude(),
             onInstall = claudeActions.onInstall,
-            onImportPackage = importPackage,
+            onImportPackage = importControl.launch,
+            isImportingPackage = importControl.isImporting,
             onUpdate = claudeActions.onUpdate,
             onSelectPermissionMode = claudeActions.onSelectPermissionMode,
             onSignIn = claudeActions.onSignIn,
@@ -427,11 +446,12 @@ fun NavGraphBuilder.settingsNavGraph(
     }
 
     composable(ROUTE_SETTINGS_AGENT_ANTIGRAVITY) {
-        val importPackage = rememberAgentPackageImporter()
+        val importControl = rememberAgentPackageImporter()
         AntigravityAgentSettingsScreen(
             antigravity = antigravity(),
             onInstall = antigravityActions.onInstall,
-            onImportPackage = importPackage,
+            onImportPackage = importControl.launch,
+            isImportingPackage = importControl.isImporting,
             onUpdate = antigravityActions.onUpdate,
             onSelectPermissionMode = antigravityActions.onSelectPermissionMode,
             onSignIn = antigravityActions.onSignIn,
@@ -449,7 +469,7 @@ fun NavGraphBuilder.settingsNavGraph(
     composable(ROUTE_SETTINGS_AGENT_GROK_BUILD) {
         val app = LocalContext.current.applicationContext as AndCodeApplication
         val grok by app.grokBuildController.state.collectAsState()
-        val importPackage = rememberAgentPackageImporter()
+        val importControl = rememberAgentPackageImporter()
         GrokBuildAgentSettingsScreen(
             grok = grok,
             onInstall = { app.grokBuildController.install() },
@@ -466,7 +486,24 @@ fun NavGraphBuilder.settingsNavGraph(
                 navController.navigate(ROUTE_SETTINGS_PROVIDERS)
             },
             onApiKey = { key -> app.grokBuildController.setApiKey(key) },
-            onImportPackage = importPackage,
+            onImportPackage = importControl.launch,
+            isImportingPackage = importControl.isImporting,
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable(ROUTE_SETTINGS_AGENT_HERMES) {
+        val app = LocalContext.current.applicationContext as AndCodeApplication
+        val hermesState by app.hermesController.state.collectAsState()
+        androidx.compose.runtime.LaunchedEffect(Unit) { app.hermesController.refresh() }
+        val importControl = rememberAgentPackageImporter()
+        HermesAgentSettingsScreen(
+            hermes = hermesState,
+            onInstall = { app.hermesController.install() },
+            onRefresh = { app.hermesController.refresh() },
+            onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_HERMES) },
+            onImportPackage = importControl.launch,
+            isImportingPackage = importControl.isImporting,
             onBack = { navController.popBackStack() },
         )
     }
@@ -485,7 +522,7 @@ fun NavGraphBuilder.settingsNavGraph(
         val signInDialog by signInViewModel.dialog.collectAsState()
         // Re-read on open: an install can have finished, or the account been signed out, since the last look.
         androidx.compose.runtime.LaunchedEffect(Unit) { app.codexController.refresh() }
-        val importPackage = rememberAgentPackageImporter()
+        val importControl = rememberAgentPackageImporter()
         CodexAgentSettingsScreen(
             codex = codex,
             signInDialog = signInDialog,
@@ -501,7 +538,8 @@ fun NavGraphBuilder.settingsNavGraph(
             onInstall = app.codexController::install,
             onSignOut = app.codexController::signOut,
             onOpenMcp = { navController.navigate(ROUTE_SETTINGS_MCP_CODEX) },
-            onImportPackage = importPackage,
+            onImportPackage = importControl.launch,
+            isImportingPackage = importControl.isImporting,
             onBack = { navController.popBackStack() },
         )
     }
@@ -541,13 +579,17 @@ fun NavGraphBuilder.settingsNavGraph(
         val settingsState by settingsViewModel.state.collectAsState()
         GitHubSettingsScreen(
             state = settingsState,
-            onConnect = settingsViewModel::beginGitHubDeviceFlow,
+            currentWorkspaceLabel = currentWorkspaceLabel(),
+            onConnect = { allowWorkflow -> settingsViewModel.beginGitHubDeviceFlow(allowWorkflow) },
+            onConnectPat = settingsViewModel::connectGitHubPat,
             onDisconnect = settingsViewModel::disconnectGitHub,
             onOpenVerification = { url ->
                 if (!UrlLauncher.openUrl(context, url)) {
                     settingsViewModel.reportOAuthError(context.getString(R.string.provider_auth_failed))
                 }
             },
+            onImportFromGithub = onShowGithubCloneDialog,
+            onCommitAndPush = onShowCommitPushDialog,
             onBack = { navController.popBackStack() },
         )
     }
@@ -594,6 +636,24 @@ fun NavGraphBuilder.settingsNavGraph(
         com.yugahashimoto.andcode.feature.settings.McpScreen(
             registry = runtimeRegistry,
             agent = com.yugahashimoto.andcode.runtime.LocalAgent.PI,
+            onOpenBrowser = {},
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable(ROUTE_SETTINGS_MCP_HERMES) {
+        com.yugahashimoto.andcode.feature.settings.McpScreen(
+            registry = runtimeRegistry,
+            agent = com.yugahashimoto.andcode.runtime.LocalAgent.HERMES,
+            onOpenBrowser = {},
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable(ROUTE_SETTINGS_MCP_GROK) {
+        com.yugahashimoto.andcode.feature.settings.McpScreen(
+            registry = runtimeRegistry,
+            agent = com.yugahashimoto.andcode.runtime.LocalAgent.GROK_BUILD,
             onOpenBrowser = {},
             onBack = { navController.popBackStack() },
         )
@@ -650,15 +710,25 @@ data class AntigravitySettingsActions(
     val onSignOut: () -> Unit,
 )
 
+private data class AgentPackageImportControl(
+    val launch: () -> Unit,
+    val isImporting: Boolean,
+)
+
+/**
+ * Same offline import path as setup step 1, with busy state for Agents-screen UX.
+ */
 @Composable
-private fun rememberAgentPackageImporter(): () -> Unit {
+private fun rememberAgentPackageImporter(): AgentPackageImportControl {
     val context = LocalContext.current
     val app = context.applicationContext as AndCodeApplication
     val scope = rememberCoroutineScope()
+    var isImporting by remember { mutableStateOf(false) }
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri == null) return@rememberLauncherForActivityResult
             scope.launch {
+                isImporting = true
                 val result =
                     runCatching {
                         withContext(Dispatchers.IO) {
@@ -668,17 +738,26 @@ private fun rememberAgentPackageImporter(): () -> Unit {
                                 tmp.outputStream().use { input.copyTo(it) }
                             } ?: error("Unable to read package")
                             try {
-                                // Offline-first: never call network install() during import.
-                                // Packages (format v2) ship agent + base Alpine tree.
+                                // Offline-first: same path as setup import (Grok / Hermes / Pi).
+                                val hostRuntime = File(app.filesDir, "runtime")
+                                hostRuntime.mkdirs()
+                                val peek = RuntimeAgentPackage.peekManifest(tmp)
+                                val isHermes = peek?.agentId == LocalAgent.HERMES.id
                                 var rootfs = app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                if (rootfs == null || !rootfs.isDirectory) {
+                                if (!isHermes && (rootfs == null || !rootfs.isDirectory)) {
                                     rootfs = app.localRuntimeInstaller.ensureRootfsForOfflineImport()
                                 }
-                                val imported = RuntimeAgentPackage.import(tmp, rootfs)
+                                val imported =
+                                    RuntimeAgentPackage.import(
+                                        packageFile = tmp,
+                                        rootfs = rootfs,
+                                        hostRuntimeDir = hostRuntime,
+                                    )
                                 app.localRuntimeInstaller.recordAgent(imported.agent)
                                 when (imported.agent) {
                                     LocalAgent.PI -> runCatching { app.piController.refresh() }
                                     LocalAgent.GROK_BUILD -> runCatching { app.grokBuildController.refresh() }
+                                    LocalAgent.HERMES -> runCatching { app.hermesController.refresh() }
                                     LocalAgent.CODEX -> runCatching { app.codexController.refresh() }
                                     LocalAgent.CLAUDE_CODE -> runCatching { app.claudeCodeController.refresh() }
                                     LocalAgent.ANTIGRAVITY -> runCatching { app.antigravityController.refresh() }
@@ -690,6 +769,7 @@ private fun rememberAgentPackageImporter(): () -> Unit {
                             }
                         }
                     }
+                isImporting = false
                 result
                     .onSuccess { imported ->
                         android.widget.Toast
@@ -715,7 +795,12 @@ private fun rememberAgentPackageImporter(): () -> Unit {
                     }
             }
         }
-    return {
-        launcher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
-    }
+    return AgentPackageImportControl(
+        launch = {
+            if (!isImporting) {
+                launcher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+            }
+        },
+        isImporting = isImporting,
+    )
 }

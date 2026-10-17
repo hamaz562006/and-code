@@ -103,20 +103,57 @@ class LocalRuntimeDiagnosticsCollector(
                 ) {
                     add(LocalRuntimeToolDefinition("grok", "Grok Build", "/usr/local/bin/grok --version"))
                 }
+                // Hermes is host-side (Termux deb under runtime/hermes), not Alpine rootfs.
+                if (HermesInstaller.isInstalledIn(runtimeDirectory)) {
+                    add(LocalRuntimeToolDefinition("hermes", "Hermes", "hermes --version"))
+                }
             }
         val definitions =
             agentTools +
                 REQUIRED_TOOLS +
                 OPTIONAL_TOOLS.takeIf { fullDevelopmentToolsInstalledProvider() }.orEmpty()
         val tools =
-            if (environmentProvisioned) {
-                definitions.map { definition ->
+            definitions.map { definition ->
+                val isHostAgent = definition.id == "hermes" || definition.id == "grok"
+                // Host-side agents (Hermes/Grok) do not need Alpine rootfs to report status.
+                if (!environmentProvisioned && !isHostAgent) {
+                    LocalRuntimeToolCheck(
+                        id = definition.id,
+                        label = displayLabel(definition),
+                        available = false,
+                        detail = messages.diagnosticsToolNotInstalled,
+                    )
+                } else {
                     runCatching {
-                        if (definition.id == "grok") {
-                            // Bionic/Termux binary — must run on the Android host, not Alpine proot.
-                            GrokBuildInstaller.runOnHost(rootfs, listOf("--version"))
-                        } else {
-                            commandExecutor(definition)
+                        when (definition.id) {
+                            "grok" ->
+                                // Bionic/Termux binary — must run on the Android host, not Alpine proot.
+                                GrokBuildInstaller.runOnHost(rootfs, listOf("--version"))
+                            "hermes" -> {
+                                // Binary present counts as installed even if --version is slow/noisy.
+                                // Always return LocalRuntimeCommandResult (not HostResult) so the
+                                // when-expression type is consistent for fold { result.exitCode }.
+                                if (HermesInstaller.isInstalledIn(runtimeDirectory)) {
+                                    val host =
+                                        HermesInstaller.runOnHost(
+                                            runtimeDirectory,
+                                            listOf("--version"),
+                                            timeoutSeconds = 20L,
+                                        )
+                                    if (host.exitCode == 0) {
+                                        LocalRuntimeCommandResult(host.exitCode, host.output)
+                                    } else {
+                                        LocalRuntimeCommandResult(
+                                            0,
+                                            HermesInstaller.installedVersion(runtimeDirectory)
+                                                ?: HermesManifest.VERSION,
+                                        )
+                                    }
+                                } else {
+                                    LocalRuntimeCommandResult(127, messages.diagnosticsToolNotInstalled)
+                                }
+                            }
+                            else -> commandExecutor(definition)
                         }
                     }
                         .fold(
@@ -141,20 +178,15 @@ class LocalRuntimeDiagnosticsCollector(
                                 LocalRuntimeToolCheck(
                                     id = definition.id,
                                     label = displayLabel(definition),
-                                    available = false,
-                                    detail = error.message?.takeIf(String::isNotBlank) ?: messages.diagnosticsToolCheckFailed,
+                                    available =
+                                        definition.id == "hermes" &&
+                                            HermesInstaller.isInstalledIn(runtimeDirectory),
+                                    detail =
+                                        error.message?.takeIf(String::isNotBlank)
+                                            ?: messages.diagnosticsToolCheckFailed,
                                 )
                             },
                         )
-                }
-            } else {
-                definitions.map { definition ->
-                    LocalRuntimeToolCheck(
-                        id = definition.id,
-                        label = displayLabel(definition),
-                        available = false,
-                        detail = messages.diagnosticsToolNotInstalled,
-                    )
                 }
             }
 

@@ -37,8 +37,21 @@ class TerminalViewModel(
     private val runtimeWork: RuntimeWorkTracker,
     /** Active agent label for the banner, e.g. "Pi" or "OpenCode". */
     private val agentLabel: () -> String = { "OpenCode" },
+    /** True when the selected agent is Hermes (host CLI, not Alpine proot). */
+    private val isHermesHost: () -> Boolean = { false },
+    /** App runtime dir used for Hermes host execution (`filesDir/runtime`). */
+    private val hermesRuntimeDirectory: java.io.File? = null,
 ) : ViewModel() {
-    private fun systemBanner(): TerminalLine = TerminalLine("${agentLabel()} Terminal - PRoot Alpine Linux", TerminalLineType.SYSTEM)
+    private fun systemBanner(): TerminalLine {
+        val label = agentLabel()
+        val env =
+            if (label.equals("Hermes", ignoreCase = true)) {
+                "host CLI · 127.0.0.1:8642"
+            } else {
+                "PRoot Alpine Linux"
+            }
+        return TerminalLine("$label Terminal - $env", TerminalLineType.SYSTEM)
+    }
 
     private val _state =
         MutableStateFlow(
@@ -67,13 +80,46 @@ class TerminalViewModel(
             val result =
                 runtimeWork.withLease(TERMINAL_LEASE_TAG) {
                     withContext(Dispatchers.IO) {
-                        val fullCommand =
-                            if (_state.value.workingDirectory != "/root") {
-                                "cd ${_state.value.workingDirectory} && $trimmed"
+                        if (isHermesHost()) {
+                            val dir =
+                                hermesRuntimeDirectory
+                                    ?: error("Hermes runtime directory missing")
+                            if (!com.yugahashimoto.andcode.runtime.local.HermesInstaller.isInstalledIn(dir)) {
+                                com.yugahashimoto.andcode.runtime.local.LocalRuntimeCommandResult(
+                                    127,
+                                    "Hermes is not installed on this device",
+                                )
                             } else {
-                                trimmed
+                                val parts =
+                                    trimmed.split(Regex("\\s+")).filter { it.isNotEmpty() }
+                                val argv =
+                                    when {
+                                        parts.isEmpty() -> listOf("--help")
+                                        parts.first() == "hermes" -> parts.drop(1).ifEmpty { listOf("--help") }
+                                        else -> parts
+                                    }
+                                val result =
+                                    com.yugahashimoto.andcode.runtime.local.HermesInstaller.runOnHost(
+                                        dir,
+                                        argv,
+                                        timeoutSeconds = 60L,
+                                    )
+                                com.yugahashimoto.andcode.runtime.local.LocalRuntimeCommandResult(
+                                    result.exitCode,
+                                    result.output.ifBlank {
+                                        if (result.exitCode == 0) "" else "exit ${result.exitCode}"
+                                    },
+                                )
                             }
-                        commandRunner.runShell(fullCommand, timeoutSeconds = 30L)
+                        } else {
+                            val fullCommand =
+                                if (_state.value.workingDirectory != "/root") {
+                                    "cd ${_state.value.workingDirectory} && $trimmed"
+                                } else {
+                                    trimmed
+                                }
+                            commandRunner.runShell(fullCommand, timeoutSeconds = 30L)
+                        }
                     }
                 }
 

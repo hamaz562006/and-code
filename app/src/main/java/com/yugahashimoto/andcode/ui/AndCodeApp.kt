@@ -194,6 +194,7 @@ fun AndCodeApp(
     var selectedWorkspace by remember { mutableStateOf<WorkspaceRef?>(null) }
     var notificationsEnabled by remember { mutableStateOf(true) }
     var showCloneDialog by remember { mutableStateOf(false) }
+    var showCommitPushDialog by remember { mutableStateOf(false) }
     var showDiagnostics by remember { mutableStateOf(false) }
 
     val selectedRuntime by app.runtimeRegistry.selected.collectAsState()
@@ -203,6 +204,15 @@ fun AndCodeApp(
     val codexState by app.codexController.state.collectAsState()
     val piState by app.piController.state.collectAsState()
     val grokBuildState by app.grokBuildController.state.collectAsState()
+    val hermesState by app.hermesController.state.collectAsState()
+
+    // Only auto-select Hermes when its install just completed — never override OpenCode/Pi/etc.
+    LaunchedEffect(hermesState.install) {
+        if (hermesState.install is com.yugahashimoto.andcode.runtime.local.HermesInstallStatus.Ready) {
+            app.runtimeRegistry.selectIfUnset(app.hermesTarget.id)
+            runCatching { app.hermesTarget.connect() }
+        }
+    }
     val codexSignInViewModel: CodexSignInViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel(
             key = "setup-codex-sign-in",
@@ -682,6 +692,10 @@ fun AndCodeApp(
     val startDestination = remember { if (app.settings.onboardingCompleted) ROUTE_CHAT else ROUTE_ONBOARDING }
     val completeOnboardingAndGoToChat: () -> Unit = {
         app.settings.onboardingCompleted = true
+        // Prefer Hermes when it is the agent that was just provisioned (no OpenCode HTTP port).
+        if (com.yugahashimoto.andcode.runtime.local.HermesInstaller.isInstalledIn(java.io.File(app.filesDir, "runtime"))) {
+            app.runtimeRegistry.select(app.hermesTarget.id)
+        }
         navController.navigate(ROUTE_CHAT) {
             popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
             launchSingleTop = true
@@ -962,14 +976,26 @@ fun AndCodeApp(
                                                 } ?: error("Unable to read package")
                                                 try {
                                                     // Offline-first: never network-install during import.
+                                                    val hostRuntime = java.io.File(app.filesDir, "runtime")
+                                                    hostRuntime.mkdirs()
+                                                    val peek = RuntimeAgentPackage.peekManifest(tmp)
+                                                    val isHermes =
+                                                        peek?.agentId ==
+                                                            com.yugahashimoto.andcode.runtime.LocalAgent.HERMES.id
                                                     var rootfs =
                                                         app.localRuntimeInstaller.installedRuntime()?.rootfs
-                                                    if (rootfs == null || !rootfs.isDirectory) {
+                                                    if (!isHermes && (rootfs == null || !rootfs.isDirectory)) {
                                                         rootfs =
                                                             app.localRuntimeInstaller.ensureRootfsForOfflineImport()
                                                     }
-                                                    val imported = RuntimeAgentPackage.import(tmp, rootfs)
+                                                    val imported =
+                                                        RuntimeAgentPackage.import(
+                                                            packageFile = tmp,
+                                                            rootfs = rootfs,
+                                                            hostRuntimeDir = hostRuntime,
+                                                        )
                                                     app.localRuntimeInstaller.recordAgent(imported.agent)
+                                                    runCatching { app.hermesController.refresh() }
                                                     runCatching { app.piController.refresh() }
                                                     runCatching { app.grokBuildController.refresh() }
                                                     runCatching { app.codexController.refresh() }
@@ -1038,6 +1064,9 @@ fun AndCodeApp(
                                     app.piController.install(agents, developmentToolGroups)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.GROK_BUILD in agents) {
                                     app.grokBuildController.install(agents, developmentToolGroups)
+                                } else if (com.yugahashimoto.andcode.runtime.LocalAgent.HERMES in agents) {
+                                    // Same path as Pi / Grok: controller owns install state for setup UI.
+                                    app.hermesController.install(agents, developmentToolGroups)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE in agents) {
                                     workspaceViewModel.installClaudeCode(developmentToolGroups)
                                 }
@@ -1056,6 +1085,7 @@ fun AndCodeApp(
                             codex = codexState,
                             pi = piState,
                             grok = grokBuildState,
+                            hermes = hermesState,
                             codexSignInDialog = codexSignInDialog,
                             codexSignIn =
                                 CodexSignInActions(
@@ -1295,6 +1325,9 @@ fun AndCodeApp(
                     settingsNavGraph(
                         navController = navController,
                         settingsViewModel = settingsViewModel,
+                        onShowGithubCloneDialog = { showCloneDialog = true },
+                        onShowCommitPushDialog = { showCommitPushDialog = true },
+                        currentWorkspaceLabel = { selectedWorkspace?.name ?: selectedWorkspace?.path?.substringAfterLast('/') },
                         notificationsEnabled = { notificationsEnabled },
                         onToggleNotifications = { enabled ->
                             notificationsEnabled = enabled
@@ -1527,6 +1560,81 @@ fun AndCodeApp(
 }
 
 private enum class CloneSource { REPOS, URL }
+
+@Composable
+private fun CommitPushDialog(
+    workspacePath: String?,
+    workspaceLabel: String,
+    onPush: suspend (String) -> com.yugahashimoto.andcode.runtime.local.GitCloneResult,
+    onDismiss: () -> Unit,
+) {
+    var message by remember { mutableStateOf("") }
+    var isRunning by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val failedTemplate = stringResource(R.string.github_commit_push_failed)
+    val needWorkspace = stringResource(R.string.github_commit_push_need_workspace)
+    val successMsg = stringResource(R.string.github_commit_push_success)
+
+    AlertDialog(
+        onDismissRequest = { if (!isRunning) onDismiss() },
+        title = { Text(stringResource(R.string.github_commit_and_push)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (workspacePath.isNullOrBlank()) {
+                    Text(needWorkspace, color = MaterialTheme.colorScheme.error)
+                } else {
+                    Text(
+                        stringResource(R.string.github_current_workspace, workspaceLabel.ifBlank { workspacePath }),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    OutlinedTextField(
+                        value = message,
+                        onValueChange = {
+                            message = it
+                            error = null
+                        },
+                        label = { Text(stringResource(R.string.github_commit_message_label)) },
+                        singleLine = false,
+                        enabled = !isRunning,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    error?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (isRunning) {
+                        Text(stringResource(R.string.github_commit_push_running), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = !isRunning && !workspacePath.isNullOrBlank() && message.isNotBlank(),
+                onClick = {
+                    isRunning = true
+                    error = null
+                    scope.launch {
+                        val result = onPush(message.trim())
+                        isRunning = false
+                        if (result.exitCode == 0) {
+                            onDismiss()
+                        } else {
+                            error = failedTemplate.format(result.exitCode) + "\n" + result.output.takeLast(300)
+                        }
+                    }
+                },
+            ) {
+                Text(stringResource(R.string.github_commit_push_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isRunning) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
+}
 
 @Composable
 private fun GithubCloneDialog(

@@ -80,16 +80,22 @@ class GitHubAuthRepository(
     val token: String? get() = settings.githubToken
     val accountLogin: String? get() = settings.githubLogin
 
-    suspend fun requestDeviceCode(): GitHubDeviceCode =
+    suspend fun requestDeviceCode(allowWorkflowEdit: Boolean = true): GitHubDeviceCode =
         withContext(Dispatchers.IO) {
             require(isConfigured) { "GitHub client ID is not configured" }
-            // repo: git push, PR creation, private repos. workflow: push/modify .github/workflows.
+            // repo: git push, PR creation, private repos.
+            // workflow: only when the user allows editing GitHub Actions workflow files.
             // read:org: org repo visibility. gist: log/output sharing. notifications: PR updates.
+            val scopes =
+                buildString {
+                    append("read:user read:org repo gist notifications")
+                    if (allowWorkflowEdit) append(" workflow")
+                }
             val body =
                 FormBody.Builder().add(
                     "client_id",
                     clientId,
-                ).add("scope", "read:user read:org repo workflow gist notifications").build()
+                ).add("scope", scopes).build()
             executeJson("https://github.com/login/device/code", body)
         }
 

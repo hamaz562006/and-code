@@ -123,4 +123,3 @@ jobs:
         env:
           GITHUB_CLIENT_ID: ${{ vars.AND_CODE_GITHUB_CLIENT_ID }}
         run: ./gradlew :app:testGithubDebugUnitTest
-

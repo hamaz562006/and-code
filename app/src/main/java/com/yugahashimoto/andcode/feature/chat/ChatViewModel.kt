@@ -34,9 +34,13 @@ import com.yugahashimoto.andcode.data.settings.DraftRepository
 import com.yugahashimoto.andcode.runtime.OpenCodeBackend
 import com.yugahashimoto.andcode.runtime.PermissionResponse
 import com.yugahashimoto.andcode.runtime.RuntimeTarget
+import com.yugahashimoto.andcode.runtime.free.FreeChatClient
+import com.yugahashimoto.andcode.runtime.free.FreeModelsCatalog
+import com.yugahashimoto.andcode.runtime.free.ModelFallbackStore
 import com.yugahashimoto.andcode.runtime.local.StagedSystemPrompt
 import com.yugahashimoto.andcode.runtime.local.VideoAttachmentHelper
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -51,6 +55,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -1261,6 +1266,84 @@ class ChatViewModel(
         _uiState.update { it.copy(editDraft = null) }
     }
 
+    private fun sendFreeModelMessage(
+        text: String,
+        pendingAttachments: List<PromptAttachment>,
+        pendingPreviews: List<Bitmap>,
+    ) {
+        val modelId =
+            _uiState.value.selectedModelId?.takeIf { it.isNotBlank() }
+                ?: FreeModelsCatalog.DEFAULT_MODEL
+        val userMessage =
+            ChatMessage(
+                isUser = true,
+                parts = listOf(ChatPart.Text(id = UUID.randomUUID().toString(), text = text)),
+                attachments = pendingAttachments,
+                imagePreviews = pendingPreviews,
+            )
+        val assistantId = UUID.randomUUID().toString()
+        val streaming =
+            ChatMessage(
+                id = assistantId,
+                isUser = false,
+                parts = listOf(ChatPart.Text(id = UUID.randomUUID().toString(), text = "")),
+                isStreaming = true,
+            )
+        _uiState.update {
+            it.copy(
+                messages = it.messages + userMessage + streaming,
+                isRunning = true,
+                error = null,
+                attachments = emptyList(),
+                imagePreviews = emptyList(),
+            )
+        }
+        viewModelScope.launch {
+            val reply =
+                withContext(Dispatchers.IO) {
+                    val store = ModelFallbackStore.get()
+                    val policy = store?.load() ?: ModelFallbackStore.defaultPolicy()
+                    val chain =
+                        store?.chainFor(
+                            _uiState.value.selectedProviderId ?: FreeModelsCatalog.PROVIDER_ID,
+                            modelId,
+                        )
+                            ?: listOf(
+                                com.yugahashimoto.andcode.runtime.free.FallbackTarget(
+                                    FreeModelsCatalog.PROVIDER_ID,
+                                    modelId,
+                                ),
+                            )
+                    FreeChatClient.chatWithFallback(
+                        targets = chain,
+                        userText = text,
+                        retriesPerModel = policy.retries,
+                    ).text
+                }
+            _uiState.update { state ->
+                val updated =
+                    state.messages.map { msg ->
+                        if (msg.id == assistantId) {
+                            msg.copy(
+                                parts =
+                                    listOf(
+                                        ChatPart.Text(
+                                            id = UUID.randomUUID().toString(),
+                                            text = reply,
+                                        ),
+                                    ),
+                                isStreaming = false,
+                                completedAt = System.currentTimeMillis(),
+                            )
+                        } else {
+                            msg
+                        }
+                    }
+                state.copy(messages = updated, isRunning = false)
+            }
+        }
+    }
+
     fun sendMessage(text: String) {
         val normalized = text.trim()
         val pendingAttachments = _uiState.value.attachments
@@ -1293,6 +1376,16 @@ class ChatViewModel(
         val slashCommand = matchSlashCommand(normalized)
         if (slashCommand != null) {
             sendSlashCommand(slashCommand.first, slashCommand.second)
+            return
+        }
+
+        // Shared free models (Kilo / Pollinations) — works for every agent, no API key.
+        val freeProvider = _uiState.value.selectedProviderId
+        val freeModel = _uiState.value.selectedModelId
+        if (FreeModelsCatalog.isFreeProvider(freeProvider) ||
+            (freeProvider.isNullOrBlank() && FreeModelsCatalog.isFreeModel(freeModel))
+        ) {
+            sendFreeModelMessage(normalized, pendingAttachments, pendingPreviews)
             return
         }
 
