@@ -35,9 +35,10 @@ object FreeChatClient {
     fun chat(
         modelId: String,
         userText: String,
-    ): String = chatOnce(modelId, userText).getOrElse { e ->
-        "Free model request failed: ${e.message ?: e.javaClass.simpleName}"
-    }
+    ): String =
+        chatOnce(modelId, userText).getOrElse { e ->
+            "Free model request failed: ${e.message ?: e.javaClass.simpleName}"
+        }
 
     /**
      * Tries [targets] in order. On switchable failures (HTTP 429/503, quota text, empty body)
@@ -48,9 +49,10 @@ object FreeChatClient {
         userText: String,
         retriesPerModel: Int = 1,
     ): FallbackAttemptResult {
-        val chain = targets.filter { it.modelId.isNotBlank() }.ifEmpty {
-            listOf(FallbackTarget(FreeModelsCatalog.PROVIDER_ID, FreeModelsCatalog.DEFAULT_MODEL))
-        }
+        val chain =
+            targets.filter { it.modelId.isNotBlank() }.ifEmpty {
+                listOf(FallbackTarget(FreeModelsCatalog.PROVIDER_ID, FreeModelsCatalog.DEFAULT_MODEL))
+            }
         val attempted = mutableListOf<String>()
         var lastError = "No models to try"
         for ((index, target) in chain.withIndex()) {
@@ -91,7 +93,10 @@ object FreeChatClient {
         )
     }
 
-    private fun chatOnce(modelId: String, userText: String): Result<String> {
+    private fun chatOnce(
+        modelId: String,
+        userText: String,
+    ): Result<String> {
         val model = modelId.ifBlank { FreeModelsCatalog.DEFAULT_MODEL }
         val base = FreeModelsCatalog.baseUrlFor(model).trimEnd('/')
         val url = "$base/chat/completions"
@@ -139,8 +144,7 @@ object FreeChatClient {
         return message["content"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
     }
 
-    private fun isFailureMessage(text: String): Boolean =
-        text.startsWith("Free model request failed")
+    private fun isFailureMessage(text: String): Boolean = text.startsWith("Free model request failed")
 
     private fun isSwitchableError(message: String): Boolean {
         val m = message.lowercase()

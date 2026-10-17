@@ -1,0 +1,12 @@
+name: Clear This Repo Artifacts
+on:
+  workflow_dispatch: # اجرای دستی با دکمه Run workflow
+
+jobs:
+  clear-current:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete Artifacts
+        uses: cml-org/delete-artifact-by-name@v1
+        with:
+          name: '*' # پاک کردن تمام آرتیفکت‌های این ریپو
