@@ -69,7 +69,7 @@ jobs:
       - name: Lint
         run: ./gradlew :app:lintGithubDebug
 
-  test-and-build:
+  unit-test:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -118,33 +118,11 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Test and build debug APK
-        # See release.yml for why this is AND_CODE_-prefixed rather than GITHUB_CLIENT_ID directly
-        # (GitHub Actions rejects that prefix for repo variables/secrets); without it this job's
-        # own debug APK artifact would have no GitHub sign-in either.
-        #
-        # Instrumentation is compiled here. Device execution is a separate validation concern and
-        # must not be implied by this compile-only job.
+      - name: Unit tests
+        # APK assemble/upload removed to save Actions storage; release.yml still publishes releases.
         env:
           GITHUB_CLIENT_ID: ${{ vars.AND_CODE_GITHUB_CLIENT_ID }}
-        run: ./gradlew :app:testGithubDebugUnitTest :app:assembleGithubDebug :app:assembleGithubDebugAndroidTest
-
-      # assembleRelease runs R8 with minification and resource shrinking, which is the single
-      # most expensive task in this workflow. The published artifact is built by release.yml,
-      # so pull requests only need it to prove the release build still compiles — which main
-      # covers on every merge.
-      - name: Build release APK
-        if: github.event_name == 'push'
-        env:
-          GITHUB_CLIENT_ID: ${{ vars.AND_CODE_GITHUB_CLIENT_ID }}
-        run: ./gradlew :app:assembleGithubRelease
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: and-code-debug
-          path: app/build/outputs/apk/github/debug/app-github-debug.apk
-          if-no-files-found: error
+        run: ./gradlew :app:testGithubDebugUnitTest
 
       - name: Upload unsigned release APK
         if: github.event_name == 'push'
