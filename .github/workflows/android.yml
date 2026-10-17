@@ -124,10 +124,3 @@ jobs:
           GITHUB_CLIENT_ID: ${{ vars.AND_CODE_GITHUB_CLIENT_ID }}
         run: ./gradlew :app:testGithubDebugUnitTest
 
-      - name: Upload unsigned release APK
-        if: github.event_name == 'push'
-        uses: actions/upload-artifact@v4
-        with:
-          name: and-code-release-unsigned
-          path: app/build/outputs/apk/github/release/app-github-release-unsigned.apk
-          if-no-files-found: error
