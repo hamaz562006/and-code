@@ -1365,7 +1365,8 @@ class ChatViewModel(
                     }
                 },
                 queueTexts = {
-                    messageQueue.value.map { it.text } + offlineMessageQueue.value.map { it.text }
+                    messageQueue.value.map { it.text } +
+                        offlineMessageQueue.value.map { it.text }
                 },
             )
         val user =

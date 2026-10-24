@@ -247,7 +247,8 @@ class SettingsViewModel(
                 }
             // Shared keyless free models for every agent (Kilo + curated fallbacks).
             val freeProvider = FreeModelsCatalog.asProvider()
-            val localProvider = LocalModelsCatalog.asProvider()
+            val localProvider =
+                LocalModelsCatalog.asProvider()
             val baseAvailable =
                 when {
                     managed.all.isNotEmpty() -> managed.all

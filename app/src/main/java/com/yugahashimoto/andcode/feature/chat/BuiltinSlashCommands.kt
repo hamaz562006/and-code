@@ -33,7 +33,8 @@ object BuiltinSlashCommands {
                 "Chat cleared."
             }
             "models" -> {
-                val free = FreeModelsCatalog.modelIds().joinToString("\n") { "• $it" }
+                val free =
+                    FreeModelsCatalog.modelIds().joinToString("\n") { "• $it" }
                 "Free models:\n$free\n\nLocal: configure Ollama at http://127.0.0.1:11434 (provider local-ollama)."
             }
             "fallback" -> {
@@ -46,7 +47,8 @@ object BuiltinSlashCommands {
             "queue" -> {
                 val q = queueTexts()
                 if (q.isEmpty()) "Queue is empty."
-                else q.mapIndexed { i, t -> "${i + 1}. ${t.take(80)}" }.joinToString("\n")
+                else
+                    q.mapIndexed { i, t -> "${i + 1}. ${t.take(80)}" }.joinToString("\n")
             }
             else -> "Unknown builtin /$name"
         }

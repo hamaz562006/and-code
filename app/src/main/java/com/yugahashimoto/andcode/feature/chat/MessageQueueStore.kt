@@ -39,7 +39,8 @@ class MessageQueueStore(context: Context) {
         private const val PREFS = "andcode_message_queue"
         private const val KEY_QUEUE = "queue_texts"
 
-        @Volatile private var instance: MessageQueueStore? = null
+        @Volatile
+        private var instance: MessageQueueStore? = null
 
         fun init(context: Context) {
             if (instance == null) {

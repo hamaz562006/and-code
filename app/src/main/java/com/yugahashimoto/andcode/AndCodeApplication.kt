@@ -33,6 +33,7 @@ import com.yugahashimoto.andcode.data.schedule.ScheduleRepository
 import com.yugahashimoto.andcode.data.settings.AppPreferencesRepository
 import com.yugahashimoto.andcode.di.appModule
 import com.yugahashimoto.andcode.di.viewModelModule
+import com.yugahashimoto.andcode.feature.chat.MessageQueueStore
 import com.yugahashimoto.andcode.feature.schedule.AppScheduleStore
 import com.yugahashimoto.andcode.feature.schedule.ScheduleBridge
 import com.yugahashimoto.andcode.feature.schedule.ScheduleManager
@@ -44,7 +45,6 @@ import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import com.yugahashimoto.andcode.runtime.RuntimeRegistry
 import com.yugahashimoto.andcode.runtime.RuntimeState
 import com.yugahashimoto.andcode.runtime.free.FreeModelsCatalog
-import com.yugahashimoto.andcode.feature.chat.MessageQueueStore
 import com.yugahashimoto.andcode.runtime.free.ModelFallbackStore
 import com.yugahashimoto.andcode.runtime.local.AdbConnectionManager
 import com.yugahashimoto.andcode.runtime.local.AdbShellRunner

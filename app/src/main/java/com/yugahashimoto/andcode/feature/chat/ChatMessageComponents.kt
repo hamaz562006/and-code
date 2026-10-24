@@ -83,9 +83,10 @@ fun MessageBubble(
     onImageClick: (ChatImageSource) -> Unit = {},
 ) {
     val displayText = remember(message.text) { message.text.hideToolCallEcho() }
-    val liveCodeSummary = remember(message.text, message.isStreaming) {
-        if (message.isStreaming) LiveCodePreview.summary(message.text) else null
-    }
+    val liveCodeSummary =
+        remember(message.text, message.isStreaming) {
+            if (message.isStreaming) LiveCodePreview.summary(message.text) else null
+        }
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.CenterEnd,

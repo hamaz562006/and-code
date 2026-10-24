@@ -14,7 +14,8 @@ object LocalModelsCatalog {
     const val DEFAULT_MODEL = "llama3.2"
 
     fun asProvider(
-        models: List<String> = listOf(DEFAULT_MODEL, "qwen2.5-coder", "deepseek-r1"),
+        models: List<String> =
+            listOf(DEFAULT_MODEL, "qwen2.5-coder", "deepseek-r1"),
     ): OpenCodeProvider {
         val map =
             models.associateWith { id ->
