@@ -1354,7 +1354,10 @@ class ChatViewModel(
     }
 
 
-    private fun handleBuiltinSlash(name: String, args: String) {
+    private fun handleBuiltinSlash(
+        name: String,
+        args: String,
+    ) {
         val reply =
             BuiltinSlashCommands.handle(
                 name = name,

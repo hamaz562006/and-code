@@ -46,9 +46,11 @@ object BuiltinSlashCommands {
             }
             "queue" -> {
                 val q = queueTexts()
-                if (q.isEmpty()) "Queue is empty."
-                else
+                if (q.isEmpty()) {
+                    "Queue is empty."
+                } else {
                     q.mapIndexed { i, t -> "${i + 1}. ${t.take(80)}" }.joinToString("\n")
+                }
             }
             else -> "Unknown builtin /$name"
         }

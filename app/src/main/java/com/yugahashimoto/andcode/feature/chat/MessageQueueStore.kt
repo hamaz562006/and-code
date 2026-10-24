@@ -2,7 +2,6 @@ package com.yugahashimoto.andcode.feature.chat
 
 import android.content.Context
 import org.json.JSONArray
-import org.json.JSONObject
 
 /**
  * Persists the follow-up / offline message queue across process death (feature 3).
