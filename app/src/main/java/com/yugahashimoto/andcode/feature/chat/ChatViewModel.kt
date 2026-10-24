@@ -1353,7 +1353,6 @@ class ChatViewModel(
         }
     }
 
-
     private fun handleBuiltinSlash(
         name: String,
         args: String,
