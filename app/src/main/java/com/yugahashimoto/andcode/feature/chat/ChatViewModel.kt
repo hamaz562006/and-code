@@ -517,6 +517,8 @@ data class ChatUiState(
     val slashSkills: List<OpenCodeSkill> = emptyList(),
     val offlineQueue: List<String> = emptyList(),
     val isOfflineQueued: Boolean = false,
+    /** Follow-up prompts waiting while a turn runs (feature 3). */
+    val pendingQueue: List<String> = emptyList(),
     val connectionQuality: ConnectionQuality? = null,
     /** Pull requests linked in this chat, newest first, for the badges above the composer. */
     val pullRequests: List<ChatPullRequest> = emptyList(),
@@ -661,6 +663,13 @@ class ChatViewModel(
     private var streamError: String? = null
 
     init {
+        MessageQueueStore.get()?.loadTexts()?.forEach { text ->
+            messageQueue.update { it + QueuedPrompt(text, emptyList(), emptyList()) }
+        }
+        val restored = messageQueue.value.map { it.text }
+        if (restored.isNotEmpty()) {
+            _uiState.update { it.copy(pendingQueue = restored) }
+        }
         pullRequestStatuses?.let(::trackPullRequests)
         streamErrorFlow?.let { flow ->
             viewModelScope.launch { flow.collect { streamError = it } }
@@ -1344,6 +1353,57 @@ class ChatViewModel(
         }
     }
 
+
+    private fun handleBuiltinSlash(name: String, args: String) {
+        val reply =
+            BuiltinSlashCommands.handle(
+                name = name,
+                args = args,
+                clearMessages = {
+                    _uiState.update {
+                        it.copy(messages = emptyList(), error = null)
+                    }
+                },
+                queueTexts = {
+                    messageQueue.value.map { it.text } + offlineMessageQueue.value.map { it.text }
+                },
+            )
+        val user =
+            ChatMessage(
+                isUser = true,
+                parts = listOf(ChatPart.Text(id = java.util.UUID.randomUUID().toString(), text = "/$name".trim())),
+            )
+        val assistant =
+            ChatMessage(
+                isUser = false,
+                parts = listOf(ChatPart.Text(id = java.util.UUID.randomUUID().toString(), text = reply)),
+                completedAt = System.currentTimeMillis(),
+            )
+        _uiState.update { it.copy(messages = it.messages + user + assistant) }
+    }
+
+    private fun syncQueueUi() {
+        val texts = messageQueue.value.map { it.text }
+        MessageQueueStore.get()?.saveTexts(texts)
+        _uiState.update { it.copy(pendingQueue = texts) }
+    }
+
+    fun removeQueuedAt(index: Int) {
+        messageQueue.update { list ->
+            if (index !in list.indices) list else list.toMutableList().also { it.removeAt(index) }
+        }
+        syncQueueUi()
+    }
+
+    fun sendQueuedNow(index: Int) {
+        val list = messageQueue.value
+        if (index !in list.indices) return
+        val item = list[index]
+        messageQueue.update { it.toMutableList().also { m -> m.removeAt(index) } }
+        syncQueueUi()
+        sendMessage(item.text)
+    }
+
     fun sendMessage(text: String) {
         val normalized = text.trim()
         val pendingAttachments = _uiState.value.attachments
@@ -1375,6 +1435,10 @@ class ChatViewModel(
         // (OpenCode expands the template server-side) rather than sent as a plain prompt.
         val slashCommand = matchSlashCommand(normalized)
         if (slashCommand != null) {
+            if (BuiltinSlashCommands.isBuiltin(slashCommand.first)) {
+                handleBuiltinSlash(slashCommand.first, slashCommand.second)
+                return
+            }
             sendSlashCommand(slashCommand.first, slashCommand.second)
             return
         }
@@ -1420,6 +1484,7 @@ class ChatViewModel(
             messageQueue.update {
                 it + QueuedPrompt(normalized, pendingAttachments, _uiState.value.imagePreviews)
             }
+            syncQueueUi()
             _uiState.update { it.copy(attachments = emptyList(), imagePreviews = emptyList()) }
             return
         }
@@ -1641,6 +1706,7 @@ class ChatViewModel(
         val mustQueue = (currentBackend as? RuntimeTarget)?.capabilities?.forcesQueue == true
         if ((_sendBehavior.value == "queue" || mustQueue) && _uiState.value.isRunning) {
             messageQueue.update { it + QueuedPrompt(displayText, emptyList(), emptyList()) }
+            syncQueueUi()
             return
         }
         val interrupting = _uiState.value.isRunning
@@ -1806,7 +1872,9 @@ class ChatViewModel(
             }
         val state = _uiState.value
         val known =
-            state.slashCommands.any { it.name == rawName } || state.slashSkills.any { it.name == rawName }
+            BuiltinSlashCommands.isBuiltin(rawName) ||
+                state.slashCommands.any { it.name == rawName } ||
+                state.slashSkills.any { it.name == rawName }
         return if (known) rawName to arguments else null
     }
 

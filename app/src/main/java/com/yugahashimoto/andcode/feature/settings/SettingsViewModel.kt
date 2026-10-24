@@ -26,6 +26,7 @@ import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.RuntimeRegistry
 import com.yugahashimoto.andcode.runtime.RuntimeTarget
 import com.yugahashimoto.andcode.runtime.free.FreeModelsCatalog
+import com.yugahashimoto.andcode.runtime.local.LocalModelsCatalog
 import com.yugahashimoto.andcode.runtime.local.CustomProviderDefinition
 import com.yugahashimoto.andcode.runtime.local.CustomProviderStore
 import com.yugahashimoto.andcode.runtime.local.LocalProviderCredentialStore
@@ -246,6 +247,7 @@ class SettingsViewModel(
                 }
             // Shared keyless free models for every agent (Kilo + curated fallbacks).
             val freeProvider = FreeModelsCatalog.asProvider()
+            val localProvider = LocalModelsCatalog.asProvider()
             val baseAvailable =
                 when {
                     managed.all.isNotEmpty() -> managed.all
@@ -253,7 +255,7 @@ class SettingsViewModel(
                     else -> piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed } }
                 }
             val mergedAvailable =
-                (listOf(freeProvider) + baseAvailable + customAsProviders).distinctBy { it.id }
+                (listOf(freeProvider, localProvider) + baseAvailable + customAsProviders).distinctBy { it.id }
             val freeConnected = chatConnected + FreeModelsCatalog.PROVIDER_ID
             SettingsUiState(
                 providers =
