@@ -83,6 +83,10 @@ fun MessageBubble(
     onImageClick: (ChatImageSource) -> Unit = {},
 ) {
     val displayText = remember(message.text) { message.text.hideToolCallEcho() }
+    val liveCodeSummary =
+        remember(message.text, message.isStreaming) {
+            if (message.isStreaming) LiveCodePreview.summary(message.text) else null
+        }
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.CenterEnd,
@@ -153,6 +157,13 @@ fun MessageBubble(
                         LinkedText(
                             text = displayText,
                             linkColor = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
+                    liveCodeSummary?.let { summary ->
+                        Text(
+                            text = "Live code: $summary",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                         )
                     }
                 }

@@ -67,6 +67,8 @@ import com.yugahashimoto.andcode.runtime.local.CodexInstallStatus
 import com.yugahashimoto.andcode.runtime.local.CodexUiState
 import com.yugahashimoto.andcode.runtime.local.GrokBuildInstallStatus
 import com.yugahashimoto.andcode.runtime.local.GrokBuildUiState
+import com.yugahashimoto.andcode.runtime.local.HermesInstallStatus
+import com.yugahashimoto.andcode.runtime.local.HermesUiState
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeUpdateCheck
 import com.yugahashimoto.andcode.runtime.local.PiInstallStatus
 import com.yugahashimoto.andcode.runtime.local.PiUiState
@@ -93,6 +95,7 @@ fun AgentSettingsScreen(
     onOpenCodex: () -> Unit,
     onOpenPi: () -> Unit,
     onOpenGrokBuild: () -> Unit,
+    onOpenHermes: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(R.string.settings_agents_row), onBack = onBack) {
@@ -106,7 +109,10 @@ fun AgentSettingsScreen(
             AgentRow(LocalAgent.CODEX, onOpenCodex)
             SettingsDivider()
             AgentRow(LocalAgent.PI, onOpenPi)
+            SettingsDivider()
             AgentRow(LocalAgent.GROK_BUILD, onOpenGrokBuild)
+            SettingsDivider()
+            AgentRow(LocalAgent.HERMES, onOpenHermes)
         }
     }
 }
@@ -123,6 +129,7 @@ fun PiAgentSettingsScreen(
     onUpdate: (() -> Unit)? = null,
     onOpenMcp: () -> Unit = {},
     onImportPackage: () -> Unit = {},
+    isImportingPackage: Boolean = false,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.PI.displayNameRes), onBack = onBack) {
@@ -163,14 +170,16 @@ fun PiAgentSettingsScreen(
             }
         }
         if (!pi.installed) {
-            AgentPackageSection(installed = false, onImport = onImportPackage)
+            AgentPackageSection(installed = false, onImport = onImportPackage, isImporting = isImportingPackage)
         }
-        SettingsSection(title = stringResource(R.string.settings_agents_section)) {
-            SettingsRow(
-                icon = Icons.Default.Extension,
-                title = stringResource(R.string.mcp_settings_row),
-                onClick = onOpenMcp,
-            )
+        if (pi.installed) {
+            SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+                SettingsRow(
+                    icon = Icons.Default.Extension,
+                    title = stringResource(R.string.mcp_settings_row),
+                    onClick = onOpenMcp,
+                )
+            }
         }
     }
 }
@@ -187,6 +196,7 @@ fun GrokBuildAgentSettingsScreen(
     onOpenProviders: () -> Unit = {},
     onApiKey: (String) -> Unit = {},
     onImportPackage: () -> Unit = {},
+    isImportingPackage: Boolean = false,
     onBack: () -> Unit,
 ) {
     var apiKey by remember { mutableStateOf("") }
@@ -300,7 +310,7 @@ fun GrokBuildAgentSettingsScreen(
             }
         }
         if (!grok.installed) {
-            AgentPackageSection(installed = false, onImport = onImportPackage)
+            AgentPackageSection(installed = false, onImport = onImportPackage, isImporting = isImportingPackage)
         }
         if (grok.installed) {
             AgentCardSection {
@@ -333,6 +343,8 @@ fun GrokBuildAgentSettingsScreen(
                     Text(stringResource(R.string.provider_credentials))
                 }
             }
+        }
+        if (grok.installed) {
             SettingsSection(title = stringResource(R.string.settings_agents_section)) {
                 SettingsRow(
                     icon = Icons.Default.Extension,
@@ -365,6 +377,7 @@ fun CodexAgentSettingsScreen(
     onSignOut: () -> Unit,
     onOpenMcp: () -> Unit,
     onImportPackage: () -> Unit = {},
+    isImportingPackage: Boolean = false,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.CODEX.displayNameRes), onBack = onBack) {
@@ -386,16 +399,16 @@ fun CodexAgentSettingsScreen(
             }
         }
         if (!codex.installed) {
-            AgentPackageSection(installed = false, onImport = onImportPackage)
+            AgentPackageSection(installed = false, onImport = onImportPackage, isImporting = isImportingPackage)
         }
-        // The same agent-scoped section Claude Code and Antigravity have, so every agent's MCP
-        // servers are configured from that agent's own screen.
-        SettingsSection(title = stringResource(R.string.settings_agents_section)) {
-            SettingsRow(
-                icon = Icons.Default.Extension,
-                title = stringResource(R.string.mcp_settings_row),
-                onClick = onOpenMcp,
-            )
+        if (codex.installed) {
+            SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+                SettingsRow(
+                    icon = Icons.Default.Extension,
+                    title = stringResource(R.string.mcp_settings_row),
+                    onClick = onOpenMcp,
+                )
+            }
         }
     }
     if (signInDialog != null) {
@@ -438,6 +451,7 @@ fun AntigravityAgentSettingsScreen(
     onOpenMcp: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onImportPackage: () -> Unit = {},
+    isImportingPackage: Boolean = false,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.ANTIGRAVITY.displayNameRes), onBack = onBack) {
@@ -465,14 +479,16 @@ fun AntigravityAgentSettingsScreen(
             }
         }
         if (!antigravity.installed) {
-            AgentPackageSection(installed = false, onImport = onImportPackage)
+            AgentPackageSection(installed = false, onImport = onImportPackage, isImporting = isImportingPackage)
         }
-        SettingsSection(title = stringResource(R.string.settings_agents_section)) {
-            SettingsRow(
-                icon = Icons.Default.Extension,
-                title = stringResource(R.string.mcp_settings_row),
-                onClick = onOpenMcp,
-            )
+        if (antigravity.installed) {
+            SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+                SettingsRow(
+                    icon = Icons.Default.Extension,
+                    title = stringResource(R.string.mcp_settings_row),
+                    onClick = onOpenMcp,
+                )
+            }
         }
     }
 }
@@ -493,6 +509,7 @@ fun ClaudeCodeAgentSettingsScreen(
     onOpenMcp: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onImportPackage: () -> Unit = {},
+    isImportingPackage: Boolean = false,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.CLAUDE_CODE.displayNameRes), onBack = onBack) {
@@ -520,24 +537,26 @@ fun ClaudeCodeAgentSettingsScreen(
             }
         }
         if (!claude.installed) {
-            AgentPackageSection(installed = false, onImport = onImportPackage)
+            AgentPackageSection(installed = false, onImport = onImportPackage, isImporting = isImportingPackage)
         }
-        SettingsSection(title = stringResource(R.string.settings_agents_section)) {
-            SettingsRow(
-                icon = Icons.Default.Psychology,
-                title = stringResource(R.string.system_prompt_settings_row),
-                value =
-                    claude.systemPromptPresets.firstOrNull { it.id == claude.systemPromptId }
-                        ?.let { systemPromptPresetLabel(it) }
-                        ?: stringResource(R.string.system_prompt_none),
-                onClick = onOpenSystemPrompt,
-            )
-            SettingsDivider()
-            SettingsRow(
-                icon = Icons.Default.Extension,
-                title = stringResource(R.string.mcp_settings_row),
-                onClick = onOpenMcp,
-            )
+        if (claude.installed) {
+            SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+                SettingsRow(
+                    icon = Icons.Default.Psychology,
+                    title = stringResource(R.string.system_prompt_settings_row),
+                    value =
+                        claude.systemPromptPresets.firstOrNull { it.id == claude.systemPromptId }
+                            ?.let { systemPromptPresetLabel(it) }
+                            ?: stringResource(R.string.system_prompt_none),
+                    onClick = onOpenSystemPrompt,
+                )
+                SettingsDivider()
+                SettingsRow(
+                    icon = Icons.Default.Extension,
+                    title = stringResource(R.string.mcp_settings_row),
+                    onClick = onOpenMcp,
+                )
+            }
         }
     }
 }
@@ -573,6 +592,7 @@ fun OpenCodeAgentSettingsScreen(
     systemPromptLabel: String,
     onOpenMcp: () -> Unit,
     onImportPackage: () -> Unit = {},
+    isImportingPackage: Boolean = false,
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.OPEN_CODE.displayNameRes), onBack = onBack) {
@@ -598,7 +618,7 @@ fun OpenCodeAgentSettingsScreen(
                         Spacer(Modifier.padding(horizontal = 4.dp))
                         Text(stringResource(R.string.opencode_install_button))
                     }
-                    OutlinedButton(onClick = onImportPackage, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = onImportPackage, enabled = !isImportingPackage, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Default.Download, contentDescription = null)
                         Spacer(Modifier.padding(horizontal = 4.dp))
                         Text(stringResource(R.string.agent_import_button))
@@ -622,31 +642,34 @@ fun OpenCodeAgentSettingsScreen(
             }
         }
 
-        SettingsSection(title = stringResource(R.string.settings_agents_section)) {
-            SettingsRow(
-                icon = Icons.Default.Key,
-                title = stringResource(R.string.provider_settings_row),
-                onClick = onOpenProviderSettings,
-            )
-            SettingsDivider()
-            SettingsRow(
-                icon = Icons.Default.Visibility,
-                title = stringResource(R.string.model_visibility_row),
-                onClick = onOpenModelVisibility,
-            )
-            SettingsDivider()
-            SettingsRow(
-                icon = Icons.Default.Psychology,
-                title = stringResource(R.string.system_prompt_settings_row),
-                value = systemPromptLabel,
-                onClick = onOpenSystemPrompt,
-            )
-            SettingsDivider()
-            SettingsRow(
-                icon = Icons.Default.Extension,
-                title = stringResource(R.string.mcp_settings_row),
-                onClick = onOpenMcp,
-            )
+        // Provider / model / MCP rows only when the OpenCode agent itself is installed.
+        if (state.installed) {
+            SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+                SettingsRow(
+                    icon = Icons.Default.Key,
+                    title = stringResource(R.string.provider_settings_row),
+                    onClick = onOpenProviderSettings,
+                )
+                SettingsDivider()
+                SettingsRow(
+                    icon = Icons.Default.Visibility,
+                    title = stringResource(R.string.model_visibility_row),
+                    onClick = onOpenModelVisibility,
+                )
+                SettingsDivider()
+                SettingsRow(
+                    icon = Icons.Default.Psychology,
+                    title = stringResource(R.string.system_prompt_settings_row),
+                    value = systemPromptLabel,
+                    onClick = onOpenSystemPrompt,
+                )
+                SettingsDivider()
+                SettingsRow(
+                    icon = Icons.Default.Extension,
+                    title = stringResource(R.string.mcp_settings_row),
+                    onClick = onOpenMcp,
+                )
+            }
         }
     }
 
@@ -960,20 +983,156 @@ fun AgentPackageSection(
     installed: Boolean,
     onExport: () -> Unit = {},
     onImport: () -> Unit = {},
+    isImporting: Boolean = false,
 ) {
     // Only for agents that are not installed — offline restore next to Install.
+    // Same UX as setup step 1 (progress + disabled button while restoring).
     if (!installed) {
         SettingsSection(title = stringResource(R.string.agent_package_section)) {
-            Text(
-                text = stringResource(R.string.agent_import_description),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-            SettingsRow(
-                icon = Icons.Default.Download,
-                title = stringResource(R.string.agent_import_button),
-                onClick = onImport,
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text =
+                        when {
+                            isImporting -> stringResource(R.string.agent_import_preparing_body)
+                            else -> stringResource(R.string.agent_import_description)
+                        },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedButton(
+                    onClick = onImport,
+                    enabled = !isImporting,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (isImporting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        Spacer(modifier = Modifier.size(10.dp))
+                    }
+                    Text(
+                        if (isImporting) {
+                            stringResource(R.string.agent_import_preparing_title)
+                        } else {
+                            stringResource(R.string.agent_import_button)
+                        },
+                    )
+                }
+                if (isImporting) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+            }
+        }
+    }
+}
+
+/** Hermes agent settings: install status, version, reinstall. No localhost OpenCode port. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HermesAgentSettingsScreen(
+    hermes: HermesUiState,
+    onInstall: () -> Unit = {},
+    onRefresh: () -> Unit = {},
+    onOpenMcp: (() -> Unit)? = null,
+    onImportPackage: (() -> Unit)? = null,
+    isImportingPackage: Boolean = false,
+    onBack: () -> Unit,
+) {
+    AgentSettingsScaffold(title = stringResource(LocalAgent.HERMES.displayNameRes), onBack = onBack) {
+        AgentCardSection {
+            val statusText =
+                when (val install = hermes.install) {
+                    is HermesInstallStatus.Installing ->
+                        install.step?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.install_step_installing_hermes)
+                    is HermesInstallStatus.Failed ->
+                        install.message ?: stringResource(R.string.agent_status_install_failed)
+                    is HermesInstallStatus.Ready ->
+                        hermes.version?.let { "Hermes $it" } ?: stringResource(R.string.agent_hermes_name)
+                    else ->
+                        if (hermes.installed) {
+                            hermes.version?.let { "Hermes $it" } ?: stringResource(R.string.agent_hermes_name)
+                        } else {
+                            stringResource(R.string.runtime_status_not_installed)
+                        }
+                }
+            AgentStatusCard(
+                status = statusText,
+                active = hermes.isReady(),
+                metrics =
+                    hermes.version?.takeIf(String::isNotBlank)?.let { v ->
+                        listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
+                    }.orEmpty(),
+            ) {
+                when (val install = hermes.install) {
+                    is HermesInstallStatus.Installing -> {
+                        Text(
+                            install.step?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.install_step_installing_hermes),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        val progress = install.progress
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    is HermesInstallStatus.Failed -> {
+                        Text(
+                            install.message ?: stringResource(R.string.agent_status_install_failed),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.claude_retry_install_button))
+                        }
+                    }
+                    else -> {
+                        if (!hermes.installed) {
+                            Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.install_step_installing_hermes))
+                            }
+                        } else {
+                            Text(
+                                text = stringResource(R.string.setup_agent_hermes_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.check_for_update_button))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Same layout as Pi: MCP in its own section (no Provider button here —
+        // providers live under global Settings → Providers for the selected agent).
+        if (hermes.installed && onOpenMcp != null) {
+            SettingsSection(title = stringResource(R.string.settings_agents_section)) {
+                SettingsRow(
+                    icon = Icons.Default.Extension,
+                    title = stringResource(R.string.mcp_settings_row),
+                    onClick = onOpenMcp,
+                )
+            }
+        }
+        if (!hermes.installed && onImportPackage != null) {
+            AgentPackageSection(
+                installed = false,
+                onImport = onImportPackage,
+                isImporting = isImportingPackage,
             )
         }
     }

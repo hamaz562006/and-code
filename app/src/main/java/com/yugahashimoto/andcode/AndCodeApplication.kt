@@ -33,6 +33,7 @@ import com.yugahashimoto.andcode.data.schedule.ScheduleRepository
 import com.yugahashimoto.andcode.data.settings.AppPreferencesRepository
 import com.yugahashimoto.andcode.di.appModule
 import com.yugahashimoto.andcode.di.viewModelModule
+import com.yugahashimoto.andcode.feature.chat.MessageQueueStore
 import com.yugahashimoto.andcode.feature.schedule.AppScheduleStore
 import com.yugahashimoto.andcode.feature.schedule.ScheduleBridge
 import com.yugahashimoto.andcode.feature.schedule.ScheduleManager
@@ -43,6 +44,8 @@ import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import com.yugahashimoto.andcode.runtime.RuntimeRegistry
 import com.yugahashimoto.andcode.runtime.RuntimeState
+import com.yugahashimoto.andcode.runtime.free.FreeModelsCatalog
+import com.yugahashimoto.andcode.runtime.free.ModelFallbackStore
 import com.yugahashimoto.andcode.runtime.local.AdbConnectionManager
 import com.yugahashimoto.andcode.runtime.local.AdbShellRunner
 import com.yugahashimoto.andcode.runtime.local.AndroidClaudeMessages
@@ -65,6 +68,9 @@ import com.yugahashimoto.andcode.runtime.local.GitCredentialHelper
 import com.yugahashimoto.andcode.runtime.local.GrokBuildController
 import com.yugahashimoto.andcode.runtime.local.GrokBuildRuntime
 import com.yugahashimoto.andcode.runtime.local.GrokBuildTarget
+import com.yugahashimoto.andcode.runtime.local.HermesController
+import com.yugahashimoto.andcode.runtime.local.HermesRuntime
+import com.yugahashimoto.andcode.runtime.local.HermesTarget
 import com.yugahashimoto.andcode.runtime.local.LocalProviderCredentialStore
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeAccessCoordinator
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeCommandRunner
@@ -218,6 +224,7 @@ class AndCodeApplication : Application() {
         private set
 
     lateinit var piTarget: PiTarget
+    lateinit var hermesTarget: HermesTarget
         private set
 
     lateinit var antigravityController: AntigravityController
@@ -227,12 +234,18 @@ class AndCodeApplication : Application() {
         private set
 
     lateinit var piController: PiController
+        private set
 
     lateinit var grokBuildRuntime: GrokBuildRuntime
+        private set
 
     lateinit var grokBuildTarget: GrokBuildTarget
+        private set
 
     lateinit var grokBuildController: GrokBuildController
+        private set
+
+    lateinit var hermesController: HermesController
         private set
 
     /** Which agents the shared sandbox holds, for callers that must not pay for a full runtime check. */
@@ -363,6 +376,8 @@ class AndCodeApplication : Application() {
                 installedRuntime = installer::installedRuntime,
             )
         piTarget = PiTarget(piRuntime)
+        val hermesRuntime = HermesRuntime(runtimeDirectory)
+        hermesTarget = HermesTarget(hermesRuntime)
         // Codex is a child of this process, so it is cut off from the network the moment the app has
         // nothing in the foreground on some devices: hold the app there while Codex is signing in or
         // running a turn (see CodexKeepAliveService).
@@ -385,6 +400,7 @@ class AndCodeApplication : Application() {
         grokBuildRuntime = GrokBuildRuntime(runtimeDirectory)
         grokBuildTarget = GrokBuildTarget(grokBuildRuntime, installer)
         grokBuildController = GrokBuildController(grokBuildRuntime, grokBuildTarget, installer, abi, runtimeWork, applicationScope)
+        hermesController = HermesController(hermesRuntime, hermesTarget, installer, runtimeWork, applicationScope)
         runtimeMessages = AndroidLocalRuntimeMessages(this)
         gitCloneRepository =
             GitCloneRepository(
@@ -489,13 +505,19 @@ class AndCodeApplication : Application() {
             RuntimeRegistry(
                 store = settings,
                 localTarget = LocalRuntimeTarget(localRuntimeManager, messages = runtimeMessages),
-                additionalTargets = listOf(claudeCodeTarget, antigravityTarget, codexTarget, piTarget, grokBuildTarget),
+                additionalTargets = listOf(claudeCodeTarget, antigravityTarget, codexTarget, piTarget, grokBuildTarget, hermesTarget),
             )
         // Surface the installed/version state to the workspace picker without waiting for the
         // first chat to touch Antigravity or Pi.
         applicationScope.launch { antigravityTarget.connect() }
         applicationScope.launch { piTarget.connect() }
         applicationScope.launch { grokBuildTarget.connect() }
+        applicationScope.launch { hermesTarget.connect() }
+        applicationScope.launch {
+            runCatching { FreeModelsCatalog.refreshFromNetwork(httpClient) }
+        }
+        ModelFallbackStore.init(this)
+        MessageQueueStore.init(this)
 
         applicationScope.launch {
             grokBuildTarget.state.collect { state ->

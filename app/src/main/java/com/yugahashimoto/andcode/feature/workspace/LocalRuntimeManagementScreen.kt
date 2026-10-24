@@ -171,43 +171,6 @@ fun LocalRuntimeManagementScreen(
                 )
                 RuntimeLogsCard(diagnostics.logTail)
 
-                // Runtime already exists here — only export makes sense (backup installed agents).
-                if (state.runtimeEnvironmentInstalled && canExportAgentPackage) {
-                    SectionCard {
-                        Text(
-                            stringResource(R.string.agent_package_section),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            stringResource(R.string.agent_export_description),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(10.dp))
-                        Button(
-                            onClick = onExportAgentPackage,
-                            enabled = !exportBusy,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            if (isExportingPackage) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                )
-                                Spacer(modifier = Modifier.size(10.dp))
-                            }
-                            Text(
-                                if (isExportingPackage) {
-                                    stringResource(R.string.agent_export_preparing)
-                                } else {
-                                    stringResource(R.string.agent_export_button)
-                                },
-                            )
-                        }
-                    }
-                }
                 if (diagnostics.status.isInstalled()) {
                     RuntimeManagementCard(
                         busy = busy,
@@ -215,6 +178,44 @@ fun LocalRuntimeManagementScreen(
                         onRepair = onRepair,
                         onRequestDelete = onRequestDelete,
                     )
+                }
+            }
+            // Offline backup — same UX as Grok Build export (dialog + progress).
+            // Shown for host-side agents (Hermes) even when Alpine rootfs is absent.
+            if (canExportAgentPackage) {
+                SectionCard {
+                    Text(
+                        stringResource(R.string.agent_package_section),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        stringResource(R.string.agent_export_description),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Button(
+                        onClick = onExportAgentPackage,
+                        enabled = !exportBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        if (isExportingPackage) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                            )
+                            Spacer(modifier = Modifier.size(10.dp))
+                        }
+                        Text(
+                            if (isExportingPackage) {
+                                stringResource(R.string.agent_export_preparing)
+                            } else {
+                                stringResource(R.string.agent_export_button)
+                            },
+                        )
+                    }
                 }
             }
 
