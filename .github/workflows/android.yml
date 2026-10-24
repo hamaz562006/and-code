@@ -8,8 +8,6 @@ on:
 permissions:
   contents: read
 
-# Superseded pushes to a pull request cancel their in-flight run; pushes to main always
-# finish so the branch keeps a complete history of results.
 concurrency:
   group: android-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -61,7 +59,7 @@ jobs:
           path: |
             build/generated/runtime-assets
             build/generated/runtime-jni
-          key: and-code-runtime-\( {{ runner.os }}- \){{ hashFiles('runtime_tools/termux_assets.lock.json', 'runtime_tools/termux_assets.py', 'scripts/prepare_android_runtime_*.py') }}
+          key: and-code-runtime-\( {{ runner.os }}- \){{ hashFiles('runtime_tools/termux_assets.lock.json') }}-\( {{ hashFiles('runtime_tools/termux_assets.py') }}- \){{ hashFiles('scripts/prepare_android_runtime_*.py') }}
 
       - name: Make gradlew executable
         run: chmod +x gradlew
@@ -97,7 +95,7 @@ jobs:
           path: |
             build/generated/runtime-assets
             build/generated/runtime-jni
-          key: and-code-runtime-\( {{ runner.os }}- \){{ hashFiles('runtime_tools/termux_assets.lock.json', 'runtime_tools/termux_assets.py', 'scripts/prepare_android_runtime_*.py') }}
+          key: and-code-runtime-\( {{ runner.os }}- \){{ hashFiles('runtime_tools/termux_assets.lock.json') }}-\( {{ hashFiles('runtime_tools/termux_assets.py') }}- \){{ hashFiles('scripts/prepare_android_runtime_*.py') }}
 
       - name: Validate runtime build scripts
         run: |
