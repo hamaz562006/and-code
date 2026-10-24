@@ -61,7 +61,7 @@ jobs:
           path: |
             build/generated/runtime-assets
             build/generated/runtime-jni
-          key: and-code-runtime-${{ runner.os }}-${{ hashFiles('runtime_tools/termux_assets.lock.json', 'runtime_tools/termux_assets.py', 'scripts/prepare_android_runtime_*.py') }}
+          key: and-code-runtime-\( {{ runner.os }}- \){{ hashFiles('runtime_tools/termux_assets.lock.json', 'runtime_tools/termux_assets.py', 'scripts/prepare_android_runtime_*.py') }}
 
       - name: Make gradlew executable
         run: chmod +x gradlew
@@ -97,7 +97,7 @@ jobs:
           path: |
             build/generated/runtime-assets
             build/generated/runtime-jni
-          key: and-code-runtime-${{ runner.os }}-${{ hashFiles('runtime_tools/termux_assets.lock.json', 'runtime_tools/termux_assets.py', 'scripts/prepare_android_runtime_*.py') }}
+          key: and-code-runtime-\( {{ runner.os }}- \){{ hashFiles('runtime_tools/termux_assets.lock.json', 'runtime_tools/termux_assets.py', 'scripts/prepare_android_runtime_*.py') }}
 
       - name: Validate runtime build scripts
         run: |
@@ -118,9 +118,15 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Unit tests
-        # APK assemble/upload removed to save Actions storage; release.yml still publishes releases.
+      - name: Unit tests and debug APK
         env:
           GITHUB_CLIENT_ID: ${{ vars.AND_CODE_GITHUB_CLIENT_ID }}
-        run: ./gradlew :app:testGithubDebugUnitTest
+        run: ./gradlew :app:testGithubDebugUnitTest :app:assembleGithubDebug
 
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: and-code-debug-apk
+          path: app/build/outputs/apk/github/debug/app-github-debug.apk
+          if-no-files-found: error
+          retention-days: 3
