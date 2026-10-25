@@ -48,7 +48,10 @@ class AiderRuntime(
         scope.launch { events.emit(OpenCodeEvent.ServerConnected) }
     }
 
-    fun setApiKey(providerId: String, key: String?) {
+    fun setApiKey(
+        providerId: String,
+        key: String?,
+    ) {
         if (key.isNullOrBlank()) apiKeys.remove(providerId) else apiKeys[providerId] = key.trim()
     }
 

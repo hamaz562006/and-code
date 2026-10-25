@@ -158,9 +158,11 @@ fun PiAgentSettingsScreen(
                 status = statusText,
                 active = pi.isReady(),
                 metrics =
-                    pi.version?.takeIf(String::isNotBlank)?.let { v ->
-                        listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
-                    }.orEmpty(),
+                    pi.version
+                        ?.takeIf(String::isNotBlank)
+                        ?.let { v ->
+                            listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
+                        }.orEmpty(),
             ) {
                 PiCard(
                     pi = pi,
@@ -227,9 +229,11 @@ fun GrokBuildAgentSettingsScreen(
                 status = statusText,
                 active = grok.isReady(),
                 metrics =
-                    grok.version?.takeIf(String::isNotBlank)?.let { v ->
-                        listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
-                    }.orEmpty(),
+                    grok.version
+                        ?.takeIf(String::isNotBlank)
+                        ?.let { v ->
+                            listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
+                        }.orEmpty(),
             ) {
                 when (val install = grok.install) {
                     is GrokBuildInstallStatus.Installing -> {
@@ -389,9 +393,11 @@ fun CodexAgentSettingsScreen(
                 status = codex.statusLabel(),
                 active = codex.ready,
                 metrics =
-                    codex.version?.takeIf(String::isNotBlank)?.let { version ->
-                        listOf(AgentMetric(stringResource(R.string.agent_version_label), version))
-                    }.orEmpty(),
+                    codex.version
+                        ?.takeIf(String::isNotBlank)
+                        ?.let { version ->
+                            listOf(AgentMetric(stringResource(R.string.agent_version_label), version))
+                        }.orEmpty(),
             ) {
                 CodexCard(
                     codex = codex,
@@ -463,9 +469,11 @@ fun AntigravityAgentSettingsScreen(
                 status = antigravity.statusLabel(),
                 active = antigravity.isReady(),
                 metrics =
-                    antigravity.version?.takeIf(String::isNotBlank)?.let { version ->
-                        listOf(AgentMetric(stringResource(R.string.agent_version_label), version))
-                    }.orEmpty(),
+                    antigravity.version
+                        ?.takeIf(String::isNotBlank)
+                        ?.let { version ->
+                            listOf(AgentMetric(stringResource(R.string.agent_version_label), version))
+                        }.orEmpty(),
             ) {
                 com.yugahashimoto.andcode.feature.workspace.AntigravityCard(
                     antigravity = antigravity,
@@ -521,9 +529,11 @@ fun ClaudeCodeAgentSettingsScreen(
                 status = claude.statusLabel(),
                 active = claude.isReady(),
                 metrics =
-                    claude.version?.takeIf(String::isNotBlank)?.let { version ->
-                        listOf(AgentMetric(stringResource(R.string.agent_version_label), version))
-                    }.orEmpty(),
+                    claude.version
+                        ?.takeIf(String::isNotBlank)
+                        ?.let { version ->
+                            listOf(AgentMetric(stringResource(R.string.agent_version_label), version))
+                        }.orEmpty(),
             ) {
                 ClaudeCodeCard(
                     claude = claude,
@@ -548,7 +558,8 @@ fun ClaudeCodeAgentSettingsScreen(
                     icon = Icons.Default.Psychology,
                     title = stringResource(R.string.system_prompt_settings_row),
                     value =
-                        claude.systemPromptPresets.firstOrNull { it.id == claude.systemPromptId }
+                        claude.systemPromptPresets
+                            .firstOrNull { it.id == claude.systemPromptId }
                             ?.let { systemPromptPresetLabel(it) }
                             ?: stringResource(R.string.system_prompt_none),
                     onClick = onOpenSystemPrompt,
@@ -1070,9 +1081,11 @@ fun HermesAgentSettingsScreen(
                 status = statusText,
                 active = hermes.isReady(),
                 metrics =
-                    hermes.version?.takeIf(String::isNotBlank)?.let { v ->
-                        listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
-                    }.orEmpty(),
+                    hermes.version
+                        ?.takeIf(String::isNotBlank)
+                        ?.let { v ->
+                            listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
+                        }.orEmpty(),
             ) {
                 when (val install = hermes.install) {
                     is HermesInstallStatus.Installing -> {
@@ -1141,8 +1154,6 @@ fun HermesAgentSettingsScreen(
     }
 }
 
-
-
 @Composable
 fun AiderAgentSettingsScreen(
     aider: com.yugahashimoto.andcode.runtime.local.AiderUiState,
@@ -1171,9 +1182,11 @@ fun AiderAgentSettingsScreen(
                 status = statusText,
                 active = aider.isReady(),
                 metrics =
-                    aider.version?.takeIf(String::isNotBlank)?.let { v ->
-                        listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
-                    }.orEmpty(),
+                    aider.version
+                        ?.takeIf(String::isNotBlank)
+                        ?.let { v ->
+                            listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
+                        }.orEmpty(),
             ) {
                 when (val install = aider.install) {
                     is com.yugahashimoto.andcode.runtime.local.AiderInstallStatus.Installing -> {

@@ -79,11 +79,12 @@ class AiderTarget(
 
     override suspend fun health(): OpenCodeHealth = connect().getOrElse { OpenCodeHealth(false, "") }
 
-    override suspend fun listSessions(directory: String?): List<OpenCodeSession> =
-        withContext(Dispatchers.IO) { runtime.listSessions() }
+    override suspend fun listSessions(directory: String?): List<OpenCodeSession> = withContext(Dispatchers.IO) { runtime.listSessions() }
 
     override suspend fun listAgents(): List<OpenCodeAgent> =
-        listOf(OpenCodeAgent(name = "aider", description = "Aider", mode = "primary", native = true))
+        listOf(
+            OpenCodeAgent(name = "aider", description = "Aider", mode = "primary", native = true),
+        )
 
     override suspend fun listProviders(): ProviderCatalog =
         withContext(Dispatchers.IO) {
@@ -150,8 +151,7 @@ class AiderTarget(
             runtime.renameSession(sessionId, title)
         }
 
-    override suspend fun listMessages(sessionId: String): List<OpenCodeMessage> =
-        withContext(Dispatchers.IO) { runtime.listMessages(sessionId) }
+    override suspend fun listMessages(sessionId: String): List<OpenCodeMessage> = withContext(Dispatchers.IO) { runtime.listMessages(sessionId) }
 
     override suspend fun sendMessage(
         sessionId: String,
@@ -162,8 +162,7 @@ class AiderTarget(
 
     override suspend fun abortSession(sessionId: String): Boolean = true
 
-    override suspend fun deleteSession(sessionId: String): Boolean =
-        withContext(Dispatchers.IO) { runtime.deleteSession(sessionId) }
+    override suspend fun deleteSession(sessionId: String): Boolean = withContext(Dispatchers.IO) { runtime.deleteSession(sessionId) }
 
     override suspend fun respondToPermission(
         sessionId: String,
@@ -197,8 +196,7 @@ class AiderTarget(
         pattern: String,
     ): List<OpenCodeSearchMatch> = withContext(Dispatchers.IO) { files.search(directory, pattern) }
 
-    override suspend fun listWorkspaces(): List<WorkspaceRef> =
-        listOf(WorkspaceRef("/workspace", "workspace", "/workspace"))
+    override suspend fun listWorkspaces(): List<WorkspaceRef> = listOf(WorkspaceRef("/workspace", "workspace", "/workspace"))
 
     override suspend fun commands(): List<OpenCodeCommand> = AiderCommandCatalog.commands
 }

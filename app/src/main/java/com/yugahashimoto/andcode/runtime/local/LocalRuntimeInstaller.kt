@@ -347,31 +347,32 @@ class LocalRuntimeInstaller(
      * complete, usable runtime and callers that need OpenCode check [InstalledRuntime.openCode].
      */
     fun installedRuntime(): InstalledRuntime? =
-        accessCoordinator.write {
-            val active = File(runtimeDirectory, "environment")
-            normalizeRuntimeSymlinks(active)
-            val metadataFile = File(runtimeDirectory, METADATA_FILE)
-            val rootfs = File(active, "rootfs")
-            if (!metadataFile.isFile || !rootfs.isDirectory) return@write null
-            val metadata =
-                runCatching {
-                    json.decodeFromString<LocalRuntimeMetadata>(metadataFile.readText())
-                }.getOrNull() ?: return@write null
-            val commandSuite =
-                runCatching {
-                    EmbeddedCommandSuite(context, runtimeDirectory, abi).ensureInstalled()
-                }.getOrNull() ?: return@write null
-            InstalledRuntime(
-                metadata,
-                commandSuite,
-                rootfs,
-                File(rootfs, "usr/local/bin/opencode").takeIf { it.isFile },
-                File(active, "antigravity-rootfs").takeIf { metadata.has(LocalAgent.ANTIGRAVITY) && it.isDirectory },
-            )
-        }?.also { installed ->
-            ensureAndCodeAgentContext(installed.rootfs, context)
-            installed.antigravityRootfs?.let { ensureAndCodeAgentContext(it, context) }
-        }
+        accessCoordinator
+            .write {
+                val active = File(runtimeDirectory, "environment")
+                normalizeRuntimeSymlinks(active)
+                val metadataFile = File(runtimeDirectory, METADATA_FILE)
+                val rootfs = File(active, "rootfs")
+                if (!metadataFile.isFile || !rootfs.isDirectory) return@write null
+                val metadata =
+                    runCatching {
+                        json.decodeFromString<LocalRuntimeMetadata>(metadataFile.readText())
+                    }.getOrNull() ?: return@write null
+                val commandSuite =
+                    runCatching {
+                        EmbeddedCommandSuite(context, runtimeDirectory, abi).ensureInstalled()
+                    }.getOrNull() ?: return@write null
+                InstalledRuntime(
+                    metadata,
+                    commandSuite,
+                    rootfs,
+                    File(rootfs, "usr/local/bin/opencode").takeIf { it.isFile },
+                    File(active, "antigravity-rootfs").takeIf { metadata.has(LocalAgent.ANTIGRAVITY) && it.isDirectory },
+                )
+            }?.also { installed ->
+                ensureAndCodeAgentContext(installed.rootfs, context)
+                installed.antigravityRootfs?.let { ensureAndCodeAgentContext(it, context) }
+            }
 
     /** Metadata of the active install, without requiring the command suite to be extractable. */
     fun installedMetadata(): LocalRuntimeMetadata? =
@@ -541,7 +542,8 @@ class LocalRuntimeInstaller(
         try {
             archive.inputStream().use { RuntimeArchive.extractTarGz(it, extractDir) }
             val sourceBinary =
-                extractDir.walkTopDown()
+                extractDir
+                    .walkTopDown()
                     .firstOrNull { it.isFile && it.name == "opencode" }
                     ?: error("OpenCode archive did not contain the opencode binary")
             val binary = File(rootfs, "usr/local/bin/opencode")
@@ -613,7 +615,6 @@ class LocalRuntimeInstaller(
             logName = "pi-npm-deps.log",
         )
     }
-
 
     fun installAiderOnly(onProgress: (Float?, String) -> Unit = { _, _ -> }) {
         val runtime = installedRuntime() ?: error("Local runtime is not installed")
@@ -689,8 +690,7 @@ class LocalRuntimeInstaller(
                 .apply {
                     environment().putAll(suite.environment())
                     environment()["PROOT_TMP_DIR"] = prootTmp.absolutePath
-                }
-                .start()
+                }.start()
         val completed = process.waitFor(20, java.util.concurrent.TimeUnit.MINUTES)
         if (!completed) {
             process.destroyForcibly()
@@ -751,8 +751,7 @@ class LocalRuntimeInstaller(
                 .apply {
                     environment().putAll(suite.environment())
                     environment()["PROOT_TMP_DIR"] = prootTmp.absolutePath
-                }
-                .start()
+                }.start()
         val completed = process.waitFor(15, java.util.concurrent.TimeUnit.MINUTES)
         if (!completed) {
             process.destroyForcibly()
@@ -827,7 +826,10 @@ class LocalRuntimeInstaller(
         if (!rootfs.isDirectory) return
         runCatching {
             val script =
-                context.assets.open("scripts/and-code-claude-permission-hook.sh").bufferedReader().use { it.readText() }
+                context.assets
+                    .open("scripts/and-code-claude-permission-hook.sh")
+                    .bufferedReader()
+                    .use { it.readText() }
             ClaudePermissionHooks.installInto(rootfs, script)
         }
     }
@@ -949,8 +951,7 @@ class LocalRuntimeInstaller(
             "android-app.sh" to "android-app",
             "andcode-browser-mcp.py" to "andcode-browser-mcp.py",
             "andcode-schedule-mcp.py" to "andcode-schedule-mcp.py",
-        ).forEach {
-                (assetName, scriptName) ->
+        ).forEach { (assetName, scriptName) ->
             val scriptFile = File(binDir, scriptName)
             context.assets.open("scripts/$assetName").use { input ->
                 scriptFile.outputStream().use { output -> input.copyTo(output) }

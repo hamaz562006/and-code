@@ -22,8 +22,8 @@ import com.yugahashimoto.andcode.core.UrlLauncher
 import com.yugahashimoto.andcode.data.settings.AppPreferences
 import com.yugahashimoto.andcode.data.settings.AppPreferencesRepository
 import com.yugahashimoto.andcode.feature.assistant.TtsPreview
-import com.yugahashimoto.andcode.feature.settings.AiderAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.AgentSettingsScreen
+import com.yugahashimoto.andcode.feature.settings.AiderAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.AntigravityAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ClaudeCodeAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.CodexAgentSettingsScreen
@@ -157,7 +157,8 @@ fun NavGraphBuilder.settingsNavGraph(
         val settingsState by settingsViewModel.state.collectAsState()
         val androidTtsEngines =
             remember {
-                com.yugahashimoto.andcode.feature.assistant.TTSManager.availableAndroidEngines(context)
+                com.yugahashimoto.andcode.feature.assistant.TTSManager
+                    .availableAndroidEngines(context)
                     .map { it.packageName to it.label }
             }
         // Held for as long as the screen is: building a TTS engine is slow enough that doing it on
@@ -228,21 +229,23 @@ fun NavGraphBuilder.settingsNavGraph(
                     if (!microphonePermission) {
                         onRequestWakeWordPermission()
                     } else if (!WakeWordSettingsPolicy.canEnable(microphonePermission, assistantActive())) {
-                        android.widget.Toast.makeText(
-                            context,
-                            com.yugahashimoto.andcode.R.string.wake_word_requires_assistant,
-                            android.widget.Toast.LENGTH_LONG,
-                        ).show()
+                        android.widget.Toast
+                            .makeText(
+                                context,
+                                com.yugahashimoto.andcode.R.string.wake_word_requires_assistant,
+                                android.widget.Toast.LENGTH_LONG,
+                            ).show()
                         onOpenAssistantSettings()
                     } else if (settingsState.wakeWordModelStates[settingsState.wakeWordModelLanguage] != VoskModelState.Installed) {
                         // The model is downloaded rather than packaged, so it genuinely may not be
                         // here. Start fetching it instead of switching on a service with nothing
                         // to listen with.
-                        android.widget.Toast.makeText(
-                            context,
-                            com.yugahashimoto.andcode.R.string.wake_word_model_required,
-                            android.widget.Toast.LENGTH_LONG,
-                        ).show()
+                        android.widget.Toast
+                            .makeText(
+                                context,
+                                com.yugahashimoto.andcode.R.string.wake_word_model_required,
+                                android.widget.Toast.LENGTH_LONG,
+                            ).show()
                         settingsViewModel.downloadWakeWordModel(settingsState.wakeWordModelLanguage)
                     } else {
                         settingsViewModel.setWakeWordEnabled(true)
@@ -253,16 +256,18 @@ fun NavGraphBuilder.settingsNavGraph(
                             )
                         if (!started) {
                             settingsViewModel.setWakeWordEnabled(false)
-                            android.widget.Toast.makeText(
-                                context,
-                                com.yugahashimoto.andcode.R.string.wake_word_start_failed,
-                                android.widget.Toast.LENGTH_SHORT,
-                            ).show()
+                            android.widget.Toast
+                                .makeText(
+                                    context,
+                                    com.yugahashimoto.andcode.R.string.wake_word_start_failed,
+                                    android.widget.Toast.LENGTH_SHORT,
+                                ).show()
                         }
                     }
                 } else {
                     settingsViewModel.setWakeWordEnabled(false)
-                    com.yugahashimoto.andcode.feature.wakeword.WakeWordService.stop(context)
+                    com.yugahashimoto.andcode.feature.wakeword.WakeWordService
+                        .stop(context)
                 }
             },
             onWakeWordApply = { phrase, sensitivity ->
@@ -281,7 +286,8 @@ fun NavGraphBuilder.settingsNavGraph(
                 // Removing the model the service is listening with would leave it running against
                 // files that are no longer there.
                 settingsViewModel.setWakeWordEnabled(false)
-                com.yugahashimoto.andcode.feature.wakeword.WakeWordService.stop(context)
+                com.yugahashimoto.andcode.feature.wakeword.WakeWordService
+                    .stop(context)
                 settingsViewModel.removeWakeWordModel(settingsState.wakeWordModelLanguage)
             },
             onAssistantRuntimeChange = { runtimeId ->
@@ -382,7 +388,8 @@ fun NavGraphBuilder.settingsNavGraph(
             // agent that can carry one - the same list and selection this row is naming.
             systemPromptLabel =
                 claude().let { state ->
-                    state.systemPromptPresets.firstOrNull { it.id == state.systemPromptId }
+                    state.systemPromptPresets
+                        .firstOrNull { it.id == state.systemPromptId }
                         ?.let { preset -> systemPromptPresetLabel(preset) }
                         ?: stringResource(R.string.system_prompt_none)
                 },
@@ -505,7 +512,7 @@ fun NavGraphBuilder.settingsNavGraph(
         )
     }
 
-        composable(ROUTE_SETTINGS_AGENT_HERMES) {
+    composable(ROUTE_SETTINGS_AGENT_HERMES) {
         val app = LocalContext.current.applicationContext as AndCodeApplication
         val hermesState by app.hermesController.state.collectAsState()
         androidx.compose.runtime.LaunchedEffect(Unit) { app.hermesController.refresh() }
@@ -688,7 +695,9 @@ fun NavGraphBuilder.settingsNavGraph(
 
     composable(SETTINGS_LEGAL_DOCUMENT_ROUTE_PATTERN) { backStackEntry ->
         val docId = backStackEntry.arguments?.getString(SETTINGS_LEGAL_DOCUMENT_ARG_ID)
-        val document = com.yugahashimoto.andcode.feature.settings.LegalDocument.fromId(docId)
+        val document =
+            com.yugahashimoto.andcode.feature.settings.LegalDocument
+                .fromId(docId)
         if (document != null) {
             com.yugahashimoto.andcode.feature.settings.LegalDocumentScreen(
                 document = document,

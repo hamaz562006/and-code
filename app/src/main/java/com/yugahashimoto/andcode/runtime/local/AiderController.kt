@@ -68,9 +68,7 @@ class AiderController(
         }
     }
 
-    fun install(
-        agents: Set<LocalAgent> = setOf(LocalAgent.AIDER),
-    ) {
+    fun install(agents: Set<LocalAgent> = setOf(LocalAgent.AIDER)) {
         if (mutableState.value.install is AiderInstallStatus.Installing) return
         mutableState.update { it.copy(install = AiderInstallStatus.Installing()) }
         scope.launch {
