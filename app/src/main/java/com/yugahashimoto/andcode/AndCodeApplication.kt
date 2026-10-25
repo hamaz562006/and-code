@@ -51,6 +51,9 @@ import com.yugahashimoto.andcode.runtime.local.AdbShellRunner
 import com.yugahashimoto.andcode.runtime.local.AndroidClaudeMessages
 import com.yugahashimoto.andcode.runtime.local.AndroidCodexMessages
 import com.yugahashimoto.andcode.runtime.local.AndroidLocalRuntimeMessages
+import com.yugahashimoto.andcode.runtime.local.AiderController
+import com.yugahashimoto.andcode.runtime.local.AiderRuntime
+import com.yugahashimoto.andcode.runtime.local.AiderTarget
 import com.yugahashimoto.andcode.runtime.local.AntigravityController
 import com.yugahashimoto.andcode.runtime.local.AntigravityRuntime
 import com.yugahashimoto.andcode.runtime.local.AntigravityTarget
@@ -69,9 +72,6 @@ import com.yugahashimoto.andcode.runtime.local.GrokBuildController
 import com.yugahashimoto.andcode.runtime.local.GrokBuildRuntime
 import com.yugahashimoto.andcode.runtime.local.GrokBuildTarget
 import com.yugahashimoto.andcode.runtime.local.HermesController
-import com.yugahashimoto.andcode.runtime.local.AiderController
-import com.yugahashimoto.andcode.runtime.local.AiderRuntime
-import com.yugahashimoto.andcode.runtime.local.AiderTarget
 import com.yugahashimoto.andcode.runtime.local.HermesRuntime
 import com.yugahashimoto.andcode.runtime.local.HermesTarget
 import com.yugahashimoto.andcode.runtime.local.LocalProviderCredentialStore
@@ -520,7 +520,16 @@ class AndCodeApplication : Application() {
             RuntimeRegistry(
                 store = settings,
                 localTarget = LocalRuntimeTarget(localRuntimeManager, messages = runtimeMessages),
-                additionalTargets = listOf(claudeCodeTarget, antigravityTarget, codexTarget, piTarget, grokBuildTarget, hermesTarget, aiderTarget),
+                additionalTargets =
+                listOf(
+                    claudeCodeTarget,
+                    antigravityTarget,
+                    codexTarget,
+                    piTarget,
+                    grokBuildTarget,
+                    hermesTarget,
+                    aiderTarget,
+                ),
             )
         // Surface the installed/version state to the workspace picker without waiting for the
         // first chat to touch Antigravity or Pi.

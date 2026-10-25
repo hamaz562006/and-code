@@ -1142,36 +1142,58 @@ fun HermesAgentSettingsScreen(
 }
 
 
+
 @Composable
 fun AiderAgentSettingsScreen(
     aider: com.yugahashimoto.andcode.runtime.local.AiderUiState,
-    onInstall: () -> Unit,
+    onInstall: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.AIDER.displayNameRes), onBack = onBack) {
-        item {
-            Text(
-                text =
-                    if (aider.installed) {
-                        "Installed ${aider.version ?: ""}".trim()
-                    } else {
-                        stringResource(R.string.setup_agent_aider_desc)
-                    },
-            )
-        }
-        item {
+        SettingsSection(
+            title = stringResource(R.string.settings_agents_section),
+            description =
+                aider.version?.let { v -> "${stringResource(R.string.agent_version_label)} $v" }
+                    .orEmpty(),
+        ) {
             when (val install = aider.install) {
                 is com.yugahashimoto.andcode.runtime.local.AiderInstallStatus.Installing -> {
-                    Text(text = install.step ?: "Installing…")
-                    install.progress?.let { LinearProgressIndicator(progress = { it }) }
+                    Text(
+                        install.step?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.install_step_installing_aider),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    val progress = install.progress
+                    if (progress != null) {
+                        LinearProgressIndicator(
+                            progress = { progress.coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    } else {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
                 }
                 is com.yugahashimoto.andcode.runtime.local.AiderInstallStatus.Failed -> {
-                    Text(text = install.message ?: "Install failed")
-                    Button(onClick = onInstall) { Text("Retry install") }
+                    Text(
+                        install.message ?: stringResource(R.string.agent_status_install_failed),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.claude_retry_install_button))
+                    }
                 }
                 else -> {
                     if (!aider.installed) {
-                        Button(onClick = onInstall) { Text("Install Aider") }
+                        Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.install_step_installing_aider))
+                        }
+                    } else {
+                        Text(
+                            text = stringResource(R.string.setup_agent_aider_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }

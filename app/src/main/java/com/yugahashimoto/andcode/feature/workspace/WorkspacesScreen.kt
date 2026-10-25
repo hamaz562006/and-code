@@ -264,6 +264,7 @@ fun WorkspacesScreen(
                                     LocalAgent.PI -> target.state is RuntimeState.Connected
                                     LocalAgent.GROK_BUILD -> target.state is RuntimeState.Connected
                                     LocalAgent.HERMES -> target.state is RuntimeState.Connected
+                                    LocalAgent.AIDER -> target.state is RuntimeState.Connected
                                     null -> true
                                 },
                         ) {
@@ -861,6 +862,8 @@ private fun targetSubtitle(
         localAgentSubtitle(target.state, R.string.pi_installed_version, R.string.runtime_status_not_installed)
     } else if (target.agent == LocalAgent.GROK_BUILD) {
         localAgentSubtitle(target.state, R.string.grok_build_installed_version, R.string.runtime_status_not_installed)
+    } else if (target.agent == LocalAgent.AIDER) {
+        // Aider has no localhost guest browser; fall through to default label.
     } else if (target.agent == LocalAgent.HERMES) {
         localAgentSubtitle(target.state, R.string.hermes_installed_version, R.string.runtime_status_not_installed)
     } else if (target.agent == LocalAgent.OPEN_CODE || target.agent == null) {

@@ -54,6 +54,8 @@ class AiderRuntime(
 
     fun connectedProviderIds(): Set<String> = apiKeys.keys.toSet()
 
+    fun listSessions(): List<OpenCodeSession> = sessions.values.toList()
+
     suspend fun createSession(
         title: String?,
         directory: String,

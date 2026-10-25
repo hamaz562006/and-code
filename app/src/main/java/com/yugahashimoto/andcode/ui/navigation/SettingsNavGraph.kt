@@ -22,6 +22,7 @@ import com.yugahashimoto.andcode.core.UrlLauncher
 import com.yugahashimoto.andcode.data.settings.AppPreferences
 import com.yugahashimoto.andcode.data.settings.AppPreferencesRepository
 import com.yugahashimoto.andcode.feature.assistant.TtsPreview
+import com.yugahashimoto.andcode.feature.settings.AiderAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.AgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.AntigravityAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ClaudeCodeAgentSettingsScreen
@@ -770,6 +771,7 @@ private fun rememberAgentPackageImporter(): AgentPackageImportControl {
                                     LocalAgent.PI -> runCatching { app.piController.refresh() }
                                     LocalAgent.GROK_BUILD -> runCatching { app.grokBuildController.refresh() }
                                     LocalAgent.HERMES -> runCatching { app.hermesController.refresh() }
+                                    LocalAgent.AIDER -> runCatching { app.aiderController.refresh() }
                                     LocalAgent.CODEX -> runCatching { app.codexController.refresh() }
                                     LocalAgent.CLAUDE_CODE -> runCatching { app.claudeCodeController.refresh() }
                                     LocalAgent.ANTIGRAVITY -> runCatching { app.antigravityController.refresh() }

@@ -78,6 +78,9 @@ class AiderTarget(
 
     override suspend fun health(): OpenCodeHealth = connect().getOrElse { OpenCodeHealth(false, "") }
 
+    override suspend fun listSessions(directory: String?): List<OpenCodeSession> =
+        withContext(Dispatchers.IO) { runtime.listSessions() }
+
     override suspend fun listProviders(): ProviderCatalog =
         withContext(Dispatchers.IO) {
             val connected = runtime.connectedProviderIds()
@@ -101,7 +104,7 @@ class AiderTarget(
                 )
             ProviderCatalog(
                 all = all,
-                default = all.firstOrNull { it.id in connected } ?: all.first(),
+                default = emptyMap(),
                 connected = connected.toList(),
             )
         }

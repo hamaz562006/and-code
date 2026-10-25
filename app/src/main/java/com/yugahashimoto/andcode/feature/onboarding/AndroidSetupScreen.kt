@@ -1443,6 +1443,13 @@ private fun SignInStep(
                         onDisconnectProvider = onDisconnectProvider,
                         header = false,
                     )
+                LocalAgent.AIDER ->
+                    ProviderConnectionStep(
+                        settingsState = settingsState,
+                        onOpenProviderAuth = onOpenProviderAuth,
+                        onDisconnectProvider = onDisconnectProvider,
+                        header = false,
+                    )
             }
         }
     }
