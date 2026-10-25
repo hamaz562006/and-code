@@ -169,6 +169,16 @@ object RuntimeAgentPackage {
                     addIfExists(paths, rootfs, "root/.grok")
                 }
             }
+            LocalAgent.AIDER -> {
+                addIfExists(paths, rootfs, "usr/local/bin/aider")
+                addIfExists(paths, rootfs, "usr/bin/aider")
+                addIfExists(paths, rootfs, "root/.local/bin/aider")
+                addIfExists(paths, rootfs, AiderManifest.MARKER_REL)
+                addIfExists(paths, rootfs, AiderManifest.VERSION_REL)
+                if (includeConfig) {
+                    addIfExists(paths, rootfs, "root/.aider")
+                }
+            }
         }
         // Always ship a bootable base so import can restore offline (format v2).
         addBaseRuntime(paths, rootfs)
