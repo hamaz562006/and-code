@@ -246,5 +246,4 @@ class PiTarget(
     override suspend fun disconnectMcpServer(name: String): Boolean = withContext(Dispatchers.IO) { runtime.removeMcpServer(name) }
 
     override suspend fun commands(): List<OpenCodeCommand> = PiCommandCatalog.commands
-
 }
