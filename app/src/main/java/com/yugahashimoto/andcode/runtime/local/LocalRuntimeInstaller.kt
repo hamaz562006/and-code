@@ -67,6 +67,7 @@ class LocalRuntimeInstaller(
             val onPi: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.PI) }
             val onGrok: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.GROK_BUILD) }
             val onHermes: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.HERMES) }
+            val onAider: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.AIDER) }
             runtimeDirectory.mkdirs()
             onShared(0.02f, context.getString(R.string.install_step_preparing_command_env))
             val existingMetadata = installedMetadata()
@@ -276,6 +277,17 @@ class LocalRuntimeInstaller(
                         onHermes(hermesStart + fraction.coerceIn(0f, 1f) * span, hermesLabel)
                     }
                     onHermes(hermesEnd, hermesLabel)
+                }
+                if (LocalAgent.AIDER in requestedAgents) {
+                    val aiderLabel = context.getString(R.string.install_step_installing_aider)
+                    val aiderStart = 0.50f
+                    val aiderEnd = 0.92f
+                    onAider(aiderStart, aiderLabel)
+                    installAiderIntoRootfs(rootfs, commandSuite) { fraction ->
+                        val span = aiderEnd - aiderStart
+                        onAider(aiderStart + fraction.coerceIn(0f, 1f) * span, aiderLabel)
+                    }
+                    onAider(aiderEnd, aiderLabel)
                 }
                 val metadata =
                     LocalRuntimeMetadata(
@@ -587,6 +599,7 @@ class LocalRuntimeInstaller(
     }
 
     /** Installs npm dependencies for an already-extracted Pi package in the active rootfs. */
+
     fun installPiNpmDependencies() {
         val installed = installedRuntime() ?: return
         runShellInRootfs(
@@ -598,6 +611,35 @@ class LocalRuntimeInstaller(
                     "cd /usr/local/lib/pi-coding-agent && " +
                     "npm install --omit=dev --ignore-scripts --no-audit --no-fund",
             logName = "pi-npm-deps.log",
+        )
+    }
+
+
+    fun installAiderOnly(onProgress: (Float?, String) -> Unit = { _, _ -> }) {
+        val runtime = installedRuntime() ?: error("Local runtime is not installed")
+        val label = context.getString(R.string.install_step_installing_aider)
+        onProgress(0.1f, label)
+        installAiderIntoRootfs(runtime.rootfs, runtime.commandSuite) { f -> onProgress(f, label) }
+        onProgress(1f, label)
+        recordAgent(LocalAgent.AIDER)
+    }
+
+    private fun installAiderIntoRootfs(
+        rootfs: File,
+        suite: EmbeddedCommandSuite.Paths,
+        onProgress: (Float) -> Unit,
+    ) {
+        AiderInstaller.install(
+            rootfs = rootfs,
+            runShell = { cmd ->
+                runShellInRootfs(
+                    rootfs = rootfs,
+                    suite = suite,
+                    shell = cmd,
+                    logName = "aider-install.log",
+                )
+            },
+            onProgress = onProgress,
         )
     }
 

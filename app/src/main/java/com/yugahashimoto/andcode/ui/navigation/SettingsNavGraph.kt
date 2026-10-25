@@ -305,6 +305,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenPi = { navController.navigate(ROUTE_SETTINGS_AGENT_PI) },
             onOpenGrokBuild = { navController.navigate(ROUTE_SETTINGS_AGENT_GROK_BUILD) },
             onOpenHermes = { navController.navigate(ROUTE_SETTINGS_AGENT_HERMES) },
+            onOpenAider = { navController.navigate(ROUTE_SETTINGS_AGENT_AIDER) },
             onBack = { navController.popBackStack() },
         )
     }
@@ -492,7 +493,18 @@ fun NavGraphBuilder.settingsNavGraph(
         )
     }
 
-    composable(ROUTE_SETTINGS_AGENT_HERMES) {
+    composable(ROUTE_SETTINGS_AGENT_AIDER) {
+        val app = context.applicationContext as com.yugahashimoto.andcode.AndCodeApplication
+        val aider by app.aiderController.state.collectAsState()
+        androidx.compose.runtime.LaunchedEffect(Unit) { app.aiderController.refresh() }
+        AiderAgentSettingsScreen(
+            aider = aider,
+            onInstall = { app.aiderController.install() },
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+        composable(ROUTE_SETTINGS_AGENT_HERMES) {
         val app = LocalContext.current.applicationContext as AndCodeApplication
         val hermesState by app.hermesController.state.collectAsState()
         androidx.compose.runtime.LaunchedEffect(Unit) { app.hermesController.refresh() }

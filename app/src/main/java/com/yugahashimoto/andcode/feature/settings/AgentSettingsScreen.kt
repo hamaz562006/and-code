@@ -96,6 +96,7 @@ fun AgentSettingsScreen(
     onOpenPi: () -> Unit,
     onOpenGrokBuild: () -> Unit,
     onOpenHermes: () -> Unit = {},
+    onOpenAider: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(R.string.settings_agents_row), onBack = onBack) {
@@ -113,6 +114,8 @@ fun AgentSettingsScreen(
             AgentRow(LocalAgent.GROK_BUILD, onOpenGrokBuild)
             SettingsDivider()
             AgentRow(LocalAgent.HERMES, onOpenHermes)
+            SettingsDivider()
+            AgentRow(LocalAgent.AIDER, onOpenAider)
         }
     }
 }
@@ -1134,6 +1137,44 @@ fun HermesAgentSettingsScreen(
                 onImport = onImportPackage,
                 isImporting = isImportingPackage,
             )
+        }
+    }
+}
+
+
+@Composable
+fun AiderAgentSettingsScreen(
+    aider: com.yugahashimoto.andcode.runtime.local.AiderUiState,
+    onInstall: () -> Unit,
+    onBack: () -> Unit,
+) {
+    AgentSettingsScaffold(title = stringResource(LocalAgent.AIDER.displayNameRes), onBack = onBack) {
+        item {
+            Text(
+                text =
+                    if (aider.installed) {
+                        "Installed ${aider.version ?: ""}".trim()
+                    } else {
+                        stringResource(R.string.setup_agent_aider_desc)
+                    },
+            )
+        }
+        item {
+            when (val install = aider.install) {
+                is com.yugahashimoto.andcode.runtime.local.AiderInstallStatus.Installing -> {
+                    Text(text = install.step ?: "Installing…")
+                    install.progress?.let { LinearProgressIndicator(progress = { it }) }
+                }
+                is com.yugahashimoto.andcode.runtime.local.AiderInstallStatus.Failed -> {
+                    Text(text = install.message ?: "Install failed")
+                    Button(onClick = onInstall) { Text("Retry install") }
+                }
+                else -> {
+                    if (!aider.installed) {
+                        Button(onClick = onInstall) { Text("Install Aider") }
+                    }
+                }
+            }
         }
     }
 }

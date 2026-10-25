@@ -69,6 +69,9 @@ import com.yugahashimoto.andcode.runtime.local.GrokBuildController
 import com.yugahashimoto.andcode.runtime.local.GrokBuildRuntime
 import com.yugahashimoto.andcode.runtime.local.GrokBuildTarget
 import com.yugahashimoto.andcode.runtime.local.HermesController
+import com.yugahashimoto.andcode.runtime.local.AiderController
+import com.yugahashimoto.andcode.runtime.local.AiderRuntime
+import com.yugahashimoto.andcode.runtime.local.AiderTarget
 import com.yugahashimoto.andcode.runtime.local.HermesRuntime
 import com.yugahashimoto.andcode.runtime.local.HermesTarget
 import com.yugahashimoto.andcode.runtime.local.LocalProviderCredentialStore
@@ -225,6 +228,9 @@ class AndCodeApplication : Application() {
 
     lateinit var piTarget: PiTarget
     lateinit var hermesTarget: HermesTarget
+    lateinit var aiderRuntime: AiderRuntime
+    lateinit var aiderTarget: AiderTarget
+    lateinit var aiderController: AiderController
         private set
 
     lateinit var antigravityController: AntigravityController
@@ -378,6 +384,13 @@ class AndCodeApplication : Application() {
         piTarget = PiTarget(piRuntime)
         val hermesRuntime = HermesRuntime(runtimeDirectory)
         hermesTarget = HermesTarget(hermesRuntime)
+        aiderRuntime =
+            AiderRuntime(
+                runtimeDirectory = runtimeDirectory,
+                installedRuntime = { installer.installedRuntime() },
+                runShell = { cmd -> this.commandRunner.runShell(cmd, timeoutSeconds = 300L) },
+            )
+        aiderTarget = AiderTarget(aiderRuntime)
         // Codex is a child of this process, so it is cut off from the network the moment the app has
         // nothing in the foreground on some devices: hold the app there while Codex is signing in or
         // running a turn (see CodexKeepAliveService).
@@ -401,6 +414,8 @@ class AndCodeApplication : Application() {
         grokBuildTarget = GrokBuildTarget(grokBuildRuntime, installer)
         grokBuildController = GrokBuildController(grokBuildRuntime, grokBuildTarget, installer, abi, runtimeWork, applicationScope)
         hermesController = HermesController(hermesRuntime, hermesTarget, installer, runtimeWork, applicationScope)
+        aiderController =
+            AiderController(aiderRuntime, aiderTarget, installer, runtimeWork, applicationScope)
         runtimeMessages = AndroidLocalRuntimeMessages(this)
         gitCloneRepository =
             GitCloneRepository(
@@ -505,7 +520,7 @@ class AndCodeApplication : Application() {
             RuntimeRegistry(
                 store = settings,
                 localTarget = LocalRuntimeTarget(localRuntimeManager, messages = runtimeMessages),
-                additionalTargets = listOf(claudeCodeTarget, antigravityTarget, codexTarget, piTarget, grokBuildTarget, hermesTarget),
+                additionalTargets = listOf(claudeCodeTarget, antigravityTarget, codexTarget, piTarget, grokBuildTarget, hermesTarget, aiderTarget),
             )
         // Surface the installed/version state to the workspace picker without waiting for the
         // first chat to touch Antigravity or Pi.
@@ -513,6 +528,7 @@ class AndCodeApplication : Application() {
         applicationScope.launch { piTarget.connect() }
         applicationScope.launch { grokBuildTarget.connect() }
         applicationScope.launch { hermesTarget.connect() }
+        applicationScope.launch { aiderTarget.connect() }
         applicationScope.launch {
             runCatching { FreeModelsCatalog.refreshFromNetwork(httpClient) }
         }

@@ -181,6 +181,7 @@ val appModule =
                         (androidContext().applicationContext as AndCodeApplication).piTarget,
                         (androidContext().applicationContext as AndCodeApplication).grokBuildTarget,
                         (androidContext().applicationContext as AndCodeApplication).hermesTarget,
+                        (androidContext().applicationContext as AndCodeApplication).aiderTarget,
                     ),
             )
         }
