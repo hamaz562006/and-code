@@ -48,12 +48,12 @@ import com.yugahashimoto.andcode.runtime.free.FreeModelsCatalog
 import com.yugahashimoto.andcode.runtime.free.ModelFallbackStore
 import com.yugahashimoto.andcode.runtime.local.AdbConnectionManager
 import com.yugahashimoto.andcode.runtime.local.AdbShellRunner
-import com.yugahashimoto.andcode.runtime.local.AndroidClaudeMessages
-import com.yugahashimoto.andcode.runtime.local.AndroidCodexMessages
-import com.yugahashimoto.andcode.runtime.local.AndroidLocalRuntimeMessages
 import com.yugahashimoto.andcode.runtime.local.AiderController
 import com.yugahashimoto.andcode.runtime.local.AiderRuntime
 import com.yugahashimoto.andcode.runtime.local.AiderTarget
+import com.yugahashimoto.andcode.runtime.local.AndroidClaudeMessages
+import com.yugahashimoto.andcode.runtime.local.AndroidCodexMessages
+import com.yugahashimoto.andcode.runtime.local.AndroidLocalRuntimeMessages
 import com.yugahashimoto.andcode.runtime.local.AntigravityController
 import com.yugahashimoto.andcode.runtime.local.AntigravityRuntime
 import com.yugahashimoto.andcode.runtime.local.AntigravityTarget
@@ -521,15 +521,15 @@ class AndCodeApplication : Application() {
                 store = settings,
                 localTarget = LocalRuntimeTarget(localRuntimeManager, messages = runtimeMessages),
                 additionalTargets =
-                listOf(
-                    claudeCodeTarget,
-                    antigravityTarget,
-                    codexTarget,
-                    piTarget,
-                    grokBuildTarget,
-                    hermesTarget,
-                    aiderTarget,
-                ),
+                    listOf(
+                        claudeCodeTarget,
+                        antigravityTarget,
+                        codexTarget,
+                        piTarget,
+                        grokBuildTarget,
+                        hermesTarget,
+                        aiderTarget,
+                    ),
             )
         // Surface the installed/version state to the workspace picker without waiting for the
         // first chat to touch Antigravity or Pi.

@@ -1,5 +1,6 @@
 package com.yugahashimoto.andcode.runtime.local
 
+import com.yugahashimoto.andcode.core.api.OpenCodeAgent
 import com.yugahashimoto.andcode.core.api.OpenCodeCommand
 import com.yugahashimoto.andcode.core.api.OpenCodeEvent
 import com.yugahashimoto.andcode.core.api.OpenCodeFileContent
@@ -80,6 +81,9 @@ class AiderTarget(
 
     override suspend fun listSessions(directory: String?): List<OpenCodeSession> =
         withContext(Dispatchers.IO) { runtime.listSessions() }
+
+    override suspend fun listAgents(): List<OpenCodeAgent> =
+        listOf(OpenCodeAgent(name = "aider", description = "Aider", mode = "primary", native = true))
 
     override suspend fun listProviders(): ProviderCatalog =
         withContext(Dispatchers.IO) {

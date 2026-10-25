@@ -1150,50 +1150,70 @@ fun AiderAgentSettingsScreen(
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(LocalAgent.AIDER.displayNameRes), onBack = onBack) {
-        SettingsSection(
-            title = stringResource(R.string.settings_agents_section),
-            description =
-                aider.version?.let { v -> "${stringResource(R.string.agent_version_label)} $v" }
-                    .orEmpty(),
-        ) {
-            when (val install = aider.install) {
-                is com.yugahashimoto.andcode.runtime.local.AiderInstallStatus.Installing -> {
-                    Text(
+        AgentCardSection {
+            val statusText =
+                when (val install = aider.install) {
+                    is com.yugahashimoto.andcode.runtime.local.AiderInstallStatus.Installing ->
                         install.step?.takeIf { it.isNotBlank() }
-                            ?: stringResource(R.string.install_step_installing_aider),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    val progress = install.progress
-                    if (progress != null) {
-                        LinearProgressIndicator(
-                            progress = { progress.coerceIn(0f, 1f) },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    } else {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    }
-                }
-                is com.yugahashimoto.andcode.runtime.local.AiderInstallStatus.Failed -> {
-                    Text(
-                        install.message ?: stringResource(R.string.agent_status_install_failed),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.claude_retry_install_button))
-                    }
-                }
-                else -> {
-                    if (!aider.installed) {
-                        Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
-                            Text(stringResource(R.string.install_step_installing_aider))
+                            ?: stringResource(R.string.install_step_installing_aider)
+                    is com.yugahashimoto.andcode.runtime.local.AiderInstallStatus.Failed ->
+                        install.message ?: stringResource(R.string.agent_status_install_failed)
+                    is com.yugahashimoto.andcode.runtime.local.AiderInstallStatus.Ready ->
+                        aider.version?.let { "Aider $it" } ?: stringResource(R.string.agent_aider_name)
+                    else ->
+                        if (aider.installed) {
+                            aider.version?.let { "Aider $it" } ?: stringResource(R.string.agent_aider_name)
+                        } else {
+                            stringResource(R.string.runtime_status_not_installed)
                         }
-                    } else {
+                }
+            AgentStatusCard(
+                status = statusText,
+                active = aider.isReady(),
+                metrics =
+                    aider.version?.takeIf(String::isNotBlank)?.let { v ->
+                        listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
+                    }.orEmpty(),
+            ) {
+                when (val install = aider.install) {
+                    is com.yugahashimoto.andcode.runtime.local.AiderInstallStatus.Installing -> {
                         Text(
-                            text = stringResource(R.string.setup_agent_aider_desc),
+                            install.step?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.install_step_installing_aider),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        val progress = install.progress
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    is com.yugahashimoto.andcode.runtime.local.AiderInstallStatus.Failed -> {
+                        Text(
+                            install.message ?: stringResource(R.string.agent_status_install_failed),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.claude_retry_install_button))
+                        }
+                    }
+                    else -> {
+                        if (!aider.installed) {
+                            Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.install_step_installing_aider))
+                            }
+                        } else {
+                            Text(
+                                text = stringResource(R.string.setup_agent_aider_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
