@@ -247,24 +247,4 @@ class PiTarget(
 
     override suspend fun commands(): List<OpenCodeCommand> = PiCommandCatalog.commands
 
-    /**
-     * Pi has no separate command HTTP API; deliver `/name args` as a prompt so the agent CLI
-     * (or session handler) can interpret the slash the same way the terminal does.
-     */
-    override suspend fun executeCommand(
-        sessionId: String,
-        command: String,
-        arguments: String,
-        agent: String?,
-        model: com.yugahashimoto.andcode.core.api.OpenCodeModel?,
-        variant: String?,
-    ) {
-        val text =
-            if (arguments.isBlank()) {
-                "/$command"
-            } else {
-                "/$command $arguments"
-            }
-        withContext(Dispatchers.IO) { runtime.send(sessionId, text) }
-    }
 }
