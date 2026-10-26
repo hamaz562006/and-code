@@ -476,8 +476,8 @@ class SettingsViewModel(
     /**
      * Runtime that owns provider credentials / catalogue for the Providers screen.
      *
-     * Pi has no HTTP daemon on :4097. When Pi is selected, use the Pi target and a static seed
-     * provider list instead of calling OpenCode's local server.
+     * Pi/Hermes/Aider have no OpenCode HTTP daemon on :4097. When those agents are selected,
+     * use their own target (seed providers / API keys) — never call OpenCode's local server.
      */
     private fun providerTarget(): RuntimeTarget? {
         val selected = registry.selected.value
@@ -486,6 +486,7 @@ class SettingsViewModel(
             LocalAgent.PI,
             LocalAgent.GROK_BUILD,
             LocalAgent.HERMES,
+            LocalAgent.AIDER,
             LocalAgent.OPEN_CODE,
             LocalAgent.CODEX,
             LocalAgent.CLAUDE_CODE,
