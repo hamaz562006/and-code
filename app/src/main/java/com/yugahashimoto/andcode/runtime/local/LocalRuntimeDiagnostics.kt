@@ -107,6 +107,15 @@ class LocalRuntimeDiagnosticsCollector(
                 if (HermesInstaller.isInstalledIn(runtimeDirectory)) {
                     add(LocalRuntimeToolDefinition("hermes", "Hermes", "hermes --version"))
                 }
+                if (AiderInstaller.isInstalledIn(rootfs)) {
+                    add(
+                        LocalRuntimeToolDefinition(
+                            "aider",
+                            "Aider",
+                            "/usr/local/bin/aider --version",
+                        ),
+                    )
+                }
             }
         val definitions =
             agentTools +

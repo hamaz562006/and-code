@@ -5,10 +5,10 @@ import java.io.File
 /**
  * Fast Aider install for Alpine/PRoot.
  *
- * Pure-deps are installed with `--no-deps` so pip never pulls `tree-sitter-language-pack`.
- * Binary-ish runtime modules that Aider imports at startup (Pillow → `PIL`) are installed
- * explicitly afterward; without them `aider --version` crashes and the agent is unusable even
- * though the shim exists.
+ * Pure-python pins come from skoll43's pure-deps list (`--no-deps` so tree-sitter-language-pack
+ * never compiles). After `aider` is present, a short loop installs any still-missing import
+ * (Pillow, mixpanel, …) until `aider --version` succeeds — that is the only install success
+ * criterion.
  */
 object AiderInstaller {
     const val VENV_REL = "usr/local/lib/aider-venv"
@@ -43,21 +43,15 @@ object AiderInstaller {
         }
 
         onProgress(0.04f)
-        // py3-pillow provides PIL to the system; venv uses --system-site-packages so imports work.
         runShell(
             "apk add --no-cache python3 py3-pip py3-virtualenv py3-setuptools py3-wheel " +
                 "py3-pillow py3-numpy git ca-certificates wget || " +
                 "apk add --no-cache python3 py3-pip py3-virtualenv git ca-certificates wget",
         )
         onProgress(0.12f)
-        runShell(
-            "rm -rf /$VENV_REL && " +
-                "python3 -m venv --system-site-packages /$VENV_REL",
-        )
+        runShell("rm -rf /$VENV_REL && python3 -m venv --system-site-packages /$VENV_REL")
         onProgress(0.18f)
-        runShell(
-            "$VENV_PIP install --upgrade pip setuptools wheel --retries 5 --timeout 60 || true",
-        )
+        runShell("$VENV_PIP install --upgrade pip setuptools wheel --retries 5 --timeout 60 || true")
         onProgress(0.24f)
 
         runShell(
@@ -72,45 +66,54 @@ object AiderInstaller {
                 "$VENV_PIP install --no-cache-dir --no-deps --retries 5 --timeout 60 " +
                 "-r /tmp/aider-pure-deps.txt",
         )
-        onProgress(0.50f)
+        onProgress(0.48f)
 
-        // Critical imports: Pillow (PIL), numpy. Prefer wheels; fall back to apk already done.
+        // Known binary / runtime imports (not always in pure-deps).
         runShell(
-            "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 3 --timeout 60 " +
-                "Pillow numpy 2>/dev/null || " +
+            "$VENV_PIP install --no-cache-dir --prefer-binary --retries 3 --timeout 90 " +
+                "Pillow numpy mixpanel posthog pydantic pydantic-core aiohttp httpx openai " +
+                "pyyaml regex orjson 2>/dev/null || " +
                 "$VENV_PIP install --no-cache-dir --prefer-binary --retries 3 --timeout 90 " +
-                "Pillow || true",
+                "Pillow mixpanel pydantic aiohttp httpx openai || true",
         )
-        onProgress(0.58f)
-
-        runShell(
-            "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 3 --timeout 60 " +
-                "pydantic-core jiter orjson pyyaml regex aiohttp yarl multidict frozenlist " +
-                "2>/dev/null || " +
-                "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 3 --timeout 60 " +
-                "pydantic-core aiohttp pyyaml 2>/dev/null || true",
-        )
-        onProgress(0.68f)
-
-        runShell(
-            "$VENV_PIP install --no-cache-dir --only-binary=:all: tree-sitter 2>/dev/null || true",
-        )
-        onProgress(0.74f)
+        onProgress(0.60f)
 
         runShell(
             "$VENV_PIP install --no-cache-dir --no-deps --retries 5 --timeout 90 " +
                 "'git+https://github.com/Aider-AI/aider.git' || " +
                 "$VENV_PIP install --no-cache-dir --no-deps --retries 5 --timeout 90 aider-chat",
         )
-        onProgress(0.88f)
+        onProgress(0.78f)
 
         runShell(
             "set -e; mkdir -p /usr/local/bin; " +
                 "test -x /$VENV_BIN_AIDER; " +
                 "ln -sfn /$VENV_BIN_AIDER /usr/local/bin/aider; " +
-                // Must actually import (catches missing PIL etc. before we mark installed).
-                "/$VENV_BIN_AIDER --version >/tmp/aider-version.out 2>/tmp/aider-version.err || " +
-                "{ echo 'aider --version failed:' >&2; cat /tmp/aider-version.err >&2; exit 1; }; " +
+                // Repair missing imports until aider actually starts (max 12 modules).
+                "i=0; " +
+                "while [ \$i -lt 12 ]; do " +
+                "  i=\$((i+1)); " +
+                "  if /$VENV_BIN_AIDER --version >/tmp/aider-version.out 2>/tmp/aider-version.err; then " +
+                "    break; " +
+                "  fi; " +
+                "  err=\$(cat /tmp/aider-version.err 2>/dev/null || true); " +
+                "  mod=\$(printf '%s\\n' \"\$err\" | sed -n \"s/.*No module named '\\([^']*\\)'.*/\\1/p\" | head -n1); " +
+                "  if [ -z \"\$mod\" ]; then " +
+                "    mod=\$(printf '%s\\n' \"\$err\" | sed -n \"s/.*ModuleNotFoundError: No module named \\\"\\([^\\\"]*\\)\\\".*/\\1/p\" | head -n1); " +
+                "  fi; " +
+                "  if [ -z \"\$mod\" ]; then " +
+                "    echo \"\$err\" >&2; exit 1; " +
+                "  fi; " +
+                "  pkg=\"\$mod\"; " +
+                "  case \"\$mod\" in PIL) pkg=Pillow ;; cv2) pkg=opencv-python-headless ;; esac; " +
+                "  echo \"Installing missing module: \$pkg\" >&2; " +
+                "  $VENV_PIP install --no-cache-dir --prefer-binary --retries 3 --timeout 90 \"\$pkg\" || " +
+                "  $VENV_PIP install --no-cache-dir --prefer-binary --retries 3 --timeout 90 \"\$(echo \"\$pkg\" | tr '[:upper:]' '[:lower:]')\" || true; " +
+                "done; " +
+                "if ! /$VENV_BIN_AIDER --version >/tmp/aider-version.out 2>/tmp/aider-version.err; then " +
+                "  echo 'aider --version failed after dependency repair:' >&2; " +
+                "  cat /tmp/aider-version.err >&2; exit 1; " +
+                "fi; " +
                 "command -v aider >/dev/null",
         )
         val versionLine =
