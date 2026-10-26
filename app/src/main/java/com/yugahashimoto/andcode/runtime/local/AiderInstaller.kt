@@ -5,14 +5,9 @@ import java.io.File
 /**
  * Fast Aider install for Alpine/PRoot (not Termux).
  *
- * [infinityempire/aider-termux](https://github.com/infinityempire/aider-termux) works on Termux
- * because its `pip install aider` can use Android wheels / a more permissive Python. Inside this
- * app the guest is **Alpine musl** — the same command pulls `tree-sitter-language-pack` and tries
- * to compile it with cargo/maturin (hours / failure).
- *
- * We follow the pure-deps list from skoll43/aider-chat-termux-wheels but install **every** package
- * with `--no-deps` so pip never resolves into native build deps. Optional binary wheels only via
- * `--only-binary=:all:`.
+ * Uses pure-deps with `--no-deps` so pip never pulls `tree-sitter-language-pack` (cargo).
+ * Writes [resolv.conf] before any network call — proot guests often have an empty/broken
+ * resolver which surfaces as `Failed to resolve 'pypi.org' (Errno -3)`.
  */
 object AiderInstaller {
     const val VENV_REL = "usr/local/lib/aider-venv"
@@ -38,6 +33,15 @@ object AiderInstaller {
         runShell: (String) -> Unit,
         onProgress: (Float) -> Unit = {},
     ) {
+        // DNS inside proot: always pin public resolvers before apk/pip/wget.
+        File(rootfs, "etc").mkdirs()
+        File(rootfs, "etc/resolv.conf").writeText(
+            "nameserver 1.1.1.1\nnameserver 8.8.8.8\nnameserver 9.9.9.9\n",
+        )
+        if (!File(rootfs, "etc/hosts").isFile) {
+            File(rootfs, "etc/hosts").writeText("127.0.0.1 localhost\n::1 localhost\n")
+        }
+
         onProgress(0.05f)
         runShell(
             "apk add --no-cache python3 py3-pip py3-virtualenv py3-setuptools py3-wheel git " +
@@ -46,38 +50,52 @@ object AiderInstaller {
         onProgress(0.12f)
         runShell("rm -rf /$VENV_REL && python3 -m venv /$VENV_REL")
         onProgress(0.18f)
-        runShell("$VENV_PIP install --upgrade pip setuptools wheel")
+        // Offline-friendly upgrade when already present; network only if needed.
+        runShell(
+            "$VENV_PIP install --upgrade pip setuptools wheel " +
+                "--retries 5 --timeout 60 || true",
+        )
         onProgress(0.24f)
 
-        // Critical: --no-deps so grep-ast etc. do NOT pull tree-sitter-language-pack (cargo build).
+        // Fetch pure-deps with retries; fail with a clear DNS/network hint.
         runShell(
-            "wget -q -O /tmp/aider-pure-deps.txt '$PURE_DEPS_URL' && " +
-                "$VENV_PIP install --no-cache-dir --no-deps -r /tmp/aider-pure-deps.txt",
+            "set -e; " +
+                "ok=0; " +
+                "for i in 1 2 3 4 5; do " +
+                "  if wget -q -O /tmp/aider-pure-deps.txt '$PURE_DEPS_URL'; then ok=1; break; fi; " +
+                "  sleep 2; " +
+                "done; " +
+                "if [ \"\$ok\" != 1 ]; then " +
+                "  echo 'Network/DNS failed while downloading Aider dependency list from GitHub.' >&2; " +
+                "  echo 'Check Wi‑Fi/VPN, then Retry. Guest resolv.conf uses 1.1.1.1 / 8.8.8.8.' >&2; " +
+                "  exit 1; " +
+                "fi; " +
+                "$VENV_PIP install --no-cache-dir --no-deps --retries 5 --timeout 60 " +
+                "-r /tmp/aider-pure-deps.txt",
         )
         onProgress(0.55f)
 
-        // Musllinux wheels only — if missing, skip (do not fall back to source).
         runShell(
-            "$VENV_PIP install --no-cache-dir --only-binary=:all: " +
+            "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 3 --timeout 60 " +
                 "pydantic-core jiter orjson pyyaml regex aiohttp yarl multidict " +
                 "frozenlist propcache " +
                 "2>/dev/null || " +
-                "$VENV_PIP install --no-cache-dir --only-binary=:all: pydantic-core aiohttp pyyaml " +
+                "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 3 --timeout 60 " +
+                "pydantic-core aiohttp pyyaml " +
                 "2>/dev/null || true",
         )
         onProgress(0.68f)
 
-        // Optional tree-sitter wheel only — never language-pack, never source.
         runShell(
-            "$VENV_PIP install --no-cache-dir --only-binary=:all: tree-sitter 2>/dev/null || true",
+            "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 2 --timeout 30 " +
+                "tree-sitter 2>/dev/null || true",
         )
         onProgress(0.75f)
 
-        // Aider application code only.
         runShell(
-            "$VENV_PIP install --no-cache-dir --no-deps " +
+            "$VENV_PIP install --no-cache-dir --no-deps --retries 5 --timeout 90 " +
                 "'git+https://github.com/Aider-AI/aider.git' || " +
-                "$VENV_PIP install --no-cache-dir --no-deps aider-chat",
+                "$VENV_PIP install --no-cache-dir --no-deps --retries 5 --timeout 90 aider-chat",
         )
         onProgress(0.90f)
 
@@ -85,8 +103,6 @@ object AiderInstaller {
             "set -e; mkdir -p /usr/local/bin; " +
                 "test -x /$VENV_BIN_AIDER; " +
                 "ln -sfn /$VENV_BIN_AIDER /usr/local/bin/aider; " +
-                "/usr/local/bin/aider --help >/dev/null 2>&1 || " +
-                "/$VENV_BIN_AIDER --help >/dev/null 2>&1 || true; " +
                 "command -v aider >/dev/null",
         )
         File(rootfs, AiderManifest.MARKER_REL).apply {
