@@ -72,9 +72,9 @@ object AiderInstaller {
         runShell(
             "$VENV_PIP install --no-cache-dir --prefer-binary --retries 3 --timeout 90 " +
                 "Pillow numpy mixpanel posthog pydantic pydantic-core aiohttp httpx openai " +
-                "pyyaml regex orjson 2>/dev/null || " +
+                "pyyaml regex orjson audioop-lts 2>/dev/null || " +
                 "$VENV_PIP install --no-cache-dir --prefer-binary --retries 3 --timeout 90 " +
-                "Pillow mixpanel pydantic aiohttp httpx openai || true",
+                "Pillow mixpanel pydantic aiohttp httpx openai audioop-lts || true",
         )
         onProgress(0.60f)
 
@@ -105,7 +105,7 @@ object AiderInstaller {
                 "    echo \"\$err\" >&2; exit 1; " +
                 "  fi; " +
                 "  pkg=\"\$mod\"; " +
-                "  case \"\$mod\" in PIL) pkg=Pillow ;; cv2) pkg=opencv-python-headless ;; esac; " +
+                "  case \"\$mod\" in PIL) pkg=Pillow ;; audioop) pkg=audioop-lts ;; cv2) pkg=opencv-python-headless ;; esac; " +
                 "  echo \"Installing missing module: \$pkg\" >&2; " +
                 "  $VENV_PIP install --no-cache-dir --prefer-binary --retries 3 --timeout 90 \"\$pkg\" || " +
                 "  $VENV_PIP install --no-cache-dir --prefer-binary --retries 3 --timeout 90 \"\$(echo \"\$pkg\" | tr '[:upper:]' '[:lower:]')\" || true; " +
