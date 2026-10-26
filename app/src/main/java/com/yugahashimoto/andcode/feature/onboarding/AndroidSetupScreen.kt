@@ -74,6 +74,8 @@ import com.yugahashimoto.andcode.feature.workspace.CodexCard
 import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
+import com.yugahashimoto.andcode.runtime.local.AiderInstallStatus
+import com.yugahashimoto.andcode.runtime.local.AiderUiState
 import com.yugahashimoto.andcode.runtime.local.AntigravityControllerState
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeUiState
 import com.yugahashimoto.andcode.runtime.local.ClaudeInstallStatus
@@ -83,8 +85,6 @@ import com.yugahashimoto.andcode.runtime.local.CodexUiState
 import com.yugahashimoto.andcode.runtime.local.GrokBuildInstallStatus
 import com.yugahashimoto.andcode.runtime.local.GrokBuildUiState
 import com.yugahashimoto.andcode.runtime.local.HermesInstallStatus
-import com.yugahashimoto.andcode.runtime.local.AiderInstallStatus
-import com.yugahashimoto.andcode.runtime.local.AiderUiState
 import com.yugahashimoto.andcode.runtime.local.HermesUiState
 import com.yugahashimoto.andcode.runtime.local.PiInstallStatus
 import com.yugahashimoto.andcode.runtime.local.PiUiState
