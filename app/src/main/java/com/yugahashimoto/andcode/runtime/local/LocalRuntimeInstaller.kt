@@ -638,8 +638,8 @@ class LocalRuntimeInstaller(
                     suite = suite,
                     shell = cmd,
                     logName = "aider-install.log",
-                    // Native wheels (tree-sitter) on aarch64/musl can exceed 20 minutes on-device.
-                    timeoutMinutes = 60L,
+                    // Fast path: pure-deps + prefer-binary only (no on-device native compile).
+                    timeoutMinutes = 15L,
                 )
             },
             onProgress = onProgress,
