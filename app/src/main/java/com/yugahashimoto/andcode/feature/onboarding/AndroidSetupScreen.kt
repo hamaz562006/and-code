@@ -219,6 +219,7 @@ fun AndroidSetupScreen(
             LocalAgent.PI.takeIf { piSelected && pi.installed },
             LocalAgent.GROK_BUILD.takeIf { grokSelected && grok.installed },
             LocalAgent.HERMES.takeIf { hermesSelected && hermes.installed },
+            LocalAgent.AIDER.takeIf { aiderSelected && (aider.installed || aiderReady) },
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
@@ -356,6 +357,19 @@ fun AndroidSetupScreen(
         val app = context.applicationContext as? AndCodeApplication
         if (app != null) {
             app.runtimeRegistry.select(app.hermesTarget.id)
+        }
+        if (settingsState.availableProviders.isNotEmpty()) return@LaunchedEffect
+        delay(300)
+        onRefreshProviderAuth()
+    }
+
+    // Aider is independent of OpenCode: select its target so step-4 providers come from AiderTarget.
+    LaunchedEffect(aiderSelected, aiderReady, currentStep, settingsState.availableProviders) {
+        if (!aiderSelected || !aiderReady) return@LaunchedEffect
+        if (currentStep != 4) return@LaunchedEffect
+        val app = context.applicationContext as? AndCodeApplication
+        if (app != null) {
+            app.runtimeRegistry.select(app.aiderTarget.id)
         }
         if (settingsState.availableProviders.isNotEmpty()) return@LaunchedEffect
         delay(300)
