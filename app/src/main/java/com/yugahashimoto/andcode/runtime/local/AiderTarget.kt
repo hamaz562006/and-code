@@ -151,7 +151,10 @@ class AiderTarget(
             runtime.renameSession(sessionId, title)
         }
 
-    override suspend fun listMessages(sessionId: String): List<OpenCodeMessage> = withContext(Dispatchers.IO) { runtime.listMessages(sessionId) }
+    override suspend fun listMessages(sessionId: String): List<OpenCodeMessage> =
+        withContext(Dispatchers.IO) {
+            runtime.listMessages(sessionId)
+        }
 
     override suspend fun sendMessage(
         sessionId: String,
