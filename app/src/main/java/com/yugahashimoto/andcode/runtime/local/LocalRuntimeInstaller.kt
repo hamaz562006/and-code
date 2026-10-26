@@ -638,6 +638,8 @@ class LocalRuntimeInstaller(
                     suite = suite,
                     shell = cmd,
                     logName = "aider-install.log",
+                    // Native wheels (tree-sitter) on aarch64/musl can exceed 20 minutes on-device.
+                    timeoutMinutes = 60L,
                 )
             },
             onProgress = onProgress,
@@ -650,6 +652,7 @@ class LocalRuntimeInstaller(
         suite: EmbeddedCommandSuite.Paths,
         shell: String,
         logName: String,
+        timeoutMinutes: Long = 20L,
     ) {
         val prootTmp = File(runtimeDirectory, "proot-tmp").apply { mkdirs() }
         val command =
@@ -691,7 +694,7 @@ class LocalRuntimeInstaller(
                     environment().putAll(suite.environment())
                     environment()["PROOT_TMP_DIR"] = prootTmp.absolutePath
                 }.start()
-        val completed = process.waitFor(20, java.util.concurrent.TimeUnit.MINUTES)
+        val completed = process.waitFor(timeoutMinutes, java.util.concurrent.TimeUnit.MINUTES)
         if (!completed) {
             process.destroyForcibly()
             error("Command timed out ($logName).\n${installLog.readText().takeLast(4000)}")
