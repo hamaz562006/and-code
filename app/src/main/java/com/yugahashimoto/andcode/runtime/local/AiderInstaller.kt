@@ -3,18 +3,16 @@ package com.yugahashimoto.andcode.runtime.local
 import java.io.File
 
 /**
- * Installs Aider into the Alpine/PRoot rootfs **without compiling native code on-device**.
+ * Fast Aider install for Alpine/PRoot (not Termux).
  *
- * Termux guides (infinityempire/aider-termux, skoll43/aider-chat-termux-wheels) rely on
- * Termux apt + android_24 wheels — those wheels do **not** load inside this app's Alpine musl
- * Python. Compiling `tree-sitter-language-pack` on-phone hung for hours.
+ * [infinityempire/aider-termux](https://github.com/infinityempire/aider-termux) works on Termux
+ * because its `pip install aider` can use Android wheels / a more permissive Python. Inside this
+ * app the guest is **Alpine musl** — the same command pulls `tree-sitter-language-pack` and tries
+ * to compile it with cargo/maturin (hours / failure).
  *
- * Strategy (fast, Alpine-compatible):
- * 1. venv (PEP 668)
- * 2. pure-python deps (skoll43 pure-deps-pinned.txt)
- * 3. binary-preferring wheels from PyPI where musllinux exists (pydantic, aiohttp, …)
- * 4. `aider-chat` with `--no-deps` from git main
- * 5. optional `tree-sitter` wheel only — never build language-pack from source
+ * We follow the pure-deps list from skoll43/aider-chat-termux-wheels but install **every** package
+ * with `--no-deps` so pip never resolves into native build deps. Optional binary wheels only via
+ * `--only-binary=:all:`.
  */
 object AiderInstaller {
     const val VENV_REL = "usr/local/lib/aider-venv"
@@ -41,52 +39,54 @@ object AiderInstaller {
         onProgress: (Float) -> Unit = {},
     ) {
         onProgress(0.05f)
-        // No build-base / cargo — we must not compile tree-sitter on-device.
         runShell(
-            "apk add --no-cache python3 py3-pip py3-virtualenv py3-setuptools py3-wheel git ca-certificates",
+            "apk add --no-cache python3 py3-pip py3-virtualenv py3-setuptools py3-wheel git " +
+                "ca-certificates wget",
         )
         onProgress(0.12f)
         runShell("rm -rf /$VENV_REL && python3 -m venv /$VENV_REL")
         onProgress(0.18f)
         runShell("$VENV_PIP install --upgrade pip setuptools wheel")
-        onProgress(0.25f)
+        onProgress(0.24f)
 
-        // Pure-python pins from the Termux wheels project (no binary builds).
+        // Critical: --no-deps so grep-ast etc. do NOT pull tree-sitter-language-pack (cargo build).
         runShell(
             "wget -q -O /tmp/aider-pure-deps.txt '$PURE_DEPS_URL' && " +
-                "$VENV_PIP install --no-cache-dir -r /tmp/aider-pure-deps.txt",
+                "$VENV_PIP install --no-cache-dir --no-deps -r /tmp/aider-pure-deps.txt",
         )
         onProgress(0.55f)
 
-        // Binary deps that usually have musllinux wheels on PyPI — never force source builds.
+        // Musllinux wheels only — if missing, skip (do not fall back to source).
         runShell(
-            "$VENV_PIP install --no-cache-dir --prefer-binary --only-binary=:all: " +
-                "pydantic-core jiter orjson pyyaml regex aiohttp yarl multidict frozenlist " +
+            "$VENV_PIP install --no-cache-dir --only-binary=:all: " +
+                "pydantic-core jiter orjson pyyaml regex aiohttp yarl multidict " +
+                "frozenlist propcache " +
                 "2>/dev/null || " +
-                "$VENV_PIP install --no-cache-dir --prefer-binary " +
-                "pydantic pydantic-core aiohttp pyyaml",
-        )
-        onProgress(0.70f)
-
-        // Optional tree-sitter wheel only (skip if no musl wheel — aider still runs, weaker repo-map).
-        runShell(
-            "$VENV_PIP install --no-cache-dir --prefer-binary --only-binary=:all: tree-sitter " +
+                "$VENV_PIP install --no-cache-dir --only-binary=:all: pydantic-core aiohttp pyyaml " +
                 "2>/dev/null || true",
         )
-        onProgress(0.78f)
+        onProgress(0.68f)
 
-        // Aider itself (pure Python) — no dependency resolver pulling language-pack source builds.
+        // Optional tree-sitter wheel only — never language-pack, never source.
+        runShell(
+            "$VENV_PIP install --no-cache-dir --only-binary=:all: tree-sitter 2>/dev/null || true",
+        )
+        onProgress(0.75f)
+
+        // Aider application code only.
         runShell(
             "$VENV_PIP install --no-cache-dir --no-deps " +
                 "'git+https://github.com/Aider-AI/aider.git' || " +
-                "$VENV_PIP install --no-cache-dir --no-deps 'aider-chat'",
+                "$VENV_PIP install --no-cache-dir --no-deps aider-chat",
         )
-        onProgress(0.92f)
+        onProgress(0.90f)
 
         runShell(
             "set -e; mkdir -p /usr/local/bin; " +
                 "test -x /$VENV_BIN_AIDER; " +
                 "ln -sfn /$VENV_BIN_AIDER /usr/local/bin/aider; " +
+                "/usr/local/bin/aider --help >/dev/null 2>&1 || " +
+                "/$VENV_BIN_AIDER --help >/dev/null 2>&1 || true; " +
                 "command -v aider >/dev/null",
         )
         File(rootfs, AiderManifest.MARKER_REL).apply {
