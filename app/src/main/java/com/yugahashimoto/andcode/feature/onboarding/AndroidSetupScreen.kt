@@ -83,6 +83,8 @@ import com.yugahashimoto.andcode.runtime.local.CodexUiState
 import com.yugahashimoto.andcode.runtime.local.GrokBuildInstallStatus
 import com.yugahashimoto.andcode.runtime.local.GrokBuildUiState
 import com.yugahashimoto.andcode.runtime.local.HermesInstallStatus
+import com.yugahashimoto.andcode.runtime.local.AiderInstallStatus
+import com.yugahashimoto.andcode.runtime.local.AiderUiState
 import com.yugahashimoto.andcode.runtime.local.HermesUiState
 import com.yugahashimoto.andcode.runtime.local.PiInstallStatus
 import com.yugahashimoto.andcode.runtime.local.PiUiState
@@ -126,6 +128,7 @@ fun AndroidSetupScreen(
     pi: PiUiState = PiUiState(),
     grok: GrokBuildUiState = GrokBuildUiState(),
     hermes: HermesUiState = HermesUiState(),
+    aider: AiderUiState = AiderUiState(),
     /** Codex signs in through its own dialog state, not [settingsState]'s, which is OpenCode's. */
     codexSignInDialog: ProviderAuthDialogState? = null,
     codexSignIn: CodexSignInActions =
@@ -192,6 +195,7 @@ fun AndroidSetupScreen(
     val piSelected = LocalAgent.PI in selectedAgents
     val grokSelected = LocalAgent.GROK_BUILD in selectedAgents
     val hermesSelected = LocalAgent.HERMES in selectedAgents
+    val aiderSelected = LocalAgent.AIDER in selectedAgents
     val openCodeReady = runtimeStatus is LocalRuntimeStatus.Ready || runtimeStatus is LocalRuntimeStatus.Stopped
     val antigravityReady = antigravitySelected && antigravity.installed && !antigravity.busy
     val codexReady = codex.installed && codex.install !is CodexInstallStatus.Installing && codex.install !is CodexInstallStatus.Failed
@@ -201,6 +205,7 @@ fun AndroidSetupScreen(
     val piReady = pi.isReady()
     val grokReady = grok.isReady()
     val hermesReady = hermes.isReady()
+    val aiderReady = aider.isReady()
     // Only what is selected *and* actually on the device: an agent whose binary is missing has no
     // sign-in to offer, and Claude Code's card would shell out to /usr/bin/claude and fail there.
     // OpenCode, Claude Code, Antigravity - the same order the picker lists them in, so the guide
@@ -229,6 +234,7 @@ fun AndroidSetupScreen(
             pi.install is PiInstallStatus.Installing ||
             grok.install is GrokBuildInstallStatus.Installing ||
             hermes.install is HermesInstallStatus.Installing ||
+            aider.install is AiderInstallStatus.Installing ||
             antigravity.busy
     val selectedDevGroups = selectedDevToolGroupIds.mapNotNull { DevelopmentToolGroup.fromId(it) }.toSet()
     val fullToolsReady = selectedDevGroups.isEmpty() || fullDevelopmentToolsInstalled
@@ -240,6 +246,7 @@ fun AndroidSetupScreen(
             (!piSelected || piReady) &&
             (!grokSelected || grokReady) &&
             (!hermesSelected || hermesReady) &&
+            (!aiderSelected || aiderReady) &&
             fullToolsReady
     val installComplete = agentsInstallComplete && !fullToolsInstallPending
 
@@ -728,6 +735,12 @@ private fun AgentSelectionStep(
             selected = LocalAgent.HERMES in selectedAgents,
             onToggle = { onToggle(LocalAgent.HERMES) },
         )
+        AgentOption(
+            title = stringResource(R.string.agent_aider_name),
+            description = stringResource(R.string.setup_agent_aider_desc),
+            selected = LocalAgent.AIDER in selectedAgents,
+            onToggle = { onToggle(LocalAgent.AIDER) },
+        )
         if (selectedAgents.size >= 2) {
             Text(
                 text = stringResource(R.string.setup_runtime_shared_note),
@@ -911,6 +924,7 @@ private fun RuntimeDownloadStep(
     grok: GrokBuildUiState = GrokBuildUiState(),
     hermesSelected: Boolean = false,
     hermes: HermesUiState = HermesUiState(),
+    aider: AiderUiState = AiderUiState(),
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
     // each step is shown under the agent it names. Without this the OpenCode panel displayed
