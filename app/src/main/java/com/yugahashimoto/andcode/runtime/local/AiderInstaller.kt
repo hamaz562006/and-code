@@ -5,9 +5,10 @@ import java.io.File
 /**
  * Installs [Aider](https://github.com/Aider-AI/aider) into the shared Alpine/PRoot rootfs.
  *
- * Alpine marks system Python as PEP 668 "externally managed", so `pip install` into the system
- * site-packages fails. We install into a dedicated virtualenv under [VENV_REL] and put a shim on
- * PATH at `/usr/local/bin/aider` — same idea as the Termux installer, adapted for apk/Alpine.
+ * Alpine marks system Python as PEP 668 "externally managed", so pip goes into a dedicated venv
+ * under [VENV_REL]. Dependencies such as `tree-sitter` often lack musl wheels and need a C
+ * compiler (`build-base`) to build from source — without it pip fails with `No such file or
+ * directory: 'cc'`.
  */
 object AiderInstaller {
     const val VENV_REL = "usr/local/lib/aider-venv"
@@ -34,36 +35,38 @@ object AiderInstaller {
         onProgress: (Float) -> Unit = {},
     ) {
         onProgress(0.05f)
-        // Python + venv support via apk (no system pip into dist-packages).
+        // Python + venv + C toolchain for native wheels (tree-sitter et al. on musl/aarch64).
         runShell(
-            "apk add --no-cache python3 py3-pip py3-virtualenv py3-setuptools py3-wheel git || " +
-                "apk add --no-cache python3 py3-pip py3-virtualenv git",
+            "apk add --no-cache " +
+                "python3 py3-pip py3-virtualenv py3-setuptools py3-wheel git " +
+                "build-base python3-dev libffi-dev openssl-dev cargo rust || " +
+                "apk add --no-cache python3 py3-pip py3-virtualenv git build-base python3-dev",
         )
-        onProgress(0.20f)
-        // Fresh venv so retries do not fight a half-installed tree.
+        onProgress(0.18f)
         runShell(
             "rm -rf /$VENV_REL && " +
                 "python3 -m venv /$VENV_REL",
         )
-        onProgress(0.35f)
+        onProgress(0.28f)
         runShell(
             "/$VENV_REL/bin/pip install --upgrade pip setuptools wheel",
         )
-        onProgress(0.50f)
-        // Prefer PyPI; fall back to upstream git (Aider-AI org).
+        onProgress(0.38f)
+        // Prefer binary wheels when available; still allow source builds now that cc exists.
         runShell(
-            "/$VENV_REL/bin/pip install --no-cache-dir 'aider-chat' || " +
+            "export CC=cc CXX=c++ " +
+                "PATH=/usr/bin:/usr/local/bin:\$PATH; " +
+                "/$VENV_REL/bin/pip install --no-cache-dir 'aider-chat' || " +
                 "/$VENV_REL/bin/pip install --no-cache-dir " +
                 "'git+https://github.com/Aider-AI/aider.git'",
         )
-        onProgress(0.85f)
+        onProgress(0.88f)
         runShell(
             "set -e; " +
                 "mkdir -p /usr/local/bin; " +
                 "test -x /$VENV_BIN_AIDER; " +
                 "ln -sfn /$VENV_BIN_AIDER /usr/local/bin/aider; " +
-                "command -v aider >/dev/null; " +
-                "aider --version >/dev/null 2>&1 || true",
+                "command -v aider >/dev/null",
         )
         File(rootfs, AiderManifest.MARKER_REL).apply {
             parentFile?.mkdirs()
