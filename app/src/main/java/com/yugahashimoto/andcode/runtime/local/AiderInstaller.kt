@@ -3,26 +3,21 @@ package com.yugahashimoto.andcode.runtime.local
 import java.io.File
 
 /**
- * Installs [Aider](https://github.com/paul-gauthier/aider) into the shared Alpine/PRoot rootfs
- * following the Termux-oriented flow from infinityempire/aider-termux (python + pip + aider).
+ * Installs [Aider](https://github.com/Aider-AI/aider) into the shared Alpine/PRoot rootfs.
  *
- * Independent of OpenCode — only uses the shared rootfs and [LocalRuntimeCommandRunner] shell.
+ * Alpine marks system Python as PEP 668 "externally managed", so `pip install` into the system
+ * site-packages fails. We install into a dedicated virtualenv under [VENV_REL] and put a shim on
+ * PATH at `/usr/local/bin/aider` — same idea as the Termux installer, adapted for apk/Alpine.
  */
 object AiderInstaller {
+    const val VENV_REL = "usr/local/lib/aider-venv"
+    private const val VENV_BIN_AIDER = "$VENV_REL/bin/aider"
+    private const val SHIM_REL = "usr/local/bin/aider"
+
     fun isInstalledIn(rootfs: File): Boolean {
-        val candidates =
-            listOf(
-                File(rootfs, "usr/bin/aider"),
-                File(rootfs, "usr/local/bin/aider"),
-                File(rootfs, "root/.local/bin/aider"),
-            )
-        if (candidates.any { it.isFile }) return true
-        // Fallback: marker + python entrypoint script under site-packages bin
-        val marker = File(rootfs, AiderManifest.MARKER_REL)
-        if (!marker.isFile) return false
-        return File(rootfs, "usr/bin/aider").isFile ||
-            File(rootfs, "usr/local/bin/aider").isFile ||
-            candidates.any { it.isFile }
+        val shim = File(rootfs, SHIM_REL)
+        val venvAider = File(rootfs, VENV_BIN_AIDER)
+        return (shim.isFile || venvAider.isFile) && File(rootfs, AiderManifest.MARKER_REL).isFile
     }
 
     fun installedVersion(rootfs: File): String? {
@@ -39,37 +34,43 @@ object AiderInstaller {
         onProgress: (Float) -> Unit = {},
     ) {
         onProgress(0.05f)
-        // Alpine packages for python tooling
+        // Python + venv support via apk (no system pip into dist-packages).
         runShell(
-            "apk add --no-cache python3 py3-pip py3-setuptools py3-wheel git build-base linux-headers || " +
-                "apk add --no-cache python3 py3-pip git",
+            "apk add --no-cache python3 py3-pip py3-virtualenv py3-setuptools py3-wheel git || " +
+                "apk add --no-cache python3 py3-pip py3-virtualenv git",
         )
-        onProgress(0.25f)
-        runShell("python3 -m pip install --upgrade pip setuptools wheel || true")
-        onProgress(0.40f)
-        // Prefer PyPI package; fall back to git like aider-termux install.sh
+        onProgress(0.20f)
+        // Fresh venv so retries do not fight a half-installed tree.
         runShell(
-            "python3 -m pip install --no-cache-dir 'aider-chat' || " +
-                "python3 -m pip install --no-cache-dir 'git+https://github.com/paul-gauthier/aider.git'",
+            "rm -rf /$VENV_REL && " +
+                "python3 -m venv /$VENV_REL",
+        )
+        onProgress(0.35f)
+        runShell(
+            "/$VENV_REL/bin/pip install --upgrade pip setuptools wheel",
+        )
+        onProgress(0.50f)
+        // Prefer PyPI; fall back to upstream git (Aider-AI org).
+        runShell(
+            "/$VENV_REL/bin/pip install --no-cache-dir 'aider-chat' || " +
+                "/$VENV_REL/bin/pip install --no-cache-dir " +
+                "'git+https://github.com/Aider-AI/aider.git'",
         )
         onProgress(0.85f)
-        // Ensure a stable shim on PATH
-        val localBin = File(rootfs, "usr/local/bin")
-        localBin.mkdirs()
-        val shim = File(localBin, AiderManifest.BINARY_NAME)
-        if (!File(rootfs, "usr/bin/aider").isFile && !shim.isFile) {
-            // try find site-packages scripts
-            runShell(
-                "AID=\$(command -v aider || true); " +
-                    "if [ -n \"\$AID\" ]; then ln -sf \"\$AID\" /usr/local/bin/aider; fi",
-            )
-        }
+        runShell(
+            "set -e; " +
+                "mkdir -p /usr/local/bin; " +
+                "test -x /$VENV_BIN_AIDER; " +
+                "ln -sfn /$VENV_BIN_AIDER /usr/local/bin/aider; " +
+                "command -v aider >/dev/null; " +
+                "aider --version >/dev/null 2>&1 || true",
+        )
         File(rootfs, AiderManifest.MARKER_REL).apply {
             parentFile?.mkdirs()
             writeText("ok\n")
         }
         File(rootfs, AiderManifest.VERSION_REL).writeText(AiderManifest.VERSION + "\n")
         onProgress(1f)
-        require(isInstalledIn(rootfs)) { "Aider install finished but binary/marker not found" }
+        require(isInstalledIn(rootfs)) { "Aider install finished but venv binary/shim not found" }
     }
 }

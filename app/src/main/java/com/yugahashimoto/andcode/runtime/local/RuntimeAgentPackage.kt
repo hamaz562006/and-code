@@ -171,8 +171,7 @@ object RuntimeAgentPackage {
             }
             LocalAgent.AIDER -> {
                 addIfExists(paths, rootfs, "usr/local/bin/aider")
-                addIfExists(paths, rootfs, "usr/bin/aider")
-                addIfExists(paths, rootfs, "root/.local/bin/aider")
+                addIfExists(paths, rootfs, AiderInstaller.VENV_REL)
                 addIfExists(paths, rootfs, AiderManifest.MARKER_REL)
                 addIfExists(paths, rootfs, AiderManifest.VERSION_REL)
                 if (includeConfig) {
