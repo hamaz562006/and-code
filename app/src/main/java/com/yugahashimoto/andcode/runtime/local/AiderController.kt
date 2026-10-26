@@ -2,6 +2,7 @@ package com.yugahashimoto.andcode.runtime.local
 
 import com.yugahashimoto.andcode.core.runtime.RuntimeWorkTracker
 import com.yugahashimoto.andcode.runtime.LocalAgent
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +37,11 @@ data class AiderUiState(
             install !is AiderInstallStatus.Failed
 }
 
+/**
+ * Owns Aider install UI state. Mirrors [PiController] / [HermesController] so setup step 3 does not
+ * flip back to "Not installed" while an install is in flight (rehydrate must preserve Installing
+ * and Failed).
+ */
 class AiderController(
     private val runtime: AiderRuntime,
     private val target: AiderTarget,
@@ -56,11 +62,19 @@ class AiderController(
 
     private suspend fun rehydrate() {
         val installed = runtime.isInstalled()
-        mutableState.update {
-            it.copy(
+        val version = runtime.installedVersion()
+        mutableState.update { current ->
+            val install =
+                when {
+                    installed -> AiderInstallStatus.Ready
+                    current.install is AiderInstallStatus.Installing -> current.install
+                    current.install is AiderInstallStatus.Failed -> current.install
+                    else -> AiderInstallStatus.Idle
+                }
+            current.copy(
                 installed = installed,
-                version = runtime.installedVersion(),
-                install = if (installed) AiderInstallStatus.Ready else AiderInstallStatus.Idle,
+                version = version,
+                install = install,
             )
         }
         if (installed) {
@@ -70,7 +84,7 @@ class AiderController(
 
     fun install(agents: Set<LocalAgent> = setOf(LocalAgent.AIDER)) {
         if (mutableState.value.install is AiderInstallStatus.Installing) return
-        mutableState.update { it.copy(install = AiderInstallStatus.Installing()) }
+        mutableState.update { it.copy(install = AiderInstallStatus.Installing(progress = 0f, step = "Starting")) }
         scope.launch {
             runtimeWork.withLease("install-aider") {
                 try {
@@ -90,10 +104,23 @@ class AiderController(
                         }
                         installer.recordAgent(LocalAgent.AIDER)
                     }
-                    mutableState.update { it.copy(install = AiderInstallStatus.Ready) }
-                    runCatching { rehydrate() }
-                } catch (e: Exception) {
-                    mutableState.update { it.copy(install = AiderInstallStatus.Failed(e.message)) }
+                    if (!runtime.isInstalled()) {
+                        error("Aider install finished but the agent is still not installed")
+                    }
+                    mutableState.update {
+                        it.copy(
+                            installed = true,
+                            version = runtime.installedVersion(),
+                            install = AiderInstallStatus.Ready,
+                        )
+                    }
+                    runCatching { target.connect() }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (error: Throwable) {
+                    val detail = error.cause?.message?.takeIf { it.isNotBlank() }
+                    val message = listOfNotNull(error.message, detail).joinToString(": ").ifBlank { null }
+                    mutableState.update { it.copy(install = AiderInstallStatus.Failed(message)) }
                 }
             }
         }

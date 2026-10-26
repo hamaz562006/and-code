@@ -10,16 +10,19 @@ import java.io.File
  */
 object AiderInstaller {
     fun isInstalledIn(rootfs: File): Boolean {
-        val marker = File(rootfs, AiderManifest.MARKER_REL)
-        if (!marker.isFile) return false
-        // Prefer real binary on PATH inside rootfs usr
         val candidates =
             listOf(
                 File(rootfs, "usr/bin/aider"),
                 File(rootfs, "usr/local/bin/aider"),
                 File(rootfs, "root/.local/bin/aider"),
             )
-        return candidates.any { it.isFile } || marker.isFile
+        if (candidates.any { it.isFile }) return true
+        // Fallback: marker + python entrypoint script under site-packages bin
+        val marker = File(rootfs, AiderManifest.MARKER_REL)
+        if (!marker.isFile) return false
+        return File(rootfs, "usr/bin/aider").isFile ||
+            File(rootfs, "usr/local/bin/aider").isFile ||
+            candidates.any { it.isFile }
     }
 
     fun installedVersion(rootfs: File): String? {
