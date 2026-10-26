@@ -309,6 +309,14 @@ fun AndroidSetupScreen(
             (context.applicationContext as? AndCodeApplication)?.hermesController?.refresh()
         }
     }
+    var aiderInstallWasRunning by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(aiderSelected, packageInstallRunning) {
+        val justFinished = aiderInstallWasRunning && !packageInstallRunning
+        aiderInstallWasRunning = packageInstallRunning
+        if (aiderSelected && justFinished) {
+            (context.applicationContext as? AndCodeApplication)?.aiderController?.refresh()
+        }
+    }
 
     // Safety net: if setup reaches the download step with Hermes selected but install never
     // started (or was reset to Idle), kick it off once. Mirrors the step-2 onStartSetup path.
@@ -319,6 +327,16 @@ fun AndroidSetupScreen(
         if (hermes.install is HermesInstallStatus.Failed) return@LaunchedEffect
         if (hermesAutoStartAttempted) return@LaunchedEffect
         hermesAutoStartAttempted = true
+        onStartSetup(selectedAgents, selectedDevGroups)
+    }
+
+    var aiderAutoStartAttempted by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(currentStep, aiderSelected, aider.install, aider.installed, packageInstallRunning) {
+        if (currentStep != 3 || !aiderSelected || aider.installed) return@LaunchedEffect
+        if (aider.install is AiderInstallStatus.Installing || packageInstallRunning) return@LaunchedEffect
+        if (aider.install is AiderInstallStatus.Failed) return@LaunchedEffect
+        if (aiderAutoStartAttempted) return@LaunchedEffect
+        aiderAutoStartAttempted = true
         onStartSetup(selectedAgents, selectedDevGroups)
     }
 
@@ -484,6 +502,8 @@ fun AndroidSetupScreen(
                         grok = grok,
                         hermesSelected = hermesSelected,
                         hermes = hermes,
+                        aiderSelected = aiderSelected,
+                        aider = aider,
                     )
                 4 ->
                     SignInStep(
@@ -924,6 +944,7 @@ private fun RuntimeDownloadStep(
     grok: GrokBuildUiState = GrokBuildUiState(),
     hermesSelected: Boolean = false,
     hermes: HermesUiState = HermesUiState(),
+    aiderSelected: Boolean = false,
     aider: AiderUiState = AiderUiState(),
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
@@ -1101,6 +1122,55 @@ private fun RuntimeDownloadStep(
                     // Shared install is running but has not reached Hermes' own step yet.
                     installing != null ->
                         Text(stringResource(R.string.install_step_installing_hermes))
+                    else ->
+                        Text(
+                            stringResource(R.string.setup_runtime_not_installed),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                }
+            }
+        }
+        if (aiderSelected) {
+            SetupPanel {
+                Text(stringResource(R.string.agent_aider_name), fontWeight = FontWeight.SemiBold)
+                val step = stepFor(LocalAgent.AIDER)
+                when {
+                    step != null -> SharedInstallProgress(step)
+                    aider.install is AiderInstallStatus.Installing -> {
+                        val inst = aider.install
+                        Text(
+                            inst.step?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.install_step_installing_aider),
+                            fontWeight = FontWeight.Medium,
+                        )
+                        val progress = inst.progress
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Text(
+                                text = "${(progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    aider.install is AiderInstallStatus.Failed ->
+                        Text(
+                            aider.install.message
+                                ?: stringResource(R.string.agent_status_install_failed),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    aider.isReady() ->
+                        ReadyAgentRow(
+                            stringResource(R.string.agent_aider_name) +
+                                (aider.version?.let { " $it" } ?: ""),
+                        )
+                    installing != null ->
+                        Text(stringResource(R.string.install_step_installing_aider))
                     else ->
                         Text(
                             stringResource(R.string.setup_runtime_not_installed),
