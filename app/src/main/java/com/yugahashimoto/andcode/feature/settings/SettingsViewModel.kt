@@ -210,6 +210,7 @@ class SettingsViewModel(
                         core.selected?.agent == LocalAgent.PI ||
                         core.selected?.agent == LocalAgent.GROK_BUILD ||
                         core.selected?.agent == LocalAgent.HERMES ||
+                        core.selected?.agent == LocalAgent.AIDER ||
                         core.selected?.agent == null
                     ) {
                         core.runtime.providers
@@ -234,6 +235,12 @@ class SettingsViewModel(
                 } else {
                     emptyList()
                 }
+            val aiderSeed =
+                if (core.selected?.agent == LocalAgent.AIDER && managed.all.isEmpty()) {
+                    AIDER_SEED_PROVIDERS
+                } else {
+                    emptyList()
+                }
             val customAsProviders =
                 customProviders.definitions().map { def ->
                     OpenCodeProvider(
@@ -253,7 +260,7 @@ class SettingsViewModel(
                 when {
                     managed.all.isNotEmpty() -> managed.all
                     core.selected?.agent == LocalAgent.OPEN_CODE -> emptyList()
-                    else -> piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed } }
+                    else -> piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed.ifEmpty { aiderSeed } } }
                 }
             val mergedAvailable =
                 (listOf(freeProvider, localProvider) + baseAvailable + customAsProviders).distinctBy { it.id }
@@ -267,7 +274,7 @@ class SettingsViewModel(
                             core.selected?.agent == LocalAgent.OPEN_CODE -> listOf(freeProvider)
                             else ->
                                 listOf(freeProvider) +
-                                    piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed } }
+                                    piSeed.ifEmpty { grokSeed.ifEmpty { hermesSeed.ifEmpty { aiderSeed } } }
                         }
                     ).distinctBy { it.id }.filter { it.id in freeConnected },
                 availableProviders = mergedAvailable,
@@ -932,6 +939,52 @@ class SettingsViewModel(
         const val TAG = "SettingsVM"
         const val AUTO_OAUTH_TIMEOUT_MS = 6 * 60 * 1000L
         const val AUTO_OAUTH_POLL_MS = 3000L
+
+        val AIDER_SEED_PROVIDERS =
+            listOf(
+                OpenCodeProvider(
+                    id = "google",
+                    name = "Google AI Studio",
+                    models =
+                        mapOf(
+                            "gemini-2.5-flash" to
+                                OpenCodeModel(
+                                    id = "gemini-2.5-flash",
+                                    providerId = "google",
+                                    name = "Gemini 2.5 Flash",
+                                ),
+                            "gemini-2.0-flash" to
+                                OpenCodeModel(
+                                    id = "gemini-2.0-flash",
+                                    providerId = "google",
+                                    name = "Gemini 2.0 Flash",
+                                ),
+                        ),
+                ),
+                OpenCodeProvider(
+                    id = "openai",
+                    name = "OpenAI",
+                    models =
+                        mapOf(
+                            "gpt-4o" to OpenCodeModel(id = "gpt-4o", providerId = "openai", name = "GPT-4o"),
+                            "gpt-4o-mini" to
+                                OpenCodeModel(id = "gpt-4o-mini", providerId = "openai", name = "GPT-4o mini"),
+                        ),
+                ),
+                OpenCodeProvider(
+                    id = "anthropic",
+                    name = "Anthropic",
+                    models =
+                        mapOf(
+                            "claude-sonnet-4-0" to
+                                OpenCodeModel(
+                                    id = "claude-sonnet-4-0",
+                                    providerId = "anthropic",
+                                    name = "Claude Sonnet 4",
+                                ),
+                        ),
+                ),
+            )
 
         val PI_SEED_PROVIDERS =
             com.yugahashimoto.andcode.runtime.local.PiModels.catalog().all
