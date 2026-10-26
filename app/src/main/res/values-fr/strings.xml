@@ -907,7 +907,7 @@
     <string name="agent_aider_name">Aider</string>
     <string name="aider_installed_version">Aider %1$s</string>
     <string name="setup_agent_aider_desc">Agent de pair-programming Aider (Python). Clés API Google/OpenAI/Anthropic. Installation via pip dans le runtime local.</string>
-    <string name="install_step_installing_aider">Installation d'Aider</string>
+    <string name="install_step_installing_aider">Installation d’Aider</string>
     <string name="setup_agent_hermes_desc">Nous Research Hermes Agent (Termux aarch64 package). ~160 MB download.</string>
     <string name="install_step_installing_hermes">Installing Hermes…</string>
     <string name="runtime_error_install_failed">Impossible d’installer l’environnement local</string>
