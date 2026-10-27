@@ -91,6 +91,27 @@ class LocalRuntimeCommandRunner(
             }
         }
 
+    /** Aider is installed in the Debian (antigravity) rootfs; route those commands there. */
+    private fun rootfsForCommand(
+        runtime: LocalRuntimeInstaller.InstalledRuntime,
+        commandText: String,
+    ): File {
+        val trimmed = commandText.trim()
+        val looksLikeAider =
+            trimmed == "aider" ||
+                trimmed.startsWith("aider ") ||
+                trimmed.contains("/aider ") ||
+                trimmed.contains(" aider ") ||
+                "export AIDER_" in trimmed ||
+                trimmed.contains("aider --")
+        val debian = runtime.antigravityRootfs
+        return if (looksLikeAider && debian != null && debian.isDirectory) {
+            debian
+        } else {
+            runtime.rootfs
+        }
+    }
+
     /**
      * Returns argv after `grok` when [commandText] is a plain grok invocation (no shell metacharacters).
      * Complex pipelines stay in proot and will fail for this binary by design.
