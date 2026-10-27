@@ -937,6 +937,7 @@
     <string name="runtime_step_rolling_back_to">OpenCode %1$sへロールバックしています</string>
     <string name="install_step_installing_claude_code">Claude Codeを導入しています</string>
     <string name="install_step_preparing_antigravity_rootfs">Antigravity用のDebian Bookwormを準備しています</string>
+    <string name="install_step_preparing_aider_rootfs">Aider用のDebian環境を準備しています</string>
     <string name="install_step_downloading_antigravity">公式Antigravityをダウンロードして検証しています</string>
     <string name="install_step_installing_antigravity">Antigravityを導入しています</string>
     <string name="antigravity_permission_plan_desc">Antigravityは読み取りと計画のみ行い、ファイル編集やコマンド実行はしません。</string>

@@ -929,6 +929,7 @@
     <string name="runtime_step_rolling_back_to">Volviendo a OpenCode %1$s</string>
     <string name="install_step_installing_claude_code">Instalando Claude Code</string>
     <string name="install_step_preparing_antigravity_rootfs">Preparando Debian Bookworm para Antigravity</string>
+    <string name="install_step_preparing_aider_rootfs">Preparando el entorno Debian para Aider</string>
     <string name="install_step_downloading_antigravity">Descargando y verificando Antigravity oficial</string>
     <string name="install_step_installing_antigravity">Instalando Antigravity</string>
     <string name="antigravity_permission_plan_desc">Antigravity lee y planifica, pero nunca edita archivos ni ejecuta comandos.</string>

@@ -931,6 +931,7 @@
     <string name="runtime_step_rolling_back_to">Откат к OpenCode %1$s</string>
     <string name="install_step_installing_claude_code">Установка Claude Code</string>
     <string name="install_step_preparing_antigravity_rootfs">Подготовка Debian Bookworm для Antigravity</string>
+    <string name="install_step_preparing_aider_rootfs">Подготовка среды Debian для Aider</string>
     <string name="install_step_downloading_antigravity">Загрузка и проверка официального Antigravity</string>
     <string name="install_step_installing_antigravity">Установка Antigravity</string>
     <string name="antigravity_permission_plan_desc">Antigravity только читает и планирует, не изменяя файлы и не выполняя команды.</string>
