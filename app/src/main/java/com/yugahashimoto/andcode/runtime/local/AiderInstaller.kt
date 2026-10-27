@@ -5,9 +5,9 @@ import java.io.File
 /**
  * Full Aider install into the **Debian** rootfs (same proot image Antigravity uses).
  *
- * Alpine/musl cannot provide a complete Aider stack (no tree-sitter-language-pack wheels).
- * On Debian/glibc, `pip install aider-chat` resolves manylinux aarch64 wheels and installs
- * the full dependency tree — the path confirmed by Aider community (#3913 Plan B).
+ * Do **not** apt-install python3-dev / build-essential here: their postinst scripts
+ * (fontconfig, debconf) break under PRoot. Debian rootfs already has python3; we only
+ * add python3-venv + python3-pip with --no-install-recommends, then pip install aider-chat.
  */
 object AiderInstaller {
     const val VENV_REL = "usr/local/lib/aider-venv"
@@ -42,12 +42,18 @@ object AiderInstaller {
         }
 
         onProgress(0.08f)
+        // Minimal apt only — mirrors DebianRootfsInstaller flags. Never pull build-essential.
         runShell(
-            "export DEBIAN_FRONTEND=noninteractive; " +
+            "export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true; " +
                 "apt-get update -qq; " +
-                "apt-get install -y -qq python3 python3-pip python3-venv python3-dev " +
-                "git ca-certificates build-essential || " +
-                "apt-get install -y -qq python3 python3-pip python3-venv git ca-certificates",
+                "command -v python3 >/dev/null || " +
+                "apt-get install -y -qq --no-install-recommends python3; " +
+                "python3 -c 'import venv' 2>/dev/null || " +
+                "apt-get install -y -qq --no-install-recommends python3-venv; " +
+                "python3 -m pip --version >/dev/null 2>&1 || " +
+                "apt-get install -y -qq --no-install-recommends python3-pip; " +
+                "command -v git >/dev/null || " +
+                "apt-get install -y -qq --no-install-recommends git ca-certificates",
         )
 
         onProgress(0.25f)
@@ -55,10 +61,9 @@ object AiderInstaller {
         runShell("/$VENV_REL/bin/pip install --upgrade pip setuptools wheel")
 
         onProgress(0.40f)
-        // Full dependency resolution on glibc — manylinux wheels for aarch64.
         runShell(
-            "/$VENV_REL/bin/pip install --retries 5 --timeout 120 aider-chat || " +
-                "/$VENV_REL/bin/pip install --retries 5 --timeout 120 " +
+            "/$VENV_REL/bin/pip install --retries 5 --timeout 180 aider-chat || " +
+                "/$VENV_REL/bin/pip install --retries 5 --timeout 180 " +
                 "'git+https://github.com/Aider-AI/aider.git'",
         )
 
