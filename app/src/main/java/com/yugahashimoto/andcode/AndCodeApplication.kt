@@ -396,7 +396,12 @@ class AndCodeApplication : Application() {
                 runShell = { cmd -> this.commandRunner.runShell(cmd, timeoutSeconds = 300L) },
             )
         aiderTarget = AiderTarget(aiderRuntime)
-        val clineRuntime = ClineRuntime(runtimeDirectory)
+        val clineRuntime =
+            ClineRuntime(
+                runtimeDirectory = runtimeDirectory,
+                installedRuntime = { installer.installedRuntime() },
+                runShell = { cmd -> this.commandRunner.runShell(cmd, timeoutSeconds = 300L) },
+            )
         clineTarget = ClineTarget(clineRuntime)
         // Codex is a child of this process, so it is cut off from the network the moment the app has
         // nothing in the foreground on some devices: hold the app there while Codex is signing in or
@@ -530,7 +535,7 @@ class AndCodeApplication : Application() {
                 store = settings,
                 localTarget = LocalRuntimeTarget(localRuntimeManager, messages = runtimeMessages),
                 additionalTargets =
-                    listOf(
+                    listOf<com.yugahashimoto.andcode.runtime.RuntimeTarget>(
                         claudeCodeTarget,
                         antigravityTarget,
                         codexTarget,

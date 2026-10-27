@@ -170,7 +170,7 @@ val appModule =
                 store = get(),
                 localTarget = LocalRuntimeTarget(get(), messages = get()),
                 additionalTargets =
-                    listOf(
+                    listOf<com.yugahashimoto.andcode.runtime.RuntimeTarget>(
                         AntigravityTarget(
                             AntigravityRuntime(get(), (get<LocalRuntimeInstaller>())::installedRuntime),
                         ),

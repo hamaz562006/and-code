@@ -1072,7 +1072,7 @@ fun AndCodeApp(
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.AIDER in agents) {
                                     app.aiderController.install(agents)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CLINE in agents) {
-                                    app.clineController.install()
+                                    app.clineController.install(agents)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE in agents) {
                                     workspaceViewModel.installClaudeCode(developmentToolGroups)
                                 }

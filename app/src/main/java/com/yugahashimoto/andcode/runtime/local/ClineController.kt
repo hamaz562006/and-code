@@ -68,17 +68,19 @@ class ClineController(
                 }
             current.copy(installed = installed, version = version, install = install)
         }
+        if (installed) {
+            runCatching { target.connect() }
+        }
     }
 
-    fun install() {
+    fun install(agents: Set<LocalAgent> = setOf(LocalAgent.CLINE)) {
+        if (mutableState.value.install is ClineInstallStatus.Installing) return
+        mutableState.update { it.copy(install = ClineInstallStatus.Installing(progress = 0f, step = "Starting")) }
         scope.launch {
-            mutableState.update {
-                it.copy(install = ClineInstallStatus.Installing(0f, "Downloading Cline"))
-            }
-            try {
-                runtimeWork.track("cline-install") {
+            runtimeWork.withLease("install-cline") {
+                try {
                     if (installer.installedRuntime() == null) {
-                        installer.install(setOf(LocalAgent.CLINE)) { progress, step, _ ->
+                        installer.install(agents + LocalAgent.CLINE) { progress, step, _ ->
                             mutableState.update {
                                 it.copy(install = ClineInstallStatus.Installing(progress, step))
                             }
@@ -101,12 +103,12 @@ class ClineController(
                         )
                     }
                     runCatching { target.connect() }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (error: Throwable) {
-                mutableState.update {
-                    it.copy(install = ClineInstallStatus.Failed(error.message))
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (error: Throwable) {
+                    val detail = error.cause?.message?.takeIf { it.isNotBlank() }
+                    val message = listOfNotNull(error.message, detail).joinToString(": ").ifBlank { null }
+                    mutableState.update { it.copy(install = ClineInstallStatus.Failed(message)) }
                 }
             }
         }
