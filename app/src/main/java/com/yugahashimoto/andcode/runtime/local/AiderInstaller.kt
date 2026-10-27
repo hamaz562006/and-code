@@ -3,15 +3,10 @@ package com.yugahashimoto.andcode.runtime.local
 import java.io.File
 
 /**
- * Aider for Alpine/PRoot (and-code shared rootfs).
+ * Aider for Alpine/PRoot.
  *
- * Research (2026): there is **no** Alpine/musl wheel repo for aider. Working paths are:
- * - Termux + [skoll43/aider-chat-termux-wheels](https://github.com/skoll43/aider-chat-termux-wheels) (android_24 wheels)
- * - Debian/Ubuntu glibc proot → plain `pip install aider-chat` (manylinux)
- *
- * On Alpine we mirror skoll43's **order** using musl-compatible pieces:
- * apk (yaml/pillow/numpy) + pure-deps `--no-deps` + pinned binary wheels + language-pack stub.
- * Import name → PyPI/apk map is explicit (`yaml` → PyYAML, never `pip install yaml`).
+ * Language-pack stub must be **valid Python** (grep-ast imports get_language at import time).
+ * No %% / broken format strings — that caused SyntaxError on device.
  */
 object AiderInstaller {
     const val VENV_REL = "usr/local/lib/aider-venv"
@@ -47,7 +42,6 @@ object AiderInstaller {
         }
 
         onProgress(0.05f)
-        // Alpine system packages cover modules that have no/fragile musl wheels.
         runShell(
             "apk add --no-cache python3 py3-pip py3-virtualenv py3-setuptools py3-wheel " +
                 "py3-yaml py3-pillow py3-numpy py3-cffi py3-regex git ca-certificates wget curl || " +
@@ -69,15 +63,11 @@ object AiderInstaller {
                 "  if wget -q -O /tmp/aider-pure-deps.txt '$PURE_DEPS_URL'; then ok=1; break; fi; " +
                 "  sleep 2; " +
                 "done; " +
-                "if [ \"\$ok\" != 1 ]; then " +
-                "  echo 'Failed to download pure-deps-pinned.txt' >&2; exit 1; " +
-                "fi; " +
-                "$VENV_PIP install --no-cache-dir --no-deps --retries 5 --timeout 120 " +
-                "-r /tmp/aider-pure-deps.txt",
+                "if [ \"\$ok\" != 1 ]; then echo 'Failed to download pure-deps-pinned.txt' >&2; exit 1; fi; " +
+                "$VENV_PIP install --no-cache-dir --no-deps --retries 5 --timeout 120 -r /tmp/aider-pure-deps.txt",
         )
 
         onProgress(0.48f)
-        // Binary pair must match pure-deps pydantic==2.12.5 → core 2.41.5 (skoll43).
         runShell(
             "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 3 --timeout 90 " +
                 "'pydantic-core==2.41.5' 2>/dev/null || " +
@@ -86,10 +76,9 @@ object AiderInstaller {
         )
         runShell(
             "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 2 --timeout 60 " +
-                "PyYAML jiter orjson regex aiohttp yarl multidict frozenlist propcache " +
-                "cffi tree-sitter 2>/dev/null || " +
-                "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 2 --timeout 60 " +
-                "PyYAML 2>/dev/null || true",
+                "PyYAML jiter orjson regex aiohttp yarl multidict frozenlist propcache cffi " +
+                "psutil tree-sitter 2>/dev/null || " +
+                "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 2 --timeout 60 PyYAML psutil 2>/dev/null || true",
         )
 
         onProgress(0.60f)
@@ -120,7 +109,13 @@ object AiderInstaller {
                 "  if [ -z \"\$mod\" ]; then " +
                 "    mod=\$(printf '%s\\n' \"\$err\" | sed -n \"s/.*No module named \\\"\\([^\\\"]*\\)\\\".*/\\1/p\" | head -n1); " +
                 "  fi; " +
-                "  if [ -z \"\$mod\" ]; then echo \"\$err\" >&2; exit 1; fi; " +
+                "  if [ -z \"\$mod\" ]; then " +
+                "    if echo \"\$err\" | grep -q SyntaxError; then " +
+                "      " + stubLanguagePackShell() + "; " +
+                "      continue; " +
+                "    fi; " +
+                "    echo \"\$err\" >&2; exit 1; " +
+                "  fi; " +
                 "  pkg=\"\$mod\"; " +
                 "  case \"\$mod\" in " +
                 "    yaml) pkg=PyYAML ;; " +
@@ -130,10 +125,7 @@ object AiderInstaller {
                 "    tree_sitter) pkg=tree-sitter ;; " +
                 "    pydantic_core) pkg='pydantic-core==2.41.5' ;; " +
                 "    tree_sitter_language_pack|tree_sitter_languages) " +
-                "      SITE=\$($VENV_PY -c 'import site; print(site.getsitepackages()[0])'); " +
-                "      mkdir -p \"\$SITE/\$mod\"; " +
-                "      printf 'def get_language(n):\\n    raise LookupError(n)\\ndef get_parser(n):\\n    raise LookupError(n)\\n' " +
-                "> \"\$SITE/\$mod/__init__.py\"; " +
+                "      " + stubLanguagePackShell() + "; " +
                 "      echo stubbed_\$mod >&2; continue ;; " +
                 "  esac; " +
                 "  echo \"Installing: \$pkg (for import \$mod)\" >&2; " +
@@ -171,14 +163,17 @@ object AiderInstaller {
         require(isInstalledIn(rootfs)) { "Aider install finished but marker/shim missing" }
     }
 
+    /**
+     * Writes a minimal valid module so `from tree_sitter_language_pack import get_language`
+     * succeeds. Repo-map AST features stay unavailable on Alpine without a real wheel.
+     */
     private fun stubLanguagePackShell(): String =
         "SITE=\$($VENV_PY -c 'import site; print(site.getsitepackages()[0])'); " +
             "mkdir -p \"\$SITE/tree_sitter_language_pack\"; " +
             "printf '%s\\n' " +
-            "'# Stub — Termux uses skoll43 prebuilt language-pack wheel; Alpine has none.' " +
             "'def get_language(name):' " +
-            "'    raise LookupError(\"tree-sitter language unavailable: %%s\" %% (name,))' " +
+            "'    raise LookupError(\"tree-sitter language unavailable\")' " +
             "'def get_parser(name):' " +
-            "'    raise LookupError(\"tree-sitter parser unavailable: %%s\" %% (name,))' " +
+            "'    raise LookupError(\"tree-sitter parser unavailable\")' " +
             "> \"\$SITE/tree_sitter_language_pack/__init__.py\""
 }
