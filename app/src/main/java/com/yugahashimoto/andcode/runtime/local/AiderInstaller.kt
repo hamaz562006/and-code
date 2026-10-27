@@ -3,11 +3,19 @@ package com.yugahashimoto.andcode.runtime.local
 import java.io.File
 
 /**
- * Fast Aider install for Alpine/PRoot.
+ * Aider install for Alpine/PRoot, following the **skoll43/aider-chat-termux-wheels** order:
  *
- * Never compiles `tree-sitter-language-pack` (maturin/cargo) — that hung/timed out on-device.
- * Missing imports are filled with **wheels only** (`--only-binary=:all:`); for language-pack
- * modules a tiny pure-Python stub is written so `aider --version` can import.
+ * 1. System packages (numpy/pillow via apk when available)
+ * 2. venv --system-site-packages
+ * 3. Stub `tree_sitter_language_pack` (Termux uses a prebuilt wheel; we cannot build it on musl)
+ * 4. pure-deps-pinned.txt with **--no-deps** (never resolve into language-pack)
+ * 5. aider application with **--no-deps**
+ * 6. audioop-lts (Python 3.13+)
+ * 7. `aider --version` must succeed
+ *
+ * Termux android_24 wheels are **not** used — they do not load on Alpine musl Python.
+ * @see https://github.com/skoll43/aider-chat-termux-wheels
+ * @see https://github.com/infinityempire/aider-termux
  */
 object AiderInstaller {
     const val VENV_REL = "usr/local/lib/aider-venv"
@@ -42,19 +50,26 @@ object AiderInstaller {
             File(rootfs, "etc/hosts").writeText("127.0.0.1 localhost\n::1 localhost\n")
         }
 
-        onProgress(0.04f)
+        // --- skoll43 step 1 equivalent: system packages ---
+        onProgress(0.05f)
         runShell(
             "apk add --no-cache python3 py3-pip py3-virtualenv py3-setuptools py3-wheel " +
-                "py3-pillow py3-numpy git ca-certificates wget || " +
-                "apk add --no-cache python3 py3-pip py3-virtualenv git ca-certificates wget",
+                "py3-pillow py3-numpy git ca-certificates wget curl || " +
+                "apk add --no-cache python3 py3-pip py3-virtualenv py3-setuptools py3-wheel " +
+                "git ca-certificates wget curl",
         )
+
+        // --- skoll43 step 2: venv with system-site-packages ---
         onProgress(0.12f)
         runShell("rm -rf /$VENV_REL && python3 -m venv --system-site-packages /$VENV_REL")
-        onProgress(0.18f)
         runShell("$VENV_PIP install --upgrade pip setuptools wheel --retries 5 --timeout 60 || true")
-        onProgress(0.24f)
 
-        // Drop grep-ast from pure-deps — it pulls tree-sitter-language-pack at runtime.
+        // --- stub language-pack BEFORE any pure-dep that imports it ---
+        onProgress(0.18f)
+        runShell(stubLanguagePackShell())
+
+        // --- skoll43 step 5: pure-deps with --no-deps (never resolve) ---
+        onProgress(0.22f)
         runShell(
             "set -e; ok=0; " +
                 "for i in 1 2 3 4 5; do " +
@@ -62,57 +77,53 @@ object AiderInstaller {
                 "  sleep 2; " +
                 "done; " +
                 "if [ \"\$ok\" != 1 ]; then " +
-                "  echo 'Network/DNS failed downloading Aider pure-deps list.' >&2; exit 1; " +
+                "  echo 'Failed to download pure-deps-pinned.txt (network/DNS).' >&2; exit 1; " +
                 "fi; " +
-                "grep -viE '^(grep-ast|tree-sitter)' /tmp/aider-pure-deps.txt > /tmp/aider-pure-deps-filtered.txt; " +
-                "$VENV_PIP install --no-cache-dir --no-deps --retries 5 --timeout 60 " +
-                "-r /tmp/aider-pure-deps-filtered.txt",
+                // Keep grep-ast (pure py) but never let pip resolve its deps.
+                "$VENV_PIP install --no-cache-dir --no-deps --retries 5 --timeout 120 " +
+                "-r /tmp/aider-pure-deps.txt",
         )
-        onProgress(0.48f)
 
-        runShell(
-            "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 3 --timeout 90 " +
-                "Pillow numpy mixpanel posthog pydantic pydantic-core aiohttp httpx openai " +
-                "pyyaml regex orjson audioop-lts 2>/dev/null || " +
-                "$VENV_PIP install --no-cache-dir --prefer-binary --retries 3 --timeout 90 " +
-                "Pillow mixpanel pydantic aiohttp httpx openai audioop-lts || true",
-        )
-        onProgress(0.58f)
-
-        // Optional tree-sitter core wheel only — never language-pack source builds.
+        // Optional binary wheels only (musl may have none — never fall back to source).
+        onProgress(0.50f)
         runShell(
             "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 2 --timeout 60 " +
-                "tree-sitter 2>/dev/null || true",
+                "pydantic-core jiter orjson pyyaml regex aiohttp yarl multidict frozenlist " +
+                "propcache tree-sitter 2>/dev/null || true",
         )
+
+        // Pillow/numpy if apk did not provide them
+        runShell(
+            "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 2 --timeout 60 " +
+                "Pillow numpy 2>/dev/null || true",
+        )
+
+        // --- skoll43 step 4: aider app, --no-deps ---
         onProgress(0.62f)
-
-        // Stub language-pack so imports succeed without compiling Rust.
         runShell(
-            "SITE=\$($VENV_PY -c 'import site; print(site.getsitepackages()[0])'); " +
-                "mkdir -p \"\$SITE/tree_sitter_language_pack\"; " +
-                "printf '%s\\n' " +
-                "'# Stub: full language pack is not built on Alpine/musl mobile installs.' " +
-                "'def get_language(name):' " +
-                "'    raise LookupError(\"tree-sitter language %%r unavailable\" %% (name,))' " +
-                "'def get_parser(name):' " +
-                "'    raise LookupError(\"tree-sitter parser %%r unavailable\" %% (name,))' " +
-                "> \"\$SITE/tree_sitter_language_pack/__init__.py\"",
-        )
-        onProgress(0.66f)
-
-        runShell(
-            "$VENV_PIP install --no-cache-dir --no-deps --retries 5 --timeout 90 " +
+            "$VENV_PIP install --no-cache-dir --no-deps --retries 5 --timeout 120 " +
                 "'git+https://github.com/Aider-AI/aider.git' || " +
-                "$VENV_PIP install --no-cache-dir --no-deps --retries 5 --timeout 90 aider-chat",
+                "$VENV_PIP install --no-cache-dir --no-deps --retries 5 --timeout 120 aider-chat",
         )
-        onProgress(0.78f)
 
+        // --- skoll43 step 6: audioop-lts ---
+        onProgress(0.75f)
+        runShell(
+            "$VENV_PIP install --no-cache-dir --no-deps --retries 3 --timeout 60 audioop-lts || " +
+                "$VENV_PIP install --no-cache-dir --prefer-binary --retries 3 --timeout 60 audioop-lts",
+        )
+
+        // Re-assert stub (pip must never replace it with a source build).
+        runShell(stubLanguagePackShell())
+
+        // --- skoll43 step 7: verify; fill missing pure modules with --no-deps only ---
+        onProgress(0.82f)
         runShell(
             "set -e; mkdir -p /usr/local/bin; " +
                 "test -x /$VENV_BIN_AIDER; " +
                 "ln -sfn /$VENV_BIN_AIDER /usr/local/bin/aider; " +
                 "i=0; " +
-                "while [ \$i -lt 12 ]; do " +
+                "while [ \$i -lt 16 ]; do " +
                 "  i=\$((i+1)); " +
                 "  if /$VENV_BIN_AIDER --version >/tmp/aider-version.out 2>/tmp/aider-version.err; then break; fi; " +
                 "  err=\$(cat /tmp/aider-version.err 2>/dev/null || true); " +
@@ -126,23 +137,26 @@ object AiderInstaller {
                 "    PIL) pkg=Pillow ;; " +
                 "    audioop) pkg=audioop-lts ;; " +
                 "    cv2) pkg=opencv-python-headless ;; " +
+                "    tree_sitter) pkg=tree-sitter ;; " +
                 "    tree_sitter_language_pack|tree_sitter_languages) " +
                 "      SITE=\$($VENV_PY -c 'import site; print(site.getsitepackages()[0])'); " +
                 "      mkdir -p \"\$SITE/\$mod\"; " +
-                "      echo 'def get_language(n): raise LookupError(n)' > \"\$SITE/\$mod/__init__.py\"; " +
-                "      echo \"Stubbed \$mod\" >&2; continue ;; " +
+                "      printf 'def get_language(n):\\n    raise LookupError(n)\\ndef get_parser(n):\\n    raise LookupError(n)\\n' " +
+                "        > \"\$SITE/\$mod/__init__.py\"; " +
+                "      echo \"stubbed \$mod\" >&2; continue ;; " +
                 "  esac; " +
-                "  echo \"Installing missing module (wheel only): \$pkg\" >&2; " +
-                "  $VENV_PIP install --no-cache-dir --only-binary=:all: --retries 2 --timeout 60 \"\$pkg\" || " +
-                "  $VENV_PIP install --no-cache-dir --only-binary=:all: --retries 2 --timeout 60 " +
+                "  echo \"Installing missing pure/wheel module --no-deps: \$pkg\" >&2; " +
+                "  $VENV_PIP install --no-cache-dir --no-deps --retries 3 --timeout 90 \"\$pkg\" || " +
+                "  $VENV_PIP install --no-cache-dir --no-deps --only-binary=:all: --retries 2 --timeout 60 \"\$pkg\" || " +
+                "  $VENV_PIP install --no-cache-dir --no-deps --retries 2 --timeout 60 " +
                 "\"\$(echo \"\$pkg\" | tr '_' '-')\" || true; " +
                 "done; " +
                 "if ! /$VENV_BIN_AIDER --version >/tmp/aider-version.out 2>/tmp/aider-version.err; then " +
-                "  echo 'aider --version failed after dependency repair:' >&2; " +
-                "  cat /tmp/aider-version.err >&2; exit 1; " +
+                "  echo 'aider --version failed:' >&2; cat /tmp/aider-version.err >&2; exit 1; " +
                 "fi; " +
                 "command -v aider >/dev/null",
         )
+
         val versionLine =
             File(rootfs, "tmp/aider-version.out").takeIf { it.isFile }?.readText()?.trim().orEmpty()
         File(rootfs, AiderManifest.MARKER_REL).apply {
@@ -154,6 +168,18 @@ object AiderInstaller {
                 ?: AiderManifest.VERSION
         File(rootfs, AiderManifest.VERSION_REL).writeText(ver + "\n")
         onProgress(1f)
-        require(isInstalledIn(rootfs)) { "Aider install finished but venv binary/shim not found" }
+        require(isInstalledIn(rootfs)) { "Aider install finished but marker/shim missing" }
     }
+
+    /** Pure-Python stand-in for the Termux prebuilt language-pack wheel. */
+    private fun stubLanguagePackShell(): String =
+        "SITE=\$($VENV_PY -c 'import site; print(site.getsitepackages()[0])'); " +
+            "mkdir -p \"\$SITE/tree_sitter_language_pack\"; " +
+            "printf '%s\\n' " +
+            "'# Alpine/musl stub — Termux uses a prebuilt wheel (skoll43).' " +
+            "'def get_language(name):' " +
+            "'    raise LookupError(\"tree-sitter language unavailable: %%s\" %% (name,))' " +
+            "'def get_parser(name):' " +
+            "'    raise LookupError(\"tree-sitter parser unavailable: %%s\" %% (name,))' " +
+            "> \"\$SITE/tree_sitter_language_pack/__init__.py\""
 }
