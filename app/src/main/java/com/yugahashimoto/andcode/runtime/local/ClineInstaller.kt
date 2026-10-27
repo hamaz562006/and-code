@@ -68,10 +68,11 @@ object ClineInstaller {
                 onProgress(0.45f + f * 0.35f)
             }
 
-            val staging = File(runtimeDirectory, "staging-cline").apply {
-                deleteRecursively()
-                mkdirs()
-            }
+            val staging =
+                File(runtimeDirectory, "staging-cline").apply {
+                    deleteRecursively()
+                    mkdirs()
+                }
             try {
                 onProgress(0.82f)
                 // Bun FFI
@@ -80,7 +81,9 @@ object ClineInstaller {
                 val bunSource =
                     bunExtract.walkTopDown().maxDepth(3).firstOrNull {
                         it.isDirectory && it.name.startsWith("bun-android-ffi-aarch64")
-                    } ?: bunExtract.listFiles()?.firstOrNull { it.isDirectory } ?: bunExtract
+                    }
+                        ?: bunExtract.listFiles()?.firstOrNull { it.isDirectory }
+                        ?: bunExtract
                 require(File(bunSource, "bun").isFile) { "Bun FFI archive missing bun binary" }
                 val bunDest =
                     File(root, "opt/bun-android-ffi/${ClineManifest.BUN_FFI_VERSION}").apply {

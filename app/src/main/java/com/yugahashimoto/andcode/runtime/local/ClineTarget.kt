@@ -31,7 +31,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Aider agent target — separate [LocalAgent.CLINE] / target id from OpenCode.
+ * Cline host agent target (Termux port; not Cline) — separate [LocalAgent.CLINE] / target id from OpenCode.
  */
 class ClineTarget(
     private val runtime: ClineRuntime,
@@ -201,5 +201,5 @@ class ClineTarget(
 
     override suspend fun listWorkspaces(): List<WorkspaceRef> = listOf(WorkspaceRef("/workspace", "workspace", "/workspace"))
 
-    override suspend fun commands(): List<OpenCodeCommand> = AiderCommandCatalog.commands
+    override suspend fun commands(): List<OpenCodeCommand> = ClineCommandCatalog.commands
 }

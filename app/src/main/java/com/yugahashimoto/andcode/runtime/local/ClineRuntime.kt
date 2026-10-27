@@ -151,7 +151,7 @@ class ClineRuntime(
         val replyText =
             result.output.ifBlank {
                 if (result.exitCode != 0) {
-                    "Aider failed (exit ${result.exitCode}). Is it installed and is an API key set?"
+                    "Cline failed (exit ${result.exitCode}). Is it installed and is an API key set?"
                 } else {
                     "(empty response)"
                 }
