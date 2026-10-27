@@ -107,7 +107,9 @@ class LocalRuntimeDiagnosticsCollector(
                 if (HermesInstaller.isInstalledIn(runtimeDirectory)) {
                     add(LocalRuntimeToolDefinition("hermes", "Hermes", "hermes --version"))
                 }
-                if (AiderInstaller.isInstalledIn(rootfs)) {
+                // Aider lives in the Debian (antigravity) rootfs, not Alpine.
+                val aiderRootfs = File(runtimeDirectory, "environment/antigravity-rootfs")
+                if (AiderInstaller.isInstalledIn(aiderRootfs)) {
                     add(
                         LocalRuntimeToolDefinition(
                             "aider",
