@@ -35,12 +35,14 @@ class AiderRuntime(
     fun events(): Flow<OpenCodeEvent> = events
 
     fun isInstalled(): Boolean {
-        val rootfs = installedRuntime()?.rootfs ?: return false
+        val rt = installedRuntime() ?: return false
+        val rootfs = rt.antigravityRootfs?.takeIf { it.isDirectory } ?: return false
         return AiderInstaller.isInstalledIn(rootfs)
     }
 
     fun installedVersion(): String? {
-        val rootfs = installedRuntime()?.rootfs ?: return null
+        val rt = installedRuntime() ?: return null
+        val rootfs = rt.antigravityRootfs?.takeIf { it.isDirectory } ?: return null
         return AiderInstaller.installedVersion(rootfs)
     }
 

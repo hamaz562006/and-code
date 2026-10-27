@@ -55,7 +55,8 @@ class LocalRuntimeCommandRunner(
                         add("--link2symlink")
                         add("-0")
                         add("-r")
-                        add(runtime.rootfs.absolutePath)
+                        // Aider lives in the Debian rootfs (glibc); everything else uses Alpine.
+                        add(rootfsForCommand(runtime, commandText).absolutePath)
                         ProotHostBinds.appendBindArgs(this)
                         // So a shell command can reach the device's files once the user allows it.
                         addAll(DeviceStorage.bindArguments())

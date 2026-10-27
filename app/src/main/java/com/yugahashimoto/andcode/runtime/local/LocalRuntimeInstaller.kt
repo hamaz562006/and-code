@@ -140,14 +140,26 @@ class LocalRuntimeInstaller(
                         extractOpenCode(archive, staging, rootfs)
                     }
                 configureRootfs(rootfs, commandSuite)
+                // Debian/glibc rootfs: Antigravity binary + full Aider (manylinux wheels).
+                val needsDebianRootfs =
+                    LocalAgent.ANTIGRAVITY in requestedAgents || LocalAgent.AIDER in requestedAgents
                 val antigravityRootfs =
-                    if (LocalAgent.ANTIGRAVITY in requestedAgents) {
-                        onAntigravity(0.90f, context.getString(R.string.install_step_preparing_antigravity_rootfs))
+                    if (needsDebianRootfs) {
+                        val stepOwner =
+                            if (LocalAgent.ANTIGRAVITY in requestedAgents) {
+                                LocalAgent.ANTIGRAVITY
+                            } else {
+                                LocalAgent.AIDER
+                            }
+                        val onDebian: (Float?, String) -> Unit = { progress, step ->
+                            onProgress(progress, step, stepOwner)
+                        }
+                        onDebian(0.90f, context.getString(R.string.install_step_preparing_antigravity_rootfs))
                         DebianRootfsInstaller(runtimeDirectory, abi, downloader, httpClient, commandSuite).installInto(
                             File(staging, "antigravity-rootfs"),
                             installFullDevelopmentTools = includeFullDevelopmentTools,
                         ) { progress ->
-                            onAntigravity(0.90f + progress * 0.03f, context.getString(R.string.install_step_preparing_antigravity_rootfs))
+                            onDebian(0.90f + progress * 0.03f, context.getString(R.string.install_step_preparing_antigravity_rootfs))
                         }
                     } else {
                         null
@@ -283,7 +295,10 @@ class LocalRuntimeInstaller(
                     val aiderStart = 0.50f
                     val aiderEnd = 0.92f
                     onAider(aiderStart, aiderLabel)
-                    installAiderIntoRootfs(rootfs, commandSuite) { fraction ->
+                    val aiderRootfs =
+                        antigravityRootfs
+                            ?: error("Debian rootfs required for Aider was not prepared")
+                    installAiderIntoRootfs(aiderRootfs, commandSuite) { fraction ->
                         val span = aiderEnd - aiderStart
                         onAider(aiderStart + fraction.coerceIn(0f, 1f) * span, aiderLabel)
                     }
@@ -323,7 +338,10 @@ class LocalRuntimeInstaller(
                     commandSuite,
                     File(active, "rootfs"),
                     openCodeBinary?.let { File(active, "rootfs/usr/local/bin/opencode") },
-                    File(active, "antigravity-rootfs").takeIf { LocalAgent.ANTIGRAVITY in requestedAgents && it.isDirectory },
+                    File(active, "antigravity-rootfs").takeIf {
+                        it.isDirectory &&
+                            (LocalAgent.ANTIGRAVITY in requestedAgents || LocalAgent.AIDER in requestedAgents)
+                    },
                 )
             } catch (error: Throwable) {
                 staging.deleteRecursively()
@@ -367,7 +385,9 @@ class LocalRuntimeInstaller(
                     commandSuite,
                     rootfs,
                     File(rootfs, "usr/local/bin/opencode").takeIf { it.isFile },
-                    File(active, "antigravity-rootfs").takeIf { metadata.has(LocalAgent.ANTIGRAVITY) && it.isDirectory },
+                    File(active, "antigravity-rootfs").takeIf {
+                        it.isDirectory && (metadata.has(LocalAgent.ANTIGRAVITY) || metadata.has(LocalAgent.AIDER))
+                    },
                 )
             }?.also { installed ->
                 ensureAndCodeAgentContext(installed.rootfs, context)
@@ -616,11 +636,28 @@ class LocalRuntimeInstaller(
         )
     }
 
-    fun installAiderOnly(onProgress: (Float?, String) -> Unit = { _, _ -> }) {
+    suspend fun installAiderOnly(onProgress: (Float?, String) -> Unit = { _, _ -> }) {
         val runtime = installedRuntime() ?: error("Local runtime is not installed")
         val label = context.getString(R.string.install_step_installing_aider)
-        onProgress(0.1f, label)
-        installAiderIntoRootfs(runtime.rootfs, runtime.commandSuite) { f -> onProgress(f, label) }
+        onProgress(0.05f, label)
+        // Aider needs the Debian/glibc rootfs (same as Antigravity), not Alpine.
+        val debian =
+            runtime.antigravityRootfs?.takeIf { it.isDirectory }
+                ?: run {
+                    val active = File(runtimeDirectory, "environment")
+                    val dest = File(active, "antigravity-rootfs")
+                    onProgress(0.08f, context.getString(R.string.install_step_preparing_antigravity_rootfs))
+                    // Blocking path: installer methods used from write/IO already.
+                    DebianRootfsInstaller(runtimeDirectory, abi, downloader, httpClient, runtime.commandSuite)
+                        .installInto(dest, installFullDevelopmentTools = false) { p ->
+                            onProgress(0.08f + p * 0.25f, context.getString(R.string.install_step_preparing_antigravity_rootfs))
+                        }
+                    dest
+                }
+        onProgress(0.35f, label)
+        installAiderIntoRootfs(debian, runtime.commandSuite) { f ->
+            onProgress(0.35f + f.coerceIn(0f, 1f) * 0.60f, label)
+        }
         onProgress(1f, label)
         recordAgent(LocalAgent.AIDER)
     }
