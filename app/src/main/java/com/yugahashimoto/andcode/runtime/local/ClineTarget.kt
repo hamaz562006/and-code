@@ -16,6 +16,7 @@ import com.yugahashimoto.andcode.core.api.ProviderAuthMethod
 import com.yugahashimoto.andcode.core.api.ProviderCatalog
 import com.yugahashimoto.andcode.runtime.BackendKind
 import com.yugahashimoto.andcode.runtime.LocalAgent
+import com.yugahashimoto.andcode.runtime.free.FreeModelsCatalog
 import com.yugahashimoto.andcode.runtime.PermissionResponse
 import com.yugahashimoto.andcode.runtime.RuntimeCapabilities
 import com.yugahashimoto.andcode.runtime.RuntimeState
@@ -88,7 +89,9 @@ class ClineTarget(
 
     override suspend fun listProviders(): ProviderCatalog =
         withContext(Dispatchers.IO) {
-            val connected = runtime.connectedProviderIds()
+            val connected =
+                (runtime.connectedProviderIds() + FreeModelsCatalog.PROVIDER_ID).toList()
+            val free = FreeModelsCatalog.asProvider()
             val googleModels =
                 listOf("gemini-2.5-flash", "gemini-2.0-flash").associateWith { mid ->
                     OpenCodeModel(id = mid, providerId = "google", name = mid)
@@ -101,8 +104,18 @@ class ClineTarget(
                 listOf("claude-sonnet-4-0", "claude-3-5-sonnet-latest").associateWith { mid ->
                     OpenCodeModel(id = mid, providerId = "anthropic", name = mid)
                 }
+            val localModels =
+                mapOf(
+                    "llama3.2" to OpenCodeModel(id = "llama3.2", providerId = "local-ollama", name = "llama3.2"),
+                )
             val all =
                 listOf(
+                    free,
+                    OpenCodeProvider(
+                        id = "local-ollama",
+                        name = "Local (Ollama / OpenAI-compatible)",
+                        models = localModels,
+                    ),
                     OpenCodeProvider(id = "anthropic", name = "Anthropic", models = anthropicModels),
                     OpenCodeProvider(id = "openai", name = "OpenAI", models = openaiModels),
                     OpenCodeProvider(id = "google", name = "Google AI Studio", models = googleModels),
@@ -110,8 +123,8 @@ class ClineTarget(
                 )
             ProviderCatalog(
                 all = all,
-                default = emptyMap(),
-                connected = connected.toList(),
+                default = mapOf(FreeModelsCatalog.PROVIDER_ID to FreeModelsCatalog.DEFAULT_MODEL),
+                connected = connected,
             )
         }
 

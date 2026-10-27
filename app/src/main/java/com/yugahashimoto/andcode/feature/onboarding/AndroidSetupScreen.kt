@@ -74,6 +74,7 @@ import com.yugahashimoto.andcode.feature.workspace.ClaudeCodeCard
 import com.yugahashimoto.andcode.feature.workspace.CodexCard
 import com.yugahashimoto.andcode.runtime.DevelopmentToolGroup
 import com.yugahashimoto.andcode.runtime.LocalAgent
+import com.yugahashimoto.andcode.runtime.free.FreeModelsCatalog
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import com.yugahashimoto.andcode.runtime.local.AiderInstallStatus
 import com.yugahashimoto.andcode.runtime.local.AiderUiState
@@ -1653,10 +1654,10 @@ private fun ClineSignInPanel() {
     val scope = rememberCoroutineScope()
     var statusByProvider by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var draftKeys by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    var message by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    val providers =
+    // Free models is always available (keyless). Paid providers need API keys.
+    val keyProviders =
         listOf(
             "anthropic" to "Anthropic",
             "openai" to "OpenAI",
@@ -1668,7 +1669,8 @@ private fun ClineSignInPanel() {
         if (app == null) return@LaunchedEffect
         runCatching {
             val catalog = app.clineTarget.listProviders()
-            statusByProvider = catalog.connected.associateWith { true }
+            statusByProvider =
+                catalog.connected.associateWith { true } + (FreeModelsCatalog.PROVIDER_ID to true)
         }.onFailure { error = it.message }
     }
 
@@ -1678,13 +1680,42 @@ private fun ClineSignInPanel() {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        providers.forEach { (id, label) ->
+
+        // Free models — shared catalog, always connected, no API key.
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(FreeModelsCatalog.PROVIDER_NAME, fontWeight = FontWeight.SemiBold)
+            Text(
+                stringResource(R.string.provider_connected),
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelMedium,
+            )
+            Text(
+                text = stringResource(R.string.setup_cline_free_models_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        // Local Ollama — optional, no key required to mark as available.
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text("Local (Ollama / OpenAI-compatible)", fontWeight = FontWeight.SemiBold)
+            Text(
+                text = stringResource(R.string.setup_cline_local_ollama_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        keyProviders.forEach { (id, label) ->
             val connected = statusByProvider[id] == true
             Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(label, fontWeight = FontWeight.SemiBold)
@@ -1719,7 +1750,6 @@ private fun ClineSignInPanel() {
                                     app.clineTarget.setProviderApiKey(id, key, emptyMap())
                                     statusByProvider = statusByProvider + (id to true)
                                     draftKeys = draftKeys - id
-                                    message = null
                                     error = null
                                 }.onFailure { error = it.message }
                             }
@@ -1730,9 +1760,6 @@ private fun ClineSignInPanel() {
         }
         error?.let {
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-        }
-        message?.let {
-            Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
         }
     }
 }

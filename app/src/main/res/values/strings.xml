@@ -939,6 +939,8 @@
     <string name="grok_build_installed_version">Grok Build %1$s</string>
     <string name="agent_hermes_name">Hermes</string>
     <string name="agent_cline_name">Cline</string>
+    <string name="setup_cline_free_models_note">Keyless free models (Kilo / curated). Available without an API key.</string>
+    <string name="setup_cline_local_ollama_note">Optional. Point Cline at a local OpenAI-compatible server such as Ollama on this device or LAN.</string>
     <string name="setup_cline_providers_hint">Cline uses its own providers (not OpenCode). Add an API key for at least one provider.</string>
     <string name="setup_agent_cline_desc">Cline coding agent (Termux aarch64 port)</string>
     <string name="agent_aider_name">Aider</string>
