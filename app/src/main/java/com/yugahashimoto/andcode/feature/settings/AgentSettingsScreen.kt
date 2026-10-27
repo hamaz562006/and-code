@@ -1236,61 +1236,48 @@ fun AiderAgentSettingsScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClineAgentSettingsScreen(
     cline: com.yugahashimoto.andcode.runtime.local.ClineUiState,
-    onInstall: () -> Unit,
+    onInstall: () -> Unit = {},
     onBack: () -> Unit,
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.agent_cline_name)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.nav_back),
-                        )
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            SectionCard {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(stringResource(R.string.status_label), fontWeight = FontWeight.SemiBold)
-                    StatusChip(
-                        text =
-                            when {
-                                cline.install is com.yugahashimoto.andcode.runtime.local.ClineInstallStatus.Installing ->
-                                    stringResource(R.string.claude_status_installing)
-                                cline.installed -> stringResource(R.string.runtime_status_ready)
-                                else -> stringResource(R.string.runtime_status_not_installed)
-                            },
-                        active = cline.installed,
-                    )
+    AgentSettingsScaffold(title = stringResource(LocalAgent.CLINE.displayNameRes), onBack = onBack) {
+        AgentCardSection {
+            val statusText =
+                when (val install = cline.install) {
+                    is com.yugahashimoto.andcode.runtime.local.ClineInstallStatus.Installing ->
+                        install.step?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.install_step_installing_cline)
+                    is com.yugahashimoto.andcode.runtime.local.ClineInstallStatus.Failed ->
+                        install.message ?: stringResource(R.string.agent_status_install_failed)
+                    is com.yugahashimoto.andcode.runtime.local.ClineInstallStatus.Ready ->
+                        cline.version?.let { "Cline $it" } ?: stringResource(R.string.agent_cline_name)
+                    else ->
+                        if (cline.installed) {
+                            cline.version?.let { "Cline $it" } ?: stringResource(R.string.agent_cline_name)
+                        } else {
+                            stringResource(R.string.runtime_status_not_installed)
+                        }
                 }
+            AgentStatusCard(
+                status = statusText,
+                active = cline.isReady(),
+                metrics =
+                    cline.version
+                        ?.takeIf(String::isNotBlank)
+                        ?.let { v ->
+                            listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
+                        }.orEmpty(),
+            ) {
                 when (val install = cline.install) {
                     is com.yugahashimoto.andcode.runtime.local.ClineInstallStatus.Installing -> {
-                        val progress = install.progress
                         Text(
-                            install.step ?: stringResource(R.string.install_step_installing_cline),
+                            install.step?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.install_step_installing_cline),
                             style = MaterialTheme.typography.bodySmall,
                         )
+                        val progress = install.progress
                         if (progress != null) {
                             LinearProgressIndicator(
                                 progress = { progress.coerceIn(0f, 1f) },
@@ -1317,9 +1304,7 @@ fun ClineAgentSettingsScreen(
                             }
                         } else {
                             Text(
-                                text =
-                                    (cline.version?.let { "Cline $it" } ?: "Cline") +
-                                        " · host Termux port (not OpenCode)",
+                                text = stringResource(R.string.setup_agent_cline_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
