@@ -103,9 +103,10 @@ class ClineTarget(
                 }
             val all =
                 listOf(
-                    OpenCodeProvider(id = "google", name = "Google AI Studio", models = googleModels),
-                    OpenCodeProvider(id = "openai", name = "OpenAI", models = openaiModels),
                     OpenCodeProvider(id = "anthropic", name = "Anthropic", models = anthropicModels),
+                    OpenCodeProvider(id = "openai", name = "OpenAI", models = openaiModels),
+                    OpenCodeProvider(id = "google", name = "Google AI Studio", models = googleModels),
+                    OpenCodeProvider(id = "openrouter", name = "OpenRouter", models = emptyMap()),
                 )
             ProviderCatalog(
                 all = all,
@@ -115,7 +116,7 @@ class ClineTarget(
         }
 
     override suspend fun providerAuthMethods(): Map<String, List<ProviderAuthMethod>> =
-        listOf("google", "openai", "anthropic").associateWith {
+        listOf("anthropic", "openai", "google", "openrouter").associateWith {
             listOf(ProviderAuthMethod(type = "api", label = "API key"))
         }
 

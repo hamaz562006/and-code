@@ -939,6 +939,7 @@
     <string name="grok_build_installed_version">Grok Build %1$s</string>
     <string name="agent_hermes_name">Hermes</string>
     <string name="agent_cline_name">Cline</string>
+    <string name="setup_cline_providers_hint">Cline uses its own providers (not OpenCode). Add an API key for at least one provider.</string>
     <string name="setup_agent_cline_desc">Cline coding agent (Termux aarch64 port)</string>
     <string name="agent_aider_name">Aider</string>
     <string name="aider_installed_version">Aider %1$s</string>
@@ -1305,4 +1306,5 @@
     <string name="agent_export_not_installed">Install this agent before exporting</string>
     <string name="agent_import_need_runtime">Install the Linux environment first</string>
     <string name="agent_package_section">Backup &amp; restore</string>
+    <string name="provider_api_key_label">API key</string>
 </resources>

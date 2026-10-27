@@ -92,6 +92,7 @@ import com.yugahashimoto.andcode.runtime.local.PiInstallStatus
 import com.yugahashimoto.andcode.runtime.local.PiUiState
 import com.yugahashimoto.andcode.ui.theme.AndCodeTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val TOTAL_STEPS = 4
 
@@ -1634,14 +1635,103 @@ private fun SignInStep(
                         onDisconnectProvider = onDisconnectProvider,
                         header = false,
                     )
-                LocalAgent.CLINE ->
-                    ProviderConnectionStep(
-                        settingsState = settingsState,
-                        onOpenProviderAuth = onOpenProviderAuth,
-                        onDisconnectProvider = onDisconnectProvider,
-                        header = false,
-                    )
+                LocalAgent.CLINE -> ClineSignInPanel()
             }
+        }
+    }
+}
+
+/**
+ * Cline provider setup is independent of OpenCode.
+ * Keys go to [ClineRuntime] via [ClineTarget], not LocalOpenCodeBackend.
+ */
+@Composable
+private fun ClineSignInPanel() {
+    val context = LocalContext.current
+    val app = context.applicationContext as? AndCodeApplication
+    val scope = rememberCoroutineScope()
+    var statusByProvider by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    var draftKeys by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    val providers =
+        listOf(
+            "anthropic" to "Anthropic",
+            "openai" to "OpenAI",
+            "google" to "Google AI Studio",
+            "openrouter" to "OpenRouter",
+        )
+
+    LaunchedEffect(app) {
+        if (app == null) return@LaunchedEffect
+        runCatching {
+            val catalog = app.clineTarget.listProviders()
+            statusByProvider = catalog.connected.associateWith { true }
+        }.onFailure { error = it.message }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = stringResource(R.string.setup_cline_providers_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        providers.forEach { (id, label) ->
+            val connected = statusByProvider[id] == true
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(label, fontWeight = FontWeight.SemiBold)
+                if (connected) {
+                    Text(
+                        stringResource(R.string.provider_connected),
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    TextButton(onClick = {
+                        app?.let {
+                            scope.launch {
+                                runCatching { it.clineTarget.removeProviderAuth(id) }
+                                statusByProvider = statusByProvider - id
+                            }
+                        }
+                    }) { Text(stringResource(R.string.provider_disconnect)) }
+                } else {
+                    OutlinedTextField(
+                        value = draftKeys[id].orEmpty(),
+                        onValueChange = { v -> draftKeys = draftKeys + (id to v) },
+                        label = { Text(stringResource(R.string.provider_api_key_label)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    TextButton(
+                        onClick = {
+                            val key = draftKeys[id].orEmpty().trim()
+                            if (key.isEmpty() || app == null) return@TextButton
+                            scope.launch {
+                                runCatching {
+                                    app.clineTarget.setProviderApiKey(id, key, emptyMap())
+                                    statusByProvider = statusByProvider + (id to true)
+                                    draftKeys = draftKeys - id
+                                    message = null
+                                    error = null
+                                }.onFailure { error = it.message }
+                            }
+                        },
+                    ) { Text(stringResource(R.string.provider_connect)) }
+                }
+            }
+        }
+        error?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+        message?.let {
+            Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
