@@ -15,7 +15,6 @@ import com.yugahashimoto.andcode.core.api.PromptRequest
 import com.yugahashimoto.andcode.core.api.ProviderAuthMethod
 import com.yugahashimoto.andcode.core.api.ProviderCatalog
 import com.yugahashimoto.andcode.runtime.BackendKind
-import com.yugahashimoto.andcode.runtime.free.FreeModelsCatalog
 import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.PermissionResponse
 import com.yugahashimoto.andcode.runtime.RuntimeCapabilities
@@ -23,6 +22,7 @@ import com.yugahashimoto.andcode.runtime.RuntimeState
 import com.yugahashimoto.andcode.runtime.RuntimeTarget
 import com.yugahashimoto.andcode.runtime.RuntimeType
 import com.yugahashimoto.andcode.runtime.WorkspaceRef
+import com.yugahashimoto.andcode.runtime.free.FreeModelsCatalog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
