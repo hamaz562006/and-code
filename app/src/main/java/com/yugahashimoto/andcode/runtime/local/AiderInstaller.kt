@@ -84,12 +84,18 @@ object AiderInstaller {
                 "-r /tmp/aider-pure-deps.txt",
         )
 
-        // Optional binary wheels only (musl may have none — never fall back to source).
+        // Binary extensions — pin pydantic-core to the version pure-deps pydantic expects
+        // (skoll43 wheel bundle uses 2.41.5; unpinned pip was pulling 2.50.1 → SystemError).
         onProgress(0.50f)
         runShell(
-            "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 2 --timeout 60 " +
-                "pydantic-core jiter orjson pyyaml regex aiohttp yarl multidict frozenlist " +
-                "propcache tree-sitter 2>/dev/null || true",
+            "set -e; " +
+                "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 3 --timeout 90 " +
+                "'pydantic-core==2.41.5' 2>/dev/null || " +
+                "$VENV_PIP install --no-cache-dir --only-binary=:all: --force-reinstall --retries 3 --timeout 90 " +
+                "pydantic pydantic-core; " +
+                "$VENV_PIP install --no-cache-dir --only-binary=:all: --retries 2 --timeout 60 " +
+                "jiter orjson pyyaml regex aiohttp yarl multidict frozenlist propcache " +
+                "tree-sitter 2>/dev/null || true",
         )
 
         // Pillow/numpy if apk did not provide them
@@ -138,6 +144,7 @@ object AiderInstaller {
                 "    audioop) pkg=audioop-lts ;; " +
                 "    cv2) pkg=opencv-python-headless ;; " +
                 "    tree_sitter) pkg=tree-sitter ;; " +
+                "    pydantic_core) pkg='pydantic-core==2.41.5' ;; " +
                 "    tree_sitter_language_pack|tree_sitter_languages) " +
                 "      SITE=\$($VENV_PY -c 'import site; print(site.getsitepackages()[0])'); " +
                 "      mkdir -p \"\$SITE/\$mod\"; " +
@@ -145,11 +152,16 @@ object AiderInstaller {
                 "        > \"\$SITE/\$mod/__init__.py\"; " +
                 "      echo \"stubbed \$mod\" >&2; continue ;; " +
                 "  esac; " +
-                "  echo \"Installing missing pure/wheel module --no-deps: \$pkg\" >&2; " +
-                "  $VENV_PIP install --no-cache-dir --no-deps --retries 3 --timeout 90 \"\$pkg\" || " +
-                "  $VENV_PIP install --no-cache-dir --no-deps --only-binary=:all: --retries 2 --timeout 60 \"\$pkg\" || " +
-                "  $VENV_PIP install --no-cache-dir --no-deps --retries 2 --timeout 60 " +
+                "  echo \"Installing missing pure/wheel module: \$pkg\" >&2; " +
+                "  if [ \"\$mod\" = pydantic_core ]; then " +
+                "    $VENV_PIP install --no-cache-dir --only-binary=:all: --retries 3 --timeout 90 'pydantic-core==2.41.5' || " +
+                "    $VENV_PIP install --no-cache-dir --only-binary=:all: --force-reinstall --retries 3 --timeout 90 pydantic pydantic-core || true; " +
+                "  else " +
+                "    $VENV_PIP install --no-cache-dir --no-deps --retries 3 --timeout 90 \"\$pkg\" || " +
+                "    $VENV_PIP install --no-cache-dir --only-binary=:all: --retries 2 --timeout 60 \"\$pkg\" || " +
+                "    $VENV_PIP install --no-cache-dir --no-deps --retries 2 --timeout 60 " +
                 "\"\$(echo \"\$pkg\" | tr '_' '-')\" || true; " +
+                "  fi; " +
                 "done; " +
                 "if ! /$VENV_BIN_AIDER --version >/tmp/aider-version.out 2>/tmp/aider-version.err; then " +
                 "  echo 'aider --version failed:' >&2; cat /tmp/aider-version.err >&2; exit 1; " +
