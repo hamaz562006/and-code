@@ -1281,4 +1281,5 @@
 <string name="setup_cline_providers_hint">Cline uses its own providers (not OpenCode). Add an API key for at least one provider.</string>
     <string name="setup_agent_cline_desc">Cline coding agent (Termux aarch64 port)</string>
     <string name="install_step_installing_cline">Installing Cline</string>
+    <string name="provider_api_key_label">API key</string>
 </resources>
