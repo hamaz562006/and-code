@@ -867,6 +867,8 @@ private fun targetSubtitle(
         localAgentSubtitle(target.state, R.string.aider_installed_version, R.string.runtime_status_not_installed)
     } else if (target.agent == LocalAgent.HERMES) {
         localAgentSubtitle(target.state, R.string.hermes_installed_version, R.string.runtime_status_not_installed)
+    } else if (target.agent == LocalAgent.CLINE) {
+        localAgentSubtitle(target.state, R.string.cline_installed_version, R.string.runtime_status_not_installed)
     } else if (target.agent == LocalAgent.OPEN_CODE || target.agent == null) {
         // Do NOT use localStatus here: a Hermes-only sandbox is Ready without OpenCode binary.
         localAgentSubtitle(target.state, R.string.capability_version, R.string.runtime_status_not_installed)

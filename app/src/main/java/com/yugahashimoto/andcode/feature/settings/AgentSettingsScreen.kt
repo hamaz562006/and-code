@@ -97,6 +97,7 @@ fun AgentSettingsScreen(
     onOpenGrokBuild: () -> Unit,
     onOpenHermes: () -> Unit = {},
     onOpenAider: () -> Unit = {},
+    onOpenCline: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(R.string.settings_agents_row), onBack = onBack) {
@@ -116,7 +117,7 @@ fun AgentSettingsScreen(
             AgentRow(LocalAgent.HERMES, onOpenHermes)
             SettingsDivider()
             AgentRow(LocalAgent.AIDER, onOpenAider)
-            AgentRow(LocalAgent.CLINE, onOpenAider)
+            AgentRow(LocalAgent.CLINE, onOpenCline)
         }
     }
 }
@@ -1224,6 +1225,101 @@ fun AiderAgentSettingsScreen(
                         } else {
                             Text(
                                 text = stringResource(R.string.setup_agent_aider_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ClineAgentSettingsScreen(
+    cline: com.yugahashimoto.andcode.runtime.local.ClineUiState,
+    onInstall: () -> Unit,
+    onBack: () -> Unit,
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.agent_cline_name)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.nav_back),
+                        )
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            SectionCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(stringResource(R.string.status_label), fontWeight = FontWeight.SemiBold)
+                    StatusChip(
+                        text =
+                            when {
+                                cline.install is com.yugahashimoto.andcode.runtime.local.ClineInstallStatus.Installing ->
+                                    stringResource(R.string.claude_status_installing)
+                                cline.installed -> stringResource(R.string.runtime_status_ready)
+                                else -> stringResource(R.string.runtime_status_not_installed)
+                            },
+                        active = cline.installed,
+                    )
+                }
+                when (val install = cline.install) {
+                    is com.yugahashimoto.andcode.runtime.local.ClineInstallStatus.Installing -> {
+                        val progress = install.progress
+                        Text(
+                            install.step ?: stringResource(R.string.install_step_installing_cline),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    is com.yugahashimoto.andcode.runtime.local.ClineInstallStatus.Failed -> {
+                        Text(
+                            install.message ?: stringResource(R.string.agent_status_install_failed),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.claude_retry_install_button))
+                        }
+                    }
+                    else -> {
+                        if (!cline.installed) {
+                            Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.install_step_installing_cline))
+                            }
+                        } else {
+                            Text(
+                                text =
+                                    (cline.version?.let { "Cline $it" } ?: "Cline") +
+                                        " · host Termux port (not OpenCode)",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

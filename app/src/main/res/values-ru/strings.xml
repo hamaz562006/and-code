@@ -1286,4 +1286,5 @@
     <string name="provider_api_key_label">API key</string>
     <string name="setup_cline_free_models_note">Keyless free models (Kilo / curated). Available without an API key.</string>
     <string name="setup_cline_local_ollama_note">Optional. Point Cline at a local OpenAI-compatible server such as Ollama on this device or LAN.</string>
+    <string name="cline_installed_version">Cline %1$s</string>
 </resources>

@@ -24,6 +24,7 @@ import com.yugahashimoto.andcode.data.settings.AppPreferencesRepository
 import com.yugahashimoto.andcode.feature.assistant.TtsPreview
 import com.yugahashimoto.andcode.feature.settings.AgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.AiderAgentSettingsScreen
+import com.yugahashimoto.andcode.feature.settings.ClineAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.AntigravityAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ClaudeCodeAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.CodexAgentSettingsScreen
@@ -313,6 +314,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenGrokBuild = { navController.navigate(ROUTE_SETTINGS_AGENT_GROK_BUILD) },
             onOpenHermes = { navController.navigate(ROUTE_SETTINGS_AGENT_HERMES) },
             onOpenAider = { navController.navigate(ROUTE_SETTINGS_AGENT_AIDER) },
+            onOpenCline = { navController.navigate(ROUTE_SETTINGS_AGENT_CLINE) },
             onBack = { navController.popBackStack() },
         )
     }
@@ -508,6 +510,17 @@ fun NavGraphBuilder.settingsNavGraph(
         AiderAgentSettingsScreen(
             aider = aider,
             onInstall = { app.aiderController.install() },
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable(ROUTE_SETTINGS_AGENT_CLINE) {
+        val app = context.applicationContext as com.yugahashimoto.andcode.AndCodeApplication
+        val cline by app.clineController.state.collectAsState()
+        androidx.compose.runtime.LaunchedEffect(Unit) { app.clineController.refresh() }
+        ClineAgentSettingsScreen(
+            cline = cline,
+            onInstall = { app.clineController.install() },
             onBack = { navController.popBackStack() },
         )
     }

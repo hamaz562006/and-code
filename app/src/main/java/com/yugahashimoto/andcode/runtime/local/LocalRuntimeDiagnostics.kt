@@ -167,6 +167,27 @@ class LocalRuntimeDiagnosticsCollector(
                                     LocalRuntimeCommandResult(127, messages.diagnosticsToolNotInstalled)
                                 }
                             }
+                            "cline" -> {
+                                if (ClineInstaller.isInstalledIn(runtimeDirectory)) {
+                                    val host =
+                                        ClineInstaller.runOnHost(
+                                            runtimeDirectory,
+                                            listOf("--version"),
+                                        )
+                                    if (host.exitCode == 0) {
+                                        LocalRuntimeCommandResult(host.exitCode, host.output)
+                                    } else {
+                                        // Files present; show pinned version instead of Alpine/shell noise.
+                                        LocalRuntimeCommandResult(
+                                            0,
+                                            ClineInstaller.installedVersion(runtimeDirectory)
+                                                ?: ClineManifest.VERSION,
+                                        )
+                                    }
+                                } else {
+                                    LocalRuntimeCommandResult(127, messages.diagnosticsToolNotInstalled)
+                                }
+                            }
                             else -> commandExecutor(definition)
                         }
                     }
