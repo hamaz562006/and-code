@@ -680,7 +680,6 @@ class LocalRuntimeInstaller(
         recordAgent(LocalAgent.AIDER)
     }
 
-
     suspend fun installClineOnly(onProgress: (Float?, String) -> Unit = { _, _ -> }) {
         val label = context.getString(R.string.install_step_installing_cline)
         onProgress(0.05f, label)
