@@ -781,6 +781,7 @@ private fun rememberAgentPackageImporter(): AgentPackageImportControl {
                                     LocalAgent.GROK_BUILD -> runCatching { app.grokBuildController.refresh() }
                                     LocalAgent.HERMES -> runCatching { app.hermesController.refresh() }
                                     LocalAgent.AIDER -> runCatching { app.aiderController.refresh() }
+                                    LocalAgent.CLINE -> runCatching { app.clineController.refresh() }
                                     LocalAgent.CODEX -> runCatching { app.codexController.refresh() }
                                     LocalAgent.CLAUDE_CODE -> runCatching { app.claudeCodeController.refresh() }
                                     LocalAgent.ANTIGRAVITY -> runCatching { app.antigravityController.refresh() }

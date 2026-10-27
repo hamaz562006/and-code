@@ -118,6 +118,9 @@ class LocalRuntimeDiagnosticsCollector(
                         ),
                     )
                 }
+                if (ClineInstaller.isInstalledIn(runtimeDirectory)) {
+                    add(LocalRuntimeToolDefinition("cline", "Cline", "cline --version"))
+                }
             }
         val definitions =
             agentTools +
@@ -125,7 +128,7 @@ class LocalRuntimeDiagnosticsCollector(
                 OPTIONAL_TOOLS.takeIf { fullDevelopmentToolsInstalledProvider() }.orEmpty()
         val tools =
             definitions.map { definition ->
-                val isHostAgent = definition.id == "hermes" || definition.id == "grok"
+                val isHostAgent = definition.id == "hermes" || definition.id == "grok" || definition.id == "cline"
                 // Host-side agents (Hermes/Grok) do not need Alpine rootfs to report status.
                 if (!environmentProvisioned && !isHostAgent) {
                     LocalRuntimeToolCheck(

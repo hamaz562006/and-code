@@ -116,6 +116,7 @@ fun AgentSettingsScreen(
             AgentRow(LocalAgent.HERMES, onOpenHermes)
             SettingsDivider()
             AgentRow(LocalAgent.AIDER, onOpenAider)
+            AgentRow(LocalAgent.CLINE, onOpenAider)
         }
     }
 }

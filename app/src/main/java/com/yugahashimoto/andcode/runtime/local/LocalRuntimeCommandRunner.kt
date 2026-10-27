@@ -45,6 +45,10 @@ class LocalRuntimeCommandRunner(
                     )
                 return@read LocalRuntimeCommandResult(result.exitCode, result.output)
             }
+            val hostClineArgs = hostClineArgsOrNull(commandText)
+            if (hostClineArgs != null) {
+                return@read ClineInstaller.runOnHost(runtimeDirectory, hostClineArgs, timeoutSeconds)
+            }
             val prootTmp = File(runtimeDirectory, "proot-tmp").apply { mkdirs() }
             val outputFile = File.createTempFile("diagnostic-", ".log", File(runtimeDirectory, "logs").apply { mkdirs() })
             try {
@@ -125,6 +129,19 @@ class LocalRuntimeCommandRunner(
         if (parts.isEmpty()) return null
         val head = parts.first()
         if (head != "grok" && head != "/usr/local/bin/grok") return null
+        return parts.drop(1)
+    }
+
+    /** Cline Termux port is host/bionic — same class as Hermes. */
+    private fun hostClineArgsOrNull(commandText: String): List<String>? {
+        val trimmed = commandText.trim()
+        if (trimmed.isEmpty()) return null
+        if (trimmed.any { it in charArrayOf('|', ';', '&', '>', '<', '`') }) return null
+        if ("&&" in trimmed || "||" in trimmed) return null
+        val parts = trimmed.split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (parts.isEmpty()) return null
+        val head = parts.first()
+        if (head != "cline" && !head.endsWith("/cline")) return null
         return parts.drop(1)
     }
 

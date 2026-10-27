@@ -76,6 +76,8 @@ import com.yugahashimoto.andcode.runtime.LocalAgent
 import com.yugahashimoto.andcode.runtime.LocalRuntimeStatus
 import com.yugahashimoto.andcode.runtime.local.AiderInstallStatus
 import com.yugahashimoto.andcode.runtime.local.AiderUiState
+import com.yugahashimoto.andcode.runtime.local.ClineUiState
+import com.yugahashimoto.andcode.runtime.local.ClineInstallStatus
 import com.yugahashimoto.andcode.runtime.local.AntigravityControllerState
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeUiState
 import com.yugahashimoto.andcode.runtime.local.ClaudeInstallStatus
@@ -129,6 +131,7 @@ fun AndroidSetupScreen(
     grok: GrokBuildUiState = GrokBuildUiState(),
     hermes: HermesUiState = HermesUiState(),
     aider: AiderUiState = AiderUiState(),
+    cline: ClineUiState = ClineUiState(),
     /** Codex signs in through its own dialog state, not [settingsState]'s, which is OpenCode's. */
     codexSignInDialog: ProviderAuthDialogState? = null,
     codexSignIn: CodexSignInActions =
@@ -196,6 +199,7 @@ fun AndroidSetupScreen(
     val grokSelected = LocalAgent.GROK_BUILD in selectedAgents
     val hermesSelected = LocalAgent.HERMES in selectedAgents
     val aiderSelected = LocalAgent.AIDER in selectedAgents
+    val clineSelected = LocalAgent.CLINE in selectedAgents
     val openCodeReady = runtimeStatus is LocalRuntimeStatus.Ready || runtimeStatus is LocalRuntimeStatus.Stopped
     val antigravityReady = antigravitySelected && antigravity.installed && !antigravity.busy
     val codexReady = codex.installed && codex.install !is CodexInstallStatus.Installing && codex.install !is CodexInstallStatus.Failed
@@ -220,6 +224,7 @@ fun AndroidSetupScreen(
             LocalAgent.GROK_BUILD.takeIf { grokSelected && grok.installed },
             LocalAgent.HERMES.takeIf { hermesSelected && hermes.installed },
             LocalAgent.AIDER.takeIf { aiderSelected && (aider.installed || aiderReady) },
+            LocalAgent.CLINE.takeIf { clineSelected && cline.installed },
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
@@ -775,6 +780,12 @@ private fun AgentSelectionStep(
             selected = LocalAgent.AIDER in selectedAgents,
             onToggle = { onToggle(LocalAgent.AIDER) },
         )
+        AgentOption(
+            title = stringResource(R.string.agent_cline_name),
+            description = stringResource(R.string.setup_agent_cline_desc),
+            selected = LocalAgent.CLINE in selectedAgents,
+            onToggle = { onToggle(LocalAgent.CLINE) },
+        )
         if (selectedAgents.size >= 2) {
             Text(
                 text = stringResource(R.string.setup_runtime_shared_note),
@@ -960,6 +971,7 @@ private fun RuntimeDownloadStep(
     hermes: HermesUiState = HermesUiState(),
     aiderSelected: Boolean = false,
     aider: AiderUiState = AiderUiState(),
+    cline: ClineUiState = ClineUiState(),
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
     // each step is shown under the agent it names. Without this the OpenCode panel displayed
@@ -1542,6 +1554,13 @@ private fun SignInStep(
                         header = false,
                     )
                 LocalAgent.AIDER ->
+                    ProviderConnectionStep(
+                        settingsState = settingsState,
+                        onOpenProviderAuth = onOpenProviderAuth,
+                        onDisconnectProvider = onDisconnectProvider,
+                        header = false,
+                    )
+                LocalAgent.CLINE ->
                     ProviderConnectionStep(
                         settingsState = settingsState,
                         onOpenProviderAuth = onOpenProviderAuth,

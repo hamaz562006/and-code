@@ -178,6 +178,9 @@ object RuntimeAgentPackage {
                     addIfExists(paths, rootfs, "root/.aider")
                 }
             }
+            LocalAgent.CLINE -> {
+                // Host paths collected separately via collectHostPaths().
+            }
         }
         // Always ship a bootable base so import can restore offline (format v2).
         addBaseRuntime(paths, rootfs)
@@ -229,6 +232,17 @@ object RuntimeAgentPackage {
                     }
                 }
             }
+            LocalAgent.CLINE -> {
+                val clineRoot = File(runtimeDirectory, ClineManifest.INSTALL_DIR)
+                if (clineRoot.isDirectory) {
+                    clineRoot.walkTopDown().forEach { file ->
+                        if (file.isFile) {
+                            val rel = file.relativeTo(runtimeDirectory).path.replace('\\', '/')
+                            paths.add(rel)
+                        }
+                    }
+                }
+            }
             else -> Unit
         }
         return paths.toList()
@@ -267,7 +281,7 @@ object RuntimeAgentPackage {
         includeConfig: Boolean = true,
         hostRuntimeDir: File? = null,
     ): ExportResult {
-        val isHostAgent = agent == LocalAgent.HERMES
+        val isHostAgent = agent == LocalAgent.HERMES || agent == LocalAgent.CLINE
         if (!isHostAgent) {
             require(rootfs != null && rootfs.isDirectory) { "Rootfs is not installed" }
         } else {
@@ -284,6 +298,9 @@ object RuntimeAgentPackage {
                 LocalAgent.HERMES ->
                     HermesInstaller.installedVersion(hostRuntimeDir!!)
                         ?: HermesManifest.VERSION
+                LocalAgent.CLINE ->
+                    ClineInstaller.installedVersion(hostRuntimeDir!!)
+                        ?: ClineManifest.VERSION
                 else -> "installed"
             }
         val rootPaths =

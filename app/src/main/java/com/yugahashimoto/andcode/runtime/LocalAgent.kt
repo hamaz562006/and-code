@@ -24,6 +24,7 @@ enum class LocalAgent(
     GROK_BUILD("grok-build", R.string.agent_grok_build_name, "grok-build-local", R.drawable.ic_agent_grok_build),
     HERMES("hermes", R.string.agent_hermes_name, "hermes-local", R.drawable.ic_agent_hermes),
     AIDER("aider", R.string.agent_aider_name, "aider-local", R.drawable.ic_agent_aider),
+    CLINE("cline", R.string.agent_cline_name, "cline-local", R.drawable.ic_agent_cline),
     ;
 
     companion object {

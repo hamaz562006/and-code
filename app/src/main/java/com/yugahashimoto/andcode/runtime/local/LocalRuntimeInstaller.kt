@@ -68,6 +68,7 @@ class LocalRuntimeInstaller(
             val onGrok: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.GROK_BUILD) }
             val onHermes: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.HERMES) }
             val onAider: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.AIDER) }
+            val onCline: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.CLINE) }
             runtimeDirectory.mkdirs()
             onShared(0.02f, context.getString(R.string.install_step_preparing_command_env))
             val existingMetadata = installedMetadata()
@@ -309,6 +310,18 @@ class LocalRuntimeInstaller(
                         onAider(aiderStart + fraction.coerceIn(0f, 1f) * span, aiderLabel)
                     }
                     onAider(aiderEnd, aiderLabel)
+                }
+                if (LocalAgent.CLINE in requestedAgents) {
+                    val clineLabel = context.getString(R.string.install_step_installing_cline)
+                    val clineStart = 0.55f
+                    val clineEnd = 0.95f
+                    onCline(clineStart, clineLabel)
+                    // Host install (suspend) — ClineInstaller is a coroutine API.
+                    ClineInstaller.install(runtimeDirectory) { fraction ->
+                        val span = clineEnd - clineStart
+                        onCline(clineStart + fraction.coerceIn(0f, 1f) * span, clineLabel)
+                    }
+                    onCline(clineEnd, clineLabel)
                 }
                 val metadata =
                     LocalRuntimeMetadata(
@@ -665,6 +678,17 @@ class LocalRuntimeInstaller(
         }
         onProgress(1f, label)
         recordAgent(LocalAgent.AIDER)
+    }
+
+
+    suspend fun installClineOnly(onProgress: (Float?, String) -> Unit = { _, _ -> }) {
+        val label = context.getString(R.string.install_step_installing_cline)
+        onProgress(0.05f, label)
+        ClineInstaller.install(runtimeDirectory) { f ->
+            onProgress(0.05f + f.coerceIn(0f, 1f) * 0.9f, label)
+        }
+        onProgress(1f, label)
+        recordAgent(LocalAgent.CLINE)
     }
 
     private fun installAiderIntoRootfs(

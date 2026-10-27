@@ -938,9 +938,12 @@
     <string name="hermes_installed_version">Hermes %1$s · 127.0.0.1:8642</string>
     <string name="grok_build_installed_version">Grok Build %1$s</string>
     <string name="agent_hermes_name">Hermes</string>
+    <string name="agent_cline_name">Cline</string>
+    <string name="setup_agent_cline_desc">Cline coding agent (Termux aarch64 port)</string>
     <string name="agent_aider_name">Aider</string>
     <string name="aider_installed_version">Aider %1$s</string>
     <string name="setup_agent_aider_desc">Aider pair-programming agent (Python). API keys for Google/OpenAI/Anthropic. Installs via pip in the local runtime.</string>
+    <string name="install_step_installing_cline">Installing Cline</string>
     <string name="install_step_installing_aider">Installing Aider</string>
     <string name="setup_agent_hermes_desc">Nous Research Hermes Agent (Termux aarch64 package). ~160 MB download. Configure providers with hermes setup.</string>
     <string name="install_step_installing_hermes">Installing Hermes…</string>

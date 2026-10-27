@@ -74,6 +74,9 @@ import com.yugahashimoto.andcode.runtime.local.GrokBuildTarget
 import com.yugahashimoto.andcode.runtime.local.HermesController
 import com.yugahashimoto.andcode.runtime.local.HermesRuntime
 import com.yugahashimoto.andcode.runtime.local.HermesTarget
+import com.yugahashimoto.andcode.runtime.local.ClineController
+import com.yugahashimoto.andcode.runtime.local.ClineRuntime
+import com.yugahashimoto.andcode.runtime.local.ClineTarget
 import com.yugahashimoto.andcode.runtime.local.LocalProviderCredentialStore
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeAccessCoordinator
 import com.yugahashimoto.andcode.runtime.local.LocalRuntimeCommandRunner
@@ -230,7 +233,9 @@ class AndCodeApplication : Application() {
     lateinit var hermesTarget: HermesTarget
     lateinit var aiderRuntime: AiderRuntime
     lateinit var aiderTarget: AiderTarget
+    lateinit var clineTarget: ClineTarget
     lateinit var aiderController: AiderController
+    lateinit var clineController: ClineController
         private set
 
     lateinit var antigravityController: AntigravityController
@@ -391,6 +396,8 @@ class AndCodeApplication : Application() {
                 runShell = { cmd -> this.commandRunner.runShell(cmd, timeoutSeconds = 300L) },
             )
         aiderTarget = AiderTarget(aiderRuntime)
+        val clineRuntime = ClineRuntime(runtimeDirectory)
+        clineTarget = ClineTarget(clineRuntime)
         // Codex is a child of this process, so it is cut off from the network the moment the app has
         // nothing in the foreground on some devices: hold the app there while Codex is signing in or
         // running a turn (see CodexKeepAliveService).
@@ -416,6 +423,8 @@ class AndCodeApplication : Application() {
         hermesController = HermesController(hermesRuntime, hermesTarget, installer, runtimeWork, applicationScope)
         aiderController =
             AiderController(aiderRuntime, aiderTarget, installer, runtimeWork, applicationScope)
+        clineController =
+            ClineController(clineRuntime, clineTarget, installer, runtimeWork, applicationScope)
         runtimeMessages = AndroidLocalRuntimeMessages(this)
         gitCloneRepository =
             GitCloneRepository(
@@ -529,6 +538,7 @@ class AndCodeApplication : Application() {
                         grokBuildTarget,
                         hermesTarget,
                         aiderTarget,
+                        clineTarget,
                     ),
             )
         // Surface the installed/version state to the workspace picker without waiting for the
@@ -538,6 +548,7 @@ class AndCodeApplication : Application() {
         applicationScope.launch { grokBuildTarget.connect() }
         applicationScope.launch { hermesTarget.connect() }
         applicationScope.launch { aiderTarget.connect() }
+        applicationScope.launch { clineTarget.connect() }
         applicationScope.launch {
             runCatching { FreeModelsCatalog.refreshFromNetwork(httpClient) }
         }
