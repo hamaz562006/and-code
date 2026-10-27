@@ -80,6 +80,7 @@ import com.yugahashimoto.andcode.runtime.local.AntigravityControllerState
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeUiState
 import com.yugahashimoto.andcode.runtime.local.ClaudeInstallStatus
 import com.yugahashimoto.andcode.runtime.local.ClaudePermissionMode
+import com.yugahashimoto.andcode.runtime.local.ClineInstallStatus
 import com.yugahashimoto.andcode.runtime.local.ClineUiState
 import com.yugahashimoto.andcode.runtime.local.CodexInstallStatus
 import com.yugahashimoto.andcode.runtime.local.CodexUiState
@@ -209,6 +210,7 @@ fun AndroidSetupScreen(
     val grokReady = grok.isReady()
     val hermesReady = hermes.isReady()
     val aiderReady = aider.isReady()
+    val clineReady = cline.isReady()
     // Only what is selected *and* actually on the device: an agent whose binary is missing has no
     // sign-in to offer, and Claude Code's card would shell out to /usr/bin/claude and fail there.
     // OpenCode, Claude Code, Antigravity - the same order the picker lists them in, so the guide
@@ -240,6 +242,7 @@ fun AndroidSetupScreen(
             grok.install is GrokBuildInstallStatus.Installing ||
             hermes.install is HermesInstallStatus.Installing ||
             aider.install is AiderInstallStatus.Installing ||
+            cline.install is ClineInstallStatus.Installing ||
             antigravity.busy
     val selectedDevGroups = selectedDevToolGroupIds.mapNotNull { DevelopmentToolGroup.fromId(it) }.toSet()
     val fullToolsReady = selectedDevGroups.isEmpty() || fullDevelopmentToolsInstalled
@@ -252,6 +255,7 @@ fun AndroidSetupScreen(
             (!grokSelected || grokReady) &&
             (!hermesSelected || hermesReady) &&
             (!aiderSelected || aiderReady) &&
+            (!clineSelected || clineReady) &&
             fullToolsReady
     val installComplete = agentsInstallComplete && !fullToolsInstallPending
 
@@ -342,6 +346,25 @@ fun AndroidSetupScreen(
         if (aider.install is AiderInstallStatus.Failed) return@LaunchedEffect
         if (aiderAutoStartAttempted) return@LaunchedEffect
         aiderAutoStartAttempted = true
+        onStartSetup(selectedAgents, selectedDevGroups)
+    }
+
+    var clineInstallWasRunning by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(clineSelected, packageInstallRunning) {
+        val justFinished = clineInstallWasRunning && !packageInstallRunning
+        clineInstallWasRunning = packageInstallRunning
+        if (clineSelected && justFinished) {
+            (context.applicationContext as? AndCodeApplication)?.clineController?.refresh()
+        }
+    }
+
+    var clineAutoStartAttempted by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(currentStep, clineSelected, cline.install, cline.installed, packageInstallRunning) {
+        if (currentStep != 3 || !clineSelected || cline.installed) return@LaunchedEffect
+        if (cline.install is ClineInstallStatus.Installing || packageInstallRunning) return@LaunchedEffect
+        if (cline.install is ClineInstallStatus.Failed) return@LaunchedEffect
+        if (clineAutoStartAttempted) return@LaunchedEffect
+        clineAutoStartAttempted = true
         onStartSetup(selectedAgents, selectedDevGroups)
     }
 
@@ -522,6 +545,8 @@ fun AndroidSetupScreen(
                         hermes = hermes,
                         aiderSelected = aiderSelected,
                         aider = aider,
+                        clineSelected = clineSelected,
+                        cline = cline,
                     )
                 4 ->
                     SignInStep(
@@ -970,6 +995,7 @@ private fun RuntimeDownloadStep(
     hermes: HermesUiState = HermesUiState(),
     aiderSelected: Boolean = false,
     aider: AiderUiState = AiderUiState(),
+    clineSelected: Boolean = false,
     cline: ClineUiState = ClineUiState(),
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
@@ -1196,6 +1222,55 @@ private fun RuntimeDownloadStep(
                         )
                     installing != null ->
                         Text(stringResource(R.string.install_step_installing_aider))
+                    else ->
+                        Text(
+                            stringResource(R.string.setup_runtime_not_installed),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                }
+            }
+        }
+        if (clineSelected) {
+            SetupPanel {
+                Text(stringResource(R.string.agent_cline_name), fontWeight = FontWeight.SemiBold)
+                val step = stepFor(LocalAgent.CLINE)
+                when {
+                    step != null -> SharedInstallProgress(step)
+                    cline.install is ClineInstallStatus.Installing -> {
+                        val inst = cline.install
+                        Text(
+                            inst.step?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.install_step_installing_cline),
+                            fontWeight = FontWeight.Medium,
+                        )
+                        val progress = inst.progress
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Text(
+                                text = "${(progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    cline.install is ClineInstallStatus.Failed ->
+                        Text(
+                            cline.install.message
+                                ?: stringResource(R.string.agent_status_install_failed),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    cline.isReady() ->
+                        ReadyAgentRow(
+                            stringResource(R.string.agent_cline_name) +
+                                (cline.version?.let { " $it" } ?: ""),
+                        )
+                    installing != null ->
+                        Text(stringResource(R.string.install_step_installing_cline))
                     else ->
                         Text(
                             stringResource(R.string.setup_runtime_not_installed),
