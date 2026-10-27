@@ -5,9 +5,8 @@ import java.io.File
 /**
  * Full Aider install into the **Debian** rootfs (same proot image Antigravity uses).
  *
- * Do **not** apt-install python3-dev / build-essential here: their postinst scripts
- * (fontconfig, debconf) break under PRoot. Debian rootfs already has python3; we only
- * add python3-venv + python3-pip with --no-install-recommends, then pip install aider-chat.
+ * Debian bookworm needs the `python3-venv` (or `python3.11-venv`) package for ensurepip.
+ * Avoid python3-dev / build-essential — their postinst scripts break under PRoot.
  */
 object AiderInstaller {
     const val VENV_REL = "usr/local/lib/aider-venv"
@@ -25,9 +24,6 @@ object AiderInstaller {
         return f.takeIf { it.isFile }?.readText()?.trim()?.takeIf { it.isNotEmpty() }
     }
 
-    /**
-     * @param rootfs Debian bookworm rootfs (antigravity-rootfs), **not** Alpine.
-     */
     fun install(
         rootfs: File,
         runShell: (String) -> Unit,
@@ -42,22 +38,29 @@ object AiderInstaller {
         }
 
         onProgress(0.08f)
-        // Minimal apt only — mirrors DebianRootfsInstaller flags. Never pull build-essential.
+        // Always install venv package — `import venv` can succeed without ensurepip.
         runShell(
             "export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true; " +
                 "apt-get update -qq; " +
-                "command -v python3 >/dev/null || " +
-                "apt-get install -y -qq --no-install-recommends python3; " +
-                "python3 -c 'import venv' 2>/dev/null || " +
-                "apt-get install -y -qq --no-install-recommends python3-venv; " +
-                "python3 -m pip --version >/dev/null 2>&1 || " +
-                "apt-get install -y -qq --no-install-recommends python3-pip; " +
-                "command -v git >/dev/null || " +
-                "apt-get install -y -qq --no-install-recommends git ca-certificates",
+                "apt-get install -y -qq --no-install-recommends " +
+                "python3 python3-pip python3-venv python3.11-venv git ca-certificates || " +
+                "apt-get install -y -qq --no-install-recommends " +
+                "python3 python3-pip python3-venv git ca-certificates",
         )
 
         onProgress(0.25f)
-        runShell("rm -rf /$VENV_REL && python3 -m venv /$VENV_REL")
+        // Prefer normal venv; if ensurepip still missing, create without pip and bootstrap.
+        runShell(
+            "set -e; rm -rf /$VENV_REL; " +
+                "if python3 -m venv /$VENV_REL; then " +
+                "  true; " +
+                "else " +
+                "  python3 -m venv --without-pip /$VENV_REL; " +
+                "  wget -q -O /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py; " +
+                "  /$VENV_REL/bin/python /tmp/get-pip.py; " +
+                "fi; " +
+                "test -x /$VENV_REL/bin/pip",
+        )
         runShell("/$VENV_REL/bin/pip install --upgrade pip setuptools wheel")
 
         onProgress(0.40f)

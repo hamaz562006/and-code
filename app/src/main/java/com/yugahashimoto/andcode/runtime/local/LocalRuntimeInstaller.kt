@@ -154,12 +154,18 @@ class LocalRuntimeInstaller(
                         val onDebian: (Float?, String) -> Unit = { progress, step ->
                             onProgress(progress, step, stepOwner)
                         }
-                        onDebian(0.90f, context.getString(R.string.install_step_preparing_antigravity_rootfs))
+                        val debianLabel =
+                            if (LocalAgent.ANTIGRAVITY in requestedAgents) {
+                                context.getString(R.string.install_step_preparing_antigravity_rootfs)
+                            } else {
+                                context.getString(R.string.install_step_preparing_aider_rootfs)
+                            }
+                        onDebian(0.90f, debianLabel)
                         DebianRootfsInstaller(runtimeDirectory, abi, downloader, httpClient, commandSuite).installInto(
                             File(staging, "antigravity-rootfs"),
                             installFullDevelopmentTools = includeFullDevelopmentTools,
                         ) { progress ->
-                            onDebian(0.90f + progress * 0.03f, context.getString(R.string.install_step_preparing_antigravity_rootfs))
+                            onDebian(0.90f + progress * 0.03f, debianLabel)
                         }
                     } else {
                         null
@@ -646,11 +652,10 @@ class LocalRuntimeInstaller(
                 ?: run {
                     val active = File(runtimeDirectory, "environment")
                     val dest = File(active, "antigravity-rootfs")
-                    onProgress(0.08f, context.getString(R.string.install_step_preparing_antigravity_rootfs))
-                    // Blocking path: installer methods used from write/IO already.
+                    onProgress(0.08f, context.getString(R.string.install_step_preparing_aider_rootfs))
                     DebianRootfsInstaller(runtimeDirectory, abi, downloader, httpClient, runtime.commandSuite)
                         .installInto(dest, installFullDevelopmentTools = false) { p ->
-                            onProgress(0.08f + p * 0.25f, context.getString(R.string.install_step_preparing_antigravity_rootfs))
+                            onProgress(0.08f + p * 0.25f, context.getString(R.string.install_step_preparing_aider_rootfs))
                         }
                     dest
                 }
