@@ -91,12 +91,12 @@ object ClineInstaller {
                         mkdirs()
                     }
                 bunSource.copyRecursively(bunDest, overwrite = true)
-                File(bunDest, "bun").setExecutable(true, false)
+                ensureExecutable(File(bunDest, "bun"))
                 val bunCurrent = File(root, "opt/bun-android-ffi/current")
                 bunCurrent.deleteRecursively()
-                // Directory junction via rename copy for Android (no reliable symlink)
+                // Directory junction via copy for Android (no reliable symlink across all APIs)
                 bunDest.copyRecursively(bunCurrent, overwrite = true)
-                File(bunCurrent, "bun").setExecutable(true, false)
+                ensureExecutable(File(bunCurrent, "bun"))
 
                 onProgress(0.90f)
                 // Cline tree
@@ -122,6 +122,7 @@ object ClineInstaller {
                 val launcher = File(binDir, ClineManifest.BINARY_NAME)
                 val homePath = clineCurrent.absolutePath
                 val bunPath = File(bunCurrent, "bun").absolutePath
+                // Android app-data is often noexec for direct native exec — use linker64 like Grok.
                 launcher.writeText(
                     "#!/system/bin/sh\n" +
                         "# CLINE_ANDCODE_LAUNCHER=1\n" +
@@ -132,16 +133,24 @@ object ClineInstaller {
                         "  echo \"Error: Cline runtime missing at \$CLINE_TERMUX_HOME\" >&2\n" +
                         "  exit 1\n" +
                         "fi\n" +
-                        "if [ ! -x \"\$BUN_BIN\" ]; then\n" +
+                        "if [ ! -f \"\$BUN_BIN\" ]; then\n" +
                         "  echo \"Error: Bun FFI missing at \$BUN_BIN\" >&2\n" +
                         "  exit 1\n" +
+                        "fi\n" +
+                        "LINKER=\"/system/bin/linker64\"\n" +
+                        "if [ -x /apex/com.android.runtime/bin/linker64 ]; then\n" +
+                        "  LINKER=\"/apex/com.android.runtime/bin/linker64\"\n" +
+                        "elif [ -x /system/bin/linker64 ]; then\n" +
+                        "  LINKER=\"/system/bin/linker64\"\n" +
+                        "elif [ -x /system/bin/linker ]; then\n" +
+                        "  LINKER=\"/system/bin/linker\"\n" +
                         "fi\n" +
                         "export CLINE_NO_AUTO_UPDATE=\"\${CLINE_NO_AUTO_UPDATE:-1}\"\n" +
                         "export CLINE_TERMUX_HOME\n" +
                         "export CLINE_TERMUX_BUN=\"\$BUN_BIN\"\n" +
-                        "exec \"\$BUN_BIN\" \"\$CLINE_TERMUX_HOME/index.js\" \"\$@\"\n",
+                        "exec \"\$LINKER\" \"\$BUN_BIN\" \"\$CLINE_TERMUX_HOME/index.js\" \"\$@\"\n",
                 )
-                launcher.setExecutable(true, false)
+                ensureExecutable(launcher)
 
                 File(root, VERSION_MARKER).writeText(ClineManifest.VERSION + "\n")
                 require(isInstalledIn(runtimeDirectory)) { "Cline install finished but layout incomplete" }
@@ -157,26 +166,57 @@ object ClineInstaller {
         args: List<String>,
         timeoutSeconds: Long = 30L,
     ): LocalRuntimeCommandResult {
-        val launcher = launcherFile(runtimeDirectory)
-        if (!launcher.isFile) {
+        val bun = bunBinary(runtimeDirectory)
+        val home = clineHome(runtimeDirectory)
+        val index = File(home, "index.js")
+        if (!bun.isFile || !index.isFile) {
             return LocalRuntimeCommandResult(127, "Cline is not installed")
         }
-        val cmd = listOf("/system/bin/sh", launcher.absolutePath) + args
-        val process =
-            ProcessBuilder(cmd)
-                .redirectErrorStream(true)
-                .apply {
-                    environment()["HOME"] = File(runtimeDirectory, "home").apply { mkdirs() }.absolutePath
-                    environment()["CLINE_NO_AUTO_UPDATE"] = "1"
-                }
-                .start()
-        val completed = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
-        if (!completed) {
-            process.destroyForcibly()
-            return LocalRuntimeCommandResult(124, "Cline command timed out")
+        ensureExecutable(bun)
+        val linker =
+            listOf(
+                "/apex/com.android.runtime/bin/linker64",
+                "/system/bin/linker64",
+                "/system/bin/linker",
+            ).firstOrNull { File(it).exists() }
+
+        val cmd =
+            if (linker != null) {
+                listOf(linker, bun.absolutePath, index.absolutePath) + args
+            } else {
+                listOf(bun.absolutePath, index.absolutePath) + args
+            }
+        return try {
+            val process =
+                ProcessBuilder(cmd)
+                    .redirectErrorStream(true)
+                    .apply {
+                        environment()["HOME"] =
+                            File(runtimeDirectory, "home").apply { mkdirs() }.absolutePath
+                        environment()["CLINE_NO_AUTO_UPDATE"] = "1"
+                        environment()["CLINE_TERMUX_HOME"] = home.absolutePath
+                        environment()["CLINE_TERMUX_BUN"] = bun.absolutePath
+                    }
+                    .start()
+            val completed = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+            if (!completed) {
+                process.destroyForcibly()
+                return LocalRuntimeCommandResult(124, "Cline command timed out")
+            }
+            val out = process.inputStream.bufferedReader().readText().takeLast(4000)
+            LocalRuntimeCommandResult(process.exitValue(), out)
+        } catch (error: Exception) {
+            LocalRuntimeCommandResult(1, error.message ?: "Cline failed to start")
         }
-        val out = process.inputStream.bufferedReader().readText().takeLast(4000)
-        return LocalRuntimeCommandResult(process.exitValue(), out)
+    }
+
+    private fun ensureExecutable(file: File) {
+        if (!file.isFile) return
+        file.setReadable(true, false)
+        file.setExecutable(true, false)
+        runCatching {
+            android.system.Os.chmod(file.absolutePath, 0b111_101_101) // 0755
+        }
     }
 
     private fun download(
