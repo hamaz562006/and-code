@@ -211,6 +211,7 @@ class SettingsViewModel(
                         core.selected?.agent == LocalAgent.GROK_BUILD ||
                         core.selected?.agent == LocalAgent.HERMES ||
                         core.selected?.agent == LocalAgent.AIDER ||
+                        core.selected?.agent == LocalAgent.CECLI ||
                         core.selected?.agent == null
                     ) {
                         core.runtime.providers
@@ -487,6 +488,7 @@ class SettingsViewModel(
             LocalAgent.GROK_BUILD,
             LocalAgent.HERMES,
             LocalAgent.AIDER,
+            LocalAgent.CECLI,
             LocalAgent.OPEN_CODE,
             LocalAgent.CODEX,
             LocalAgent.CLAUDE_CODE,
