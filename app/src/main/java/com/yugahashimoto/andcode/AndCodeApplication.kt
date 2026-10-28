@@ -604,6 +604,40 @@ class AndCodeApplication : Application() {
                 previous = state
             }
         }
+
+        // Host-only agents (Hermes / Aider / Cline): when OpenCode is not installed, make the
+        // connected agent the default so chat does not stay stuck on "OpenCode · In use".
+        applicationScope.launch {
+            hermesTarget.state.collect { state ->
+                val openCodeInstalled = installer.installedMetadata()?.has(LocalAgent.OPEN_CODE) == true
+                if (state is RuntimeState.Connected && !openCodeInstalled) {
+                    runtimeRegistry.selectIfUnset(hermesTarget.id)
+                }
+            }
+        }
+        applicationScope.launch {
+            aiderTarget.state.collect { state ->
+                val openCodeInstalled = installer.installedMetadata()?.has(LocalAgent.OPEN_CODE) == true
+                if (state is RuntimeState.Connected && !openCodeInstalled) {
+                    runtimeRegistry.selectIfUnset(aiderTarget.id)
+                }
+            }
+        }
+        applicationScope.launch {
+            clineTarget.state.collect { state ->
+                if (state !is RuntimeState.Connected) return@collect
+                val openCodeInstalled = installer.installedMetadata()?.has(LocalAgent.OPEN_CODE) == true
+                val selected = runtimeRegistry.selected.value
+                val selectedIsMissingOpenCode =
+                    selected?.id == LocalAgent.OPEN_CODE.targetId && !openCodeInstalled
+                if (!openCodeInstalled && (selected == null || selectedIsMissingOpenCode)) {
+                    runtimeRegistry.select(clineTarget.id)
+                } else if (!openCodeInstalled) {
+                    runtimeRegistry.selectIfUnset(clineTarget.id)
+                }
+            }
+        }
+
         claudeCodeController =
             ClaudeCodeController(
                 target = claudeCodeTarget,
