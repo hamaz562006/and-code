@@ -727,25 +727,33 @@ class LocalRuntimeInstaller(
     }
 
     suspend fun installCecliOnly(onProgress: (Float?, String) -> Unit = { _, _ -> }) {
-        val runtime = ensureEnvironmentReady()
+        val runtime = installedRuntime() ?: error("Local runtime is not installed")
         val label = context.getString(R.string.install_step_installing_cecli)
+        onProgress(0.05f, label)
+        // Cecli needs the Debian/glibc rootfs (same as Antigravity/Aider), not Alpine.
         val debian =
             runtime.antigravityRootfs?.takeIf { it.isDirectory }
                 ?: run {
+                    val dest = File(File(runtimeDirectory, "environment"), "antigravity-rootfs")
                     onProgress(0.08f, context.getString(R.string.install_step_preparing_cecli_rootfs))
-                    provisionAntigravityRootfs(runtime) { p ->
-                        onProgress(0.08f + p * 0.25f, context.getString(R.string.install_step_preparing_cecli_rootfs))
-                    }
-                    runtime.antigravityRootfs ?: error("Debian rootfs missing after provision")
+                    DebianRootfsInstaller(runtimeDirectory, abi, downloader, httpClient, runtime.commandSuite)
+                        .installInto(dest, installFullDevelopmentTools = false) { p ->
+                            onProgress(
+                                0.08f + p * 0.25f,
+                                context.getString(R.string.install_step_preparing_cecli_rootfs),
+                            )
+                        }
+                    dest
                 }
+        onProgress(0.35f, label)
         installCecliIntoRootfs(debian, runtime.commandSuite) { f ->
-            onProgress(0.35f + f.coerceIn(0f, 1f) * 0.55f, label)
+            onProgress(0.35f + f.coerceIn(0f, 1f) * 0.60f, label)
         }
-        recordAgent(LocalAgent.CECLI)
         onProgress(1f, label)
+        recordAgent(LocalAgent.CECLI)
     }
 
-        private fun installCecliIntoRootfs(
+    private fun installCecliIntoRootfs(
         rootfs: File,
         suite: EmbeddedCommandSuite.Paths,
         onProgress: (Float) -> Unit,

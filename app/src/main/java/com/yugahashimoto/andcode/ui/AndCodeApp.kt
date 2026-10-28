@@ -1096,9 +1096,8 @@ fun AndCodeApp(
                             grok = grokBuildState,
                             hermes = hermesState,
                             aider = aiderState,
-                    cecli = cecliState,
                             cline = clineState,
-                    cecli = cecliState,
+                            cecli = cecliState,
                             codexSignInDialog = codexSignInDialog,
                             codexSignIn =
                                 CodexSignInActions(
