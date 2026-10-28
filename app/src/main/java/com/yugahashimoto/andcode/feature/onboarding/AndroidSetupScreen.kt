@@ -234,7 +234,7 @@ fun AndroidSetupScreen(
             LocalAgent.HERMES.takeIf { hermesSelected && hermes.installed },
             LocalAgent.AIDER.takeIf { aiderSelected && (aider.installed || aiderReady) },
             LocalAgent.CLINE.takeIf { clineSelected && cline.installed },
-            LocalAgent.CECLI.takeIf { cecliSelected && cecli.installed },
+            LocalAgent.CECLI.takeIf { cecliSelected && (cecli.installed || cecliReady) },
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
@@ -252,6 +252,7 @@ fun AndroidSetupScreen(
             hermes.install is HermesInstallStatus.Installing ||
             aider.install is AiderInstallStatus.Installing ||
             cline.install is ClineInstallStatus.Installing ||
+            cecli.install is CecliInstallStatus.Installing ||
             antigravity.busy
     val selectedDevGroups = selectedDevToolGroupIds.mapNotNull { DevelopmentToolGroup.fromId(it) }.toSet()
     val fullToolsReady = selectedDevGroups.isEmpty() || fullDevelopmentToolsInstalled
@@ -265,6 +266,7 @@ fun AndroidSetupScreen(
             (!hermesSelected || hermesReady) &&
             (!aiderSelected || aiderReady) &&
             (!clineSelected || clineReady) &&
+            (!cecliSelected || cecliReady) &&
             fullToolsReady
     val installComplete = agentsInstallComplete && !fullToolsInstallPending
 
@@ -377,6 +379,25 @@ fun AndroidSetupScreen(
         onStartSetup(selectedAgents, selectedDevGroups)
     }
 
+    var cecliInstallWasRunning by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(cecliSelected, packageInstallRunning) {
+        val justFinished = cecliInstallWasRunning && !packageInstallRunning
+        cecliInstallWasRunning = packageInstallRunning
+        if (cecliSelected && justFinished) {
+            (context.applicationContext as? AndCodeApplication)?.cecliController?.refresh()
+        }
+    }
+
+    var cecliAutoStartAttempted by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(currentStep, cecliSelected, cecli.install, cecli.installed, packageInstallRunning) {
+        if (currentStep != 3 || !cecliSelected || cecli.installed) return@LaunchedEffect
+        if (cecli.install is CecliInstallStatus.Installing || packageInstallRunning) return@LaunchedEffect
+        if (cecli.install is CecliInstallStatus.Failed) return@LaunchedEffect
+        if (cecliAutoStartAttempted) return@LaunchedEffect
+        cecliAutoStartAttempted = true
+        onStartSetup(selectedAgents, selectedDevGroups)
+    }
+
     LaunchedEffect(openCodeReady, openCodeSelected, settingsState.availableProviders, settingsState.providerAuthMethods) {
         if (!openCodeSelected || !openCodeReady) return@LaunchedEffect
         if (settingsState.availableProviders.isNotEmpty() && settingsState.providerAuthMethods.isNotEmpty()) return@LaunchedEffect
@@ -400,6 +421,18 @@ fun AndroidSetupScreen(
     }
 
     // Aider is independent of OpenCode: select its target so step-4 providers come from AiderTarget.
+    LaunchedEffect(cecliSelected, cecliReady, currentStep, settingsState.availableProviders) {
+        if (!cecliSelected || !cecliReady) return@LaunchedEffect
+        if (currentStep != 4) return@LaunchedEffect
+        val app = context.applicationContext as? AndCodeApplication
+        if (app != null) {
+            app.runtimeRegistry.select(app.cecliTarget.id)
+        }
+        if (settingsState.availableProviders.isNotEmpty()) return@LaunchedEffect
+        delay(300)
+        onRefreshProviderAuth()
+    }
+
     LaunchedEffect(aiderSelected, aiderReady, currentStep, settingsState.availableProviders) {
         if (!aiderSelected || !aiderReady) return@LaunchedEffect
         if (currentStep != 4) return@LaunchedEffect
@@ -556,6 +589,8 @@ fun AndroidSetupScreen(
                         aider = aider,
                         clineSelected = clineSelected,
                         cline = cline,
+                        cecliSelected = cecliSelected,
+                        cecli = cecli,
                     )
                 4 ->
                     SignInStep(
@@ -1702,7 +1737,13 @@ private fun SignInStep(
                         header = false,
                     )
                 LocalAgent.CLINE -> ClineSignInPanel()
-                LocalAgent.CECLI -> { /* Cecli uses API keys like Aider */ }
+                LocalAgent.CECLI ->
+                    ProviderConnectionStep(
+                        settingsState = settingsState,
+                        onOpenProviderAuth = onOpenProviderAuth,
+                        onDisconnectProvider = onDisconnectProvider,
+                        header = false,
+                    )
             }
         }
     }
