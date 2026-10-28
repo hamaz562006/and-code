@@ -420,7 +420,11 @@ class LocalRuntimeInstaller(
                     rootfs,
                     File(rootfs, "usr/local/bin/opencode").takeIf { it.isFile },
                     File(active, "antigravity-rootfs").takeIf {
-                        it.isDirectory && (metadata.has(LocalAgent.ANTIGRAVITY) || metadata.has(LocalAgent.AIDER) || metadata.has(LocalAgent.CECLI))
+                        it.isDirectory && (
+                            metadata.has(
+                                LocalAgent.ANTIGRAVITY,
+                            ) || metadata.has(LocalAgent.AIDER) || metadata.has(LocalAgent.CECLI)
+                        )
                     },
                 )
             }?.also { installed ->
@@ -772,8 +776,6 @@ class LocalRuntimeInstaller(
             onProgress = onProgress,
         )
     }
-
-
 
     /** Runs a shell command inside the Alpine rootfs via PRoot (same mounts as [installPackages]). */
     private fun runShellInRootfs(
