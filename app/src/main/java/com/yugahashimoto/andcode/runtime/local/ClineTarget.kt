@@ -45,7 +45,8 @@ class ClineTarget(
 
     override val capabilities =
         RuntimeCapabilities(
-            permissions = false,
+            // Same surface as OpenCode chat chips: Build/Plan + Auto accept.
+            permissions = true,
             toolEvents = false,
             providerModelList = true,
         )
@@ -83,8 +84,11 @@ class ClineTarget(
     override suspend fun listSessions(directory: String?): List<OpenCodeSession> = withContext(Dispatchers.IO) { runtime.listSessions() }
 
     override suspend fun listAgents(): List<OpenCodeAgent> =
+        // Chat ModeChip only offers build/plan (same as OpenCode). Do not return a lone
+        // "cline" entry or the Build/Plan dropdown disappears.
         listOf(
-            OpenCodeAgent(name = "cline", description = "Cline", mode = "primary", native = true),
+            OpenCodeAgent(name = "build", description = "Build", mode = "primary", native = true),
+            OpenCodeAgent(name = "plan", description = "Plan", mode = "primary", native = true),
         )
 
     override suspend fun listProviders(): ProviderCatalog =
