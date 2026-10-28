@@ -67,7 +67,7 @@ object CecliInstaller {
         runShell(
             "/$VENV_REL/bin/pip install --retries 5 --timeout 180 cecli-dev || " +
                 "/$VENV_REL/bin/pip install --retries 5 --timeout 180 " +
-                "'git+https://github.com/Cecli-AI/cecli.git'",
+                "'git+https://github.com/cecli-dev/cecli.git'",
         )
 
         onProgress(0.85f)
@@ -75,6 +75,7 @@ object CecliInstaller {
             "set -e; mkdir -p /usr/local/bin; " +
                 "test -x /$VENV_BIN_CECLI; " +
                 "ln -sfn /$VENV_BIN_CECLI /usr/local/bin/cecli; " +
+                "chmod 755 /$VENV_BIN_CECLI /usr/local/bin/cecli 2>/dev/null || true; " +
                 "/$VENV_BIN_CECLI --version >/tmp/cecli-version.out 2>/tmp/cecli-version.err; " +
                 "command -v cecli >/dev/null",
         )

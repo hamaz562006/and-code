@@ -197,6 +197,28 @@ class LocalRuntimeDiagnosticsCollector(
                                     LocalRuntimeCommandResult(127, messages.diagnosticsToolNotInstalled)
                                 }
                             }
+                            "aider" -> {
+                                val debian = File(runtimeDirectory, "environment/antigravity-rootfs")
+                                if (AiderInstaller.isInstalledIn(debian)) {
+                                    LocalRuntimeCommandResult(
+                                        0,
+                                        AiderInstaller.installedVersion(debian) ?: AiderManifest.VERSION,
+                                    )
+                                } else {
+                                    LocalRuntimeCommandResult(127, messages.diagnosticsToolNotInstalled)
+                                }
+                            }
+                            "cecli" -> {
+                                val debian = File(runtimeDirectory, "environment/antigravity-rootfs")
+                                if (CecliInstaller.isInstalledIn(debian)) {
+                                    LocalRuntimeCommandResult(
+                                        0,
+                                        CecliInstaller.installedVersion(debian) ?: CecliManifest.VERSION,
+                                    )
+                                } else {
+                                    LocalRuntimeCommandResult(127, messages.diagnosticsToolNotInstalled)
+                                }
+                            }
                             else -> commandExecutor(definition)
                         }
                     }

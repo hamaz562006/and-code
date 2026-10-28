@@ -148,19 +148,23 @@ class LocalRuntimeInstaller(
                 val antigravityRootfs =
                     if (needsDebianRootfs) {
                         val stepOwner =
-                            if (LocalAgent.ANTIGRAVITY in requestedAgents) {
-                                LocalAgent.ANTIGRAVITY
-                            } else {
-                                LocalAgent.AIDER
+                            when {
+                                LocalAgent.ANTIGRAVITY in requestedAgents -> LocalAgent.ANTIGRAVITY
+                                LocalAgent.CECLI in requestedAgents && LocalAgent.AIDER !in requestedAgents ->
+                                    LocalAgent.CECLI
+                                else -> LocalAgent.AIDER
                             }
                         val onDebian: (Float?, String) -> Unit = { progress, step ->
                             onProgress(progress, step, stepOwner)
                         }
                         val debianLabel =
-                            if (LocalAgent.ANTIGRAVITY in requestedAgents) {
-                                context.getString(R.string.install_step_preparing_antigravity_rootfs)
-                            } else {
-                                context.getString(R.string.install_step_preparing_aider_rootfs)
+                            when {
+                                LocalAgent.ANTIGRAVITY in requestedAgents ->
+                                    context.getString(R.string.install_step_preparing_antigravity_rootfs)
+                                LocalAgent.CECLI in requestedAgents && LocalAgent.AIDER !in requestedAgents ->
+                                    context.getString(R.string.install_step_preparing_cecli_rootfs)
+                                else ->
+                                    context.getString(R.string.install_step_preparing_aider_rootfs)
                             }
                         onDebian(0.90f, debianLabel)
                         DebianRootfsInstaller(runtimeDirectory, abi, downloader, httpClient, commandSuite).installInto(

@@ -216,7 +216,7 @@ fun AndroidSetupScreen(
     val piReady = pi.isReady()
     val grokReady = grok.isReady()
     val hermesReady = hermes.isReady()
-    val cecliReady = cecli.installed || cecli.install is CecliInstallStatus.Installing || cecli.install is CecliInstallStatus.Ready
+    val cecliReady = cecli.isReady()
     val aiderReady = aider.isReady()
     val clineReady = cline.isReady()
     // Only what is selected *and* actually on the device: an agent whose binary is missing has no
