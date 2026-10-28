@@ -45,10 +45,11 @@ class TerminalViewModel(
     private fun systemBanner(): TerminalLine {
         val label = agentLabel()
         val env =
-            if (label.equals("Hermes", ignoreCase = true)) {
-                "host CLI · 127.0.0.1:8642"
-            } else {
-                "PRoot Alpine Linux"
+            when {
+                label.equals("Hermes", ignoreCase = true) -> "host CLI · 127.0.0.1:8642"
+                label.equals("Cecli", ignoreCase = true) ||
+                    label.equals("Aider", ignoreCase = true) -> "PRoot Debian (glibc)"
+                else -> "PRoot Alpine Linux"
             }
         return TerminalLine("$label Terminal - $env", TerminalLineType.SYSTEM)
     }

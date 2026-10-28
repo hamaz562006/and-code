@@ -95,7 +95,10 @@ class LocalRuntimeCommandRunner(
             }
         }
 
-    /** Aider is installed in the Debian (antigravity) rootfs; route those commands there. */
+    /**
+     * Aider and Cecli install into the Debian (antigravity) rootfs; route those commands there.
+     * Everything else stays on Alpine.
+     */
     private fun rootfsForCommand(
         runtime: LocalRuntimeInstaller.InstalledRuntime,
         commandText: String,
@@ -108,8 +111,15 @@ class LocalRuntimeCommandRunner(
                 trimmed.contains(" aider ") ||
                 "export AIDER_" in trimmed ||
                 trimmed.contains("aider --")
+        val looksLikeCecli =
+            trimmed == "cecli" ||
+                trimmed.startsWith("cecli ") ||
+                trimmed.contains("/cecli ") ||
+                trimmed.contains(" cecli ") ||
+                "export CECLI_" in trimmed ||
+                trimmed.contains("cecli --")
         val debian = runtime.antigravityRootfs
-        return if (looksLikeAider && debian != null && debian.isDirectory) {
+        return if ((looksLikeAider || looksLikeCecli) && debian != null && debian.isDirectory) {
             debian
         } else {
             runtime.rootfs
