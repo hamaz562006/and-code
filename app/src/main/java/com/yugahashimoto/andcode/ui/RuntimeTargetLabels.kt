@@ -39,5 +39,6 @@ fun runtimeAgentIcon(agent: LocalAgent?): Int =
         LocalAgent.HERMES -> R.drawable.ic_agent_hermes
         LocalAgent.AIDER -> R.drawable.ic_agent_aider
         LocalAgent.CLINE -> R.drawable.ic_agent_cline
+        LocalAgent.CECLI -> R.drawable.ic_agent_cecli
         null -> R.drawable.ic_runtime_remote
     }

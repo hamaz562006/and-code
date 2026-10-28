@@ -207,6 +207,7 @@ fun AndCodeApp(
     val hermesState by app.hermesController.state.collectAsState()
     val aiderState by app.aiderController.state.collectAsState()
     val clineState by app.clineController.state.collectAsState()
+    val cecliState by app.cecliController.state.collectAsState()
 
     // Only auto-select Hermes when its install just completed — never override OpenCode/Pi/etc.
     LaunchedEffect(hermesState.install) {
@@ -1073,6 +1074,8 @@ fun AndCodeApp(
                                     app.aiderController.install(agents)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CLINE in agents) {
                                     app.clineController.install(agents)
+                                } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CECLI in agents) {
+                                    app.cecliController.install(agents)
                                 } else if (com.yugahashimoto.andcode.runtime.LocalAgent.CLAUDE_CODE in agents) {
                                     workspaceViewModel.installClaudeCode(developmentToolGroups)
                                 }
@@ -1093,7 +1096,9 @@ fun AndCodeApp(
                             grok = grokBuildState,
                             hermes = hermesState,
                             aider = aiderState,
+                    cecli = cecliState,
                             cline = clineState,
+                    cecli = cecliState,
                             codexSignInDialog = codexSignInDialog,
                             codexSignIn =
                                 CodexSignInActions(

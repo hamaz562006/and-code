@@ -83,6 +83,8 @@ import com.yugahashimoto.andcode.runtime.local.ClaudeCodeUiState
 import com.yugahashimoto.andcode.runtime.local.ClaudeInstallStatus
 import com.yugahashimoto.andcode.runtime.local.ClaudePermissionMode
 import com.yugahashimoto.andcode.runtime.local.ClineInstallStatus
+import com.yugahashimoto.andcode.runtime.local.CecliInstallStatus
+import com.yugahashimoto.andcode.runtime.local.CecliUiState
 import com.yugahashimoto.andcode.runtime.local.ClineUiState
 import com.yugahashimoto.andcode.runtime.local.CodexInstallStatus
 import com.yugahashimoto.andcode.runtime.local.CodexUiState
@@ -135,6 +137,7 @@ fun AndroidSetupScreen(
     hermes: HermesUiState = HermesUiState(),
     aider: AiderUiState = AiderUiState(),
     cline: ClineUiState = ClineUiState(),
+    cecli: CecliUiState = CecliUiState(),
     /** Codex signs in through its own dialog state, not [settingsState]'s, which is OpenCode's. */
     codexSignInDialog: ProviderAuthDialogState? = null,
     codexSignIn: CodexSignInActions =
@@ -203,6 +206,7 @@ fun AndroidSetupScreen(
     val hermesSelected = LocalAgent.HERMES in selectedAgents
     val aiderSelected = LocalAgent.AIDER in selectedAgents
     val clineSelected = LocalAgent.CLINE in selectedAgents
+    val cecliSelected = LocalAgent.CECLI in selectedAgents
     val openCodeReady = runtimeStatus is LocalRuntimeStatus.Ready || runtimeStatus is LocalRuntimeStatus.Stopped
     val antigravityReady = antigravitySelected && antigravity.installed && !antigravity.busy
     val codexReady = codex.installed && codex.install !is CodexInstallStatus.Installing && codex.install !is CodexInstallStatus.Failed
@@ -212,6 +216,7 @@ fun AndroidSetupScreen(
     val piReady = pi.isReady()
     val grokReady = grok.isReady()
     val hermesReady = hermes.isReady()
+    val cecliReady = cecli.installed || cecli.install is CecliInstallStatus.Installing || cecli.install is CecliInstallStatus.Ready
     val aiderReady = aider.isReady()
     val clineReady = cline.isReady()
     // Only what is selected *and* actually on the device: an agent whose binary is missing has no
@@ -229,6 +234,7 @@ fun AndroidSetupScreen(
             LocalAgent.HERMES.takeIf { hermesSelected && hermes.installed },
             LocalAgent.AIDER.takeIf { aiderSelected && (aider.installed || aiderReady) },
             LocalAgent.CLINE.takeIf { clineSelected && cline.installed },
+            LocalAgent.CECLI.takeIf { cecliSelected && cecli.installed },
         )
     var signInIndex by rememberSaveable { mutableIntStateOf(0) }
     val signInAgent = signInAgents.getOrNull(signInIndex.coerceAtMost(signInAgents.lastIndex.coerceAtLeast(0)))
@@ -813,6 +819,12 @@ private fun AgentSelectionStep(
             selected = LocalAgent.CLINE in selectedAgents,
             onToggle = { onToggle(LocalAgent.CLINE) },
         )
+        AgentOption(
+            title = stringResource(R.string.agent_cecli_name),
+            description = stringResource(R.string.setup_agent_cecli_desc),
+            selected = LocalAgent.CECLI in selectedAgents,
+            onToggle = { onToggle(LocalAgent.CECLI) },
+        )
         if (selectedAgents.size >= 2) {
             Text(
                 text = stringResource(R.string.setup_runtime_shared_note),
@@ -1000,6 +1012,8 @@ private fun RuntimeDownloadStep(
     aider: AiderUiState = AiderUiState(),
     clineSelected: Boolean = false,
     cline: ClineUiState = ClineUiState(),
+    cecliSelected: Boolean = false,
+    cecli: CecliUiState = CecliUiState(),
 ) {
     // One install provisions the whole selection and reports through the shared runtime status, so
     // each step is shown under the agent it names. Without this the OpenCode panel displayed
@@ -1274,6 +1288,56 @@ private fun RuntimeDownloadStep(
                         )
                     installing != null ->
                         Text(stringResource(R.string.install_step_installing_cline))
+                    else ->
+                        Text(
+                            stringResource(R.string.setup_runtime_not_installed),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                }
+            }
+        }
+
+        if (cecliSelected) {
+            SetupPanel {
+                Text(stringResource(R.string.agent_cecli_name), fontWeight = FontWeight.SemiBold)
+                val step = stepFor(LocalAgent.CECLI)
+                when {
+                    step != null -> SharedInstallProgress(step)
+                    cecli.install is CecliInstallStatus.Installing -> {
+                        val inst = cecli.install
+                        Text(
+                            inst.step?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.install_step_installing_cecli),
+                            fontWeight = FontWeight.Medium,
+                        )
+                        val progress = inst.progress
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Text(
+                                text = "${(progress * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    cecli.install is CecliInstallStatus.Failed ->
+                        Text(
+                            cecli.install.message
+                                ?: stringResource(R.string.agent_status_install_failed),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    cecli.isReady() ->
+                        ReadyAgentRow(
+                            stringResource(R.string.agent_cecli_name) +
+                                (cecli.version?.let { " $it" } ?: ""),
+                        )
+                    installing != null ->
+                        Text(stringResource(R.string.install_step_installing_cecli))
                     else ->
                         Text(
                             stringResource(R.string.setup_runtime_not_installed),
@@ -1638,6 +1702,7 @@ private fun SignInStep(
                         header = false,
                     )
                 LocalAgent.CLINE -> ClineSignInPanel()
+                LocalAgent.CECLI -> { /* Cecli uses API keys like Aider */ }
             }
         }
     }

@@ -25,6 +25,7 @@ enum class LocalAgent(
     HERMES("hermes", R.string.agent_hermes_name, "hermes-local", R.drawable.ic_agent_hermes),
     AIDER("aider", R.string.agent_aider_name, "aider-local", R.drawable.ic_agent_aider),
     CLINE("cline", R.string.agent_cline_name, "cline-local", R.drawable.ic_agent_cline),
+    CECLI("cecli", R.string.agent_cecli_name, "cecli-local", R.drawable.ic_agent_cecli),
     ;
 
     companion object {

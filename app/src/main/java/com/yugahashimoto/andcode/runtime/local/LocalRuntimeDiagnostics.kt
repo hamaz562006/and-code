@@ -118,6 +118,15 @@ class LocalRuntimeDiagnosticsCollector(
                         ),
                     )
                 }
+                if (CecliInstaller.isInstalledIn(aiderRootfs)) {
+                    add(
+                        LocalRuntimeToolDefinition(
+                            "cecli",
+                            "Cecli",
+                            "/usr/local/bin/cecli --version",
+                        ),
+                    )
+                }
                 if (ClineInstaller.isInstalledIn(runtimeDirectory)) {
                     add(LocalRuntimeToolDefinition("cline", "Cline", "cline --version"))
                 }

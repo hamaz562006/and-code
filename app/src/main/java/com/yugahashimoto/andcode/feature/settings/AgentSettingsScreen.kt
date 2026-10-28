@@ -98,6 +98,7 @@ fun AgentSettingsScreen(
     onOpenHermes: () -> Unit = {},
     onOpenAider: () -> Unit = {},
     onOpenCline: () -> Unit = {},
+    onOpenCecli: () -> Unit = {},
     onBack: () -> Unit,
 ) {
     AgentSettingsScaffold(title = stringResource(R.string.settings_agents_row), onBack = onBack) {
@@ -118,6 +119,7 @@ fun AgentSettingsScreen(
             SettingsDivider()
             AgentRow(LocalAgent.AIDER, onOpenAider)
             AgentRow(LocalAgent.CLINE, onOpenCline)
+            AgentRow(LocalAgent.CECLI, onOpenCecli)
         }
     }
 }
@@ -1225,6 +1227,86 @@ fun AiderAgentSettingsScreen(
                         } else {
                             Text(
                                 text = stringResource(R.string.setup_agent_aider_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CecliAgentSettingsScreen(
+    cecli: com.yugahashimoto.andcode.runtime.local.CecliUiState,
+    onInstall: () -> Unit = {},
+    onBack: () -> Unit,
+) {
+    AgentSettingsScaffold(title = stringResource(LocalAgent.CECLI.displayNameRes), onBack = onBack) {
+        AgentCardSection {
+            val statusText =
+                when (val install = cecli.install) {
+                    is com.yugahashimoto.andcode.runtime.local.CecliInstallStatus.Installing ->
+                        install.step?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.install_step_installing_cecli)
+                    is com.yugahashimoto.andcode.runtime.local.CecliInstallStatus.Failed ->
+                        install.message ?: stringResource(R.string.agent_status_install_failed)
+                    is com.yugahashimoto.andcode.runtime.local.CecliInstallStatus.Ready ->
+                        cecli.version?.let { "Cecli $it" } ?: stringResource(R.string.agent_cecli_name)
+                    else ->
+                        if (cecli.installed) {
+                            cecli.version?.let { "Cecli $it" } ?: stringResource(R.string.agent_cecli_name)
+                        } else {
+                            stringResource(R.string.runtime_status_not_installed)
+                        }
+                }
+            AgentStatusCard(
+                status = statusText,
+                active = cecli.isReady(),
+                metrics =
+                    cecli.version
+                        ?.takeIf(String::isNotBlank)
+                        ?.let { v ->
+                            listOf(AgentMetric(stringResource(R.string.agent_version_label), v))
+                        }.orEmpty(),
+            ) {
+                when (val install = cecli.install) {
+                    is com.yugahashimoto.andcode.runtime.local.CecliInstallStatus.Installing -> {
+                        Text(
+                            install.step?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.install_step_installing_cecli),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        val progress = install.progress
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                    is com.yugahashimoto.andcode.runtime.local.CecliInstallStatus.Failed -> {
+                        Text(
+                            install.message ?: stringResource(R.string.agent_status_install_failed),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.claude_retry_install_button))
+                        }
+                    }
+                    else -> {
+                        if (!cecli.installed) {
+                            Button(onClick = onInstall, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.install_step_installing_cecli))
+                            }
+                        } else {
+                            Text(
+                                text = stringResource(R.string.setup_agent_cecli_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

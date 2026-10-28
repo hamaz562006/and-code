@@ -178,6 +178,15 @@ object RuntimeAgentPackage {
                     addIfExists(paths, rootfs, "root/.aider")
                 }
             }
+            LocalAgent.CECLI -> {
+                addIfExists(paths, rootfs, "usr/local/bin/cecli")
+                addIfExists(paths, rootfs, CecliInstaller.VENV_REL)
+                addIfExists(paths, rootfs, CecliManifest.MARKER_REL)
+                addIfExists(paths, rootfs, CecliManifest.VERSION_REL)
+                if (includeConfig) {
+                    addIfExists(paths, rootfs, "root/.cecli")
+                }
+            }
             LocalAgent.CLINE -> {
                 // Host paths collected separately via collectHostPaths().
             }

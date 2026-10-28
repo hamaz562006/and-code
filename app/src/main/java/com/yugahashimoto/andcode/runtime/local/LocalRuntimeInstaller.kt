@@ -68,6 +68,7 @@ class LocalRuntimeInstaller(
             val onGrok: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.GROK_BUILD) }
             val onHermes: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.HERMES) }
             val onAider: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.AIDER) }
+            val onCecli: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.CECLI) }
             val onCline: (Float?, String) -> Unit = { progress, step -> onProgress(progress, step, LocalAgent.CLINE) }
             runtimeDirectory.mkdirs()
             onShared(0.02f, context.getString(R.string.install_step_preparing_command_env))
@@ -143,7 +144,7 @@ class LocalRuntimeInstaller(
                 configureRootfs(rootfs, commandSuite)
                 // Debian/glibc rootfs: Antigravity binary + full Aider (manylinux wheels).
                 val needsDebianRootfs =
-                    LocalAgent.ANTIGRAVITY in requestedAgents || LocalAgent.AIDER in requestedAgents
+                    LocalAgent.ANTIGRAVITY in requestedAgents || LocalAgent.AIDER in requestedAgents || LocalAgent.CECLI in requestedAgents
                 val antigravityRootfs =
                     if (needsDebianRootfs) {
                         val stepOwner =
@@ -311,6 +312,20 @@ class LocalRuntimeInstaller(
                     }
                     onAider(aiderEnd, aiderLabel)
                 }
+                if (LocalAgent.CECLI in requestedAgents) {
+                    val cecliLabel = context.getString(R.string.install_step_installing_cecli)
+                    val cecliStart = 0.50f
+                    val cecliEnd = 0.92f
+                    onCecli(cecliStart, cecliLabel)
+                    val cecliRootfs =
+                        antigravityRootfs
+                            ?: error("Debian rootfs required for Cecli was not prepared")
+                    installCecliIntoRootfs(cecliRootfs, commandSuite) { fraction ->
+                        val span = cecliEnd - cecliStart
+                        onCecli(cecliStart + fraction.coerceIn(0f, 1f) * span, cecliLabel)
+                    }
+                    onCecli(cecliEnd, cecliLabel)
+                }
                 if (LocalAgent.CLINE in requestedAgents) {
                     val clineLabel = context.getString(R.string.install_step_installing_cline)
                     val clineStart = 0.55f
@@ -359,7 +374,7 @@ class LocalRuntimeInstaller(
                     openCodeBinary?.let { File(active, "rootfs/usr/local/bin/opencode") },
                     File(active, "antigravity-rootfs").takeIf {
                         it.isDirectory &&
-                            (LocalAgent.ANTIGRAVITY in requestedAgents || LocalAgent.AIDER in requestedAgents)
+                            (LocalAgent.ANTIGRAVITY in requestedAgents || LocalAgent.AIDER in requestedAgents || LocalAgent.CECLI in requestedAgents)
                     },
                 )
             } catch (error: Throwable) {
@@ -405,7 +420,7 @@ class LocalRuntimeInstaller(
                     rootfs,
                     File(rootfs, "usr/local/bin/opencode").takeIf { it.isFile },
                     File(active, "antigravity-rootfs").takeIf {
-                        it.isDirectory && (metadata.has(LocalAgent.ANTIGRAVITY) || metadata.has(LocalAgent.AIDER))
+                        it.isDirectory && (metadata.has(LocalAgent.ANTIGRAVITY) || metadata.has(LocalAgent.AIDER) || metadata.has(LocalAgent.CECLI))
                     },
                 )
             }?.also { installed ->
@@ -710,6 +725,47 @@ class LocalRuntimeInstaller(
             onProgress = onProgress,
         )
     }
+
+    suspend fun installCecliOnly(onProgress: (Float?, String) -> Unit = { _, _ -> }) {
+        val runtime = ensureEnvironmentReady()
+        val label = context.getString(R.string.install_step_installing_cecli)
+        val debian =
+            runtime.antigravityRootfs?.takeIf { it.isDirectory }
+                ?: run {
+                    onProgress(0.08f, context.getString(R.string.install_step_preparing_cecli_rootfs))
+                    provisionAntigravityRootfs(runtime) { p ->
+                        onProgress(0.08f + p * 0.25f, context.getString(R.string.install_step_preparing_cecli_rootfs))
+                    }
+                    runtime.antigravityRootfs ?: error("Debian rootfs missing after provision")
+                }
+        installCecliIntoRootfs(debian, runtime.commandSuite) { f ->
+            onProgress(0.35f + f.coerceIn(0f, 1f) * 0.55f, label)
+        }
+        recordAgent(LocalAgent.CECLI)
+        onProgress(1f, label)
+    }
+
+        private fun installCecliIntoRootfs(
+        rootfs: File,
+        suite: EmbeddedCommandSuite.Paths,
+        onProgress: (Float) -> Unit,
+    ) {
+        CecliInstaller.install(
+            rootfs = rootfs,
+            runShell = { cmd ->
+                runShellInRootfs(
+                    rootfs = rootfs,
+                    suite = suite,
+                    shell = cmd,
+                    logName = "cecli-install.log",
+                    timeoutMinutes = 15L,
+                )
+            },
+            onProgress = onProgress,
+        )
+    }
+
+
 
     /** Runs a shell command inside the Alpine rootfs via PRoot (same mounts as [installPackages]). */
     private fun runShellInRootfs(

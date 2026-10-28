@@ -26,6 +26,7 @@ import com.yugahashimoto.andcode.feature.settings.AgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.AiderAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.AntigravityAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ClaudeCodeAgentSettingsScreen
+import com.yugahashimoto.andcode.feature.settings.CecliAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.ClineAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.CodexAgentSettingsScreen
 import com.yugahashimoto.andcode.feature.settings.CodexSignInActions
@@ -315,6 +316,7 @@ fun NavGraphBuilder.settingsNavGraph(
             onOpenHermes = { navController.navigate(ROUTE_SETTINGS_AGENT_HERMES) },
             onOpenAider = { navController.navigate(ROUTE_SETTINGS_AGENT_AIDER) },
             onOpenCline = { navController.navigate(ROUTE_SETTINGS_AGENT_CLINE) },
+            onOpenCecli = { navController.navigate(ROUTE_SETTINGS_AGENT_CECLI) },
             onBack = { navController.popBackStack() },
         )
     }
@@ -521,6 +523,17 @@ fun NavGraphBuilder.settingsNavGraph(
         ClineAgentSettingsScreen(
             cline = cline,
             onInstall = { app.clineController.install() },
+            onBack = { navController.popBackStack() },
+        )
+    }
+
+    composable(ROUTE_SETTINGS_AGENT_CECLI) {
+        val app = context.applicationContext as com.yugahashimoto.andcode.AndCodeApplication
+        val cecli by app.cecliController.state.collectAsState()
+        androidx.compose.runtime.LaunchedEffect(Unit) { app.cecliController.refresh() }
+        CecliAgentSettingsScreen(
+            cecli = cecli,
+            onInstall = { app.cecliController.install() },
             onBack = { navController.popBackStack() },
         )
     }
@@ -795,6 +808,7 @@ private fun rememberAgentPackageImporter(): AgentPackageImportControl {
                                     LocalAgent.HERMES -> runCatching { app.hermesController.refresh() }
                                     LocalAgent.AIDER -> runCatching { app.aiderController.refresh() }
                                     LocalAgent.CLINE -> runCatching { app.clineController.refresh() }
+                                    LocalAgent.CECLI -> runCatching { app.cecliController.refresh() }
                                     LocalAgent.CODEX -> runCatching { app.codexController.refresh() }
                                     LocalAgent.CLAUDE_CODE -> runCatching { app.claudeCodeController.refresh() }
                                     LocalAgent.ANTIGRAVITY -> runCatching { app.antigravityController.refresh() }

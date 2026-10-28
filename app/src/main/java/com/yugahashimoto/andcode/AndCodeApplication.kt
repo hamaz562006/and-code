@@ -60,6 +60,9 @@ import com.yugahashimoto.andcode.runtime.local.AntigravityTarget
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeController
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeRuntime
 import com.yugahashimoto.andcode.runtime.local.ClaudeCodeTarget
+import com.yugahashimoto.andcode.runtime.local.CecliController
+import com.yugahashimoto.andcode.runtime.local.CecliRuntime
+import com.yugahashimoto.andcode.runtime.local.CecliTarget
 import com.yugahashimoto.andcode.runtime.local.ClineController
 import com.yugahashimoto.andcode.runtime.local.ClineRuntime
 import com.yugahashimoto.andcode.runtime.local.ClineTarget
@@ -234,8 +237,11 @@ class AndCodeApplication : Application() {
     lateinit var aiderRuntime: AiderRuntime
     lateinit var aiderTarget: AiderTarget
     lateinit var clineTarget: ClineTarget
+    lateinit var cecliRuntime: CecliRuntime
+    lateinit var cecliTarget: CecliTarget
     lateinit var aiderController: AiderController
     lateinit var clineController: ClineController
+    lateinit var cecliController: CecliController
         private set
 
     lateinit var antigravityController: AntigravityController
@@ -403,6 +409,13 @@ class AndCodeApplication : Application() {
                 runShell = { cmd -> this.commandRunner.runShell(cmd, timeoutSeconds = 300L) },
             )
         clineTarget = ClineTarget(clineRuntime)
+        cecliRuntime =
+            CecliRuntime(
+                runtimeDirectory = runtimeDirectory,
+                installedRuntime = { installer.installedRuntime() },
+                runShell = { cmd -> this.commandRunner.runShell(cmd, timeoutSeconds = 300L) },
+            )
+        cecliTarget = CecliTarget(cecliRuntime)
         // Codex is a child of this process, so it is cut off from the network the moment the app has
         // nothing in the foreground on some devices: hold the app there while Codex is signing in or
         // running a turn (see CodexKeepAliveService).
@@ -428,6 +441,8 @@ class AndCodeApplication : Application() {
         hermesController = HermesController(hermesRuntime, hermesTarget, installer, runtimeWork, applicationScope)
         aiderController =
             AiderController(aiderRuntime, aiderTarget, installer, runtimeWork, applicationScope)
+        cecliController =
+            CecliController(cecliRuntime, cecliTarget, installer, runtimeWork, applicationScope)
         clineController =
             ClineController(clineRuntime, clineTarget, installer, runtimeWork, applicationScope)
         runtimeMessages = AndroidLocalRuntimeMessages(this)
@@ -544,6 +559,7 @@ class AndCodeApplication : Application() {
                         hermesTarget,
                         aiderTarget,
                         clineTarget,
+                        cecliTarget,
                     ),
             )
         // Surface the installed/version state to the workspace picker without waiting for the
@@ -554,6 +570,7 @@ class AndCodeApplication : Application() {
         applicationScope.launch { hermesTarget.connect() }
         applicationScope.launch { aiderTarget.connect() }
         applicationScope.launch { clineTarget.connect() }
+        applicationScope.launch { cecliTarget.connect() }
         applicationScope.launch {
             runCatching { FreeModelsCatalog.refreshFromNetwork(httpClient) }
         }
@@ -620,6 +637,14 @@ class AndCodeApplication : Application() {
                 val openCodeInstalled = installer.installedMetadata()?.has(LocalAgent.OPEN_CODE) == true
                 if (state is RuntimeState.Connected && !openCodeInstalled) {
                     runtimeRegistry.selectIfUnset(aiderTarget.id)
+                }
+            }
+        }
+        applicationScope.launch {
+            cecliTarget.state.collect { state ->
+                val openCodeInstalled = installer.installedMetadata()?.has(LocalAgent.OPEN_CODE) == true
+                if (state is RuntimeState.Connected && !openCodeInstalled) {
+                    runtimeRegistry.selectIfUnset(cecliTarget.id)
                 }
             }
         }

@@ -1287,4 +1287,9 @@
     <string name="setup_cline_free_models_note">Keyless free models (Kilo / curated). Available without an API key.</string>
     <string name="setup_cline_local_ollama_note">Optional. Point Cline at a local OpenAI-compatible server such as Ollama on this device or LAN.</string>
     <string name="cline_installed_version">Cline %1$s</string>
+    <string name="agent_cecli_name">Cecli</string>
+    <string name="setup_agent_cecli_desc">Cecli coding agent (Python). Independent of OpenCode. Installs via pip in the local Debian runtime.</string>
+    <string name="install_step_installing_cecli">Installing Cecli…</string>
+    <string name="install_step_preparing_cecli_rootfs">Preparing Debian rootfs for Cecli…</string>
+    <string name="cecli_installed_version">Cecli %1$s</string>
 </resources>

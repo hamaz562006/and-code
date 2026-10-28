@@ -1310,4 +1310,9 @@
     <string name="agent_import_need_runtime">Install the Linux environment first</string>
     <string name="agent_package_section">Backup &amp; restore</string>
     <string name="provider_api_key_label">API key</string>
+    <string name="agent_cecli_name">Cecli</string>
+    <string name="setup_agent_cecli_desc">Cecli coding agent (Python). Independent of OpenCode. Installs via pip in the local Debian runtime.</string>
+    <string name="install_step_installing_cecli">Installing Cecli…</string>
+    <string name="install_step_preparing_cecli_rootfs">Preparing Debian rootfs for Cecli…</string>
+    <string name="cecli_installed_version">Cecli %1$s</string>
 </resources>
